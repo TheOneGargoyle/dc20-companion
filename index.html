@@ -647,7 +647,7 @@ function openDoc(i,hl){
   const dv=document.getElementById('ruleDoc');dv.classList.add('active');
   const el=document.getElementById('ruleDocBody');
   var body='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
-  body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(\s*<p><strong>Spell List)/g,'<hr class="spelldiv">$1$2');
+  body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(\s*<p><strong>(?:Spell List|Source))/g,'<hr class="spelldiv">$1$2');
   el.innerHTML=body;
   document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
   window.scrollTo(0,0);
