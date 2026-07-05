@@ -115,6 +115,8 @@ details .inner{padding:0 12px 12px}
 .mdbody ul,.mdbody ol{padding-left:22px;margin:8px 0}
 .mdbody li{margin:4px 0}
 .backbtn{position:sticky;top:0;z-index:6;display:block;width:calc(100% + 24px);margin:-10px -12px 8px;padding:14px 12px;text-align:left;background:#1b1611;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.docnav{position:sticky;top:0;z-index:6;display:flex;gap:8px;margin:-10px -12px 8px;padding:10px 12px;background:#1b1611;border-bottom:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.docnav button{flex:1;padding:12px;background:#241c14;border:1px solid var(--line);border-radius:8px}
 .charchips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch}
 .charchips button{white-space:nowrap;border-radius:999px;padding:6px 14px;font-size:14px}
 .charchips button.on{background:var(--gold);color:#1b1611;border-color:var(--gold);font-weight:700}
@@ -178,11 +180,11 @@ details .inner{padding:0 12px 12px}
     <span class="name" style="width:auto" id="spLab">SP</span>
     <button id="spMinus" onclick="chg('sp',-1)">−</button><div class="val" id="spVal"></div><button id="spPlus" onclick="chg('sp',1)">+</button>
   </div>
-  <div class="tracker" id="gritRow">
+  <div class="tracker" id="gritRow" style="justify-content:center;gap:16px">
     <span class="name">Grit</span>
     <button onclick="chg('grit',-1)">−</button><div class="val" id="gritVal"></div><button onclick="chg('grit',1)">+</button>
-    <span class="small" style="flex:1">Grit: turn a hit into a graze &amp; more</span>
   </div>
+  <div class="small" id="gritHint" style="text-align:center;margin:-2px 4px 6px">Grit — reduce damage taken, or gain ADV on a Save</div>
   <div class="tracker">
     <span class="name">AP</span>
     <div class="appips" id="apPips"></div>
@@ -269,11 +271,12 @@ details .inner{padding:0 12px 12px}
 <div class="tab" id="tab-rules">
   <div id="rulesList">
     <div class="searchbox"><input id="ruleSearch" placeholder="Search the rules… (e.g. grapple, exposed, spell duel)" oninput="doSearch(this.value)"></div>
+    <div id="ruleListBack" style="display:none;margin:8px 0"><button class="rbtn" style="width:auto" onclick="backToSheet()">↩ Back to sheet</button></div>
     <div id="searchResults"></div>
     <div id="ruleBrowse"></div>
   </div>
   <div class="docview" id="ruleDoc">
-    <button class="backbtn" onclick="closeDoc('rule')">← back to search</button>
+    <div class="docnav" id="ruleDocNav"></div>
     <div class="mdbody" id="ruleDocBody"></div>
   </div>
 </div>
@@ -358,6 +361,7 @@ function go(name){
   document.getElementById('tab-'+name).classList.add('active');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   if(name!=='gm') reblurGM();
+  curTab=name; ruleOrigin=null; var lb=document.getElementById('ruleListBack'); if(lb)lb.style.display='none';
   window.scrollTo(0,0);
 }
 
@@ -489,7 +493,7 @@ function renderParty(){
   document.getElementById('spVal').textContent=S.sp+' / '+c.sp;
   ['mpLab','mpMinus','mpVal','mpPlus'].forEach(id=>document.getElementById(id).style.display=c.mp?'':'none');
   ['spLab','spMinus','spVal','spPlus'].forEach(id=>document.getElementById(id).style.display=c.sp?'':'none');
-  document.getElementById('gritRow').style.display=c.grit?'':'none';
+  document.getElementById('gritRow').style.display=c.grit?'':'none';document.getElementById('gritHint').style.display=c.grit?'':'none';
   if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
   document.getElementById('roundNote').innerHTML=c.roundnote;
   const pips=document.getElementById('apPips');pips.innerHTML='';
@@ -586,6 +590,9 @@ function genRoll(n){
 
 /* ==================== rules search ==================== */
 function norm(s){return s.toLowerCase();}
+let curTab='tan',ruleOrigin=null,_results=[];
+function backToSheet(){go(ruleOrigin||'tan');}
+function highlightIn(el,q){const terms=String(q).toLowerCase().split(/\s+/).filter(t=>t.length>1);if(!terms.length)return;const rx=new RegExp('('+terms.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','ig');const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);const nodes=[];let n;while(n=w.nextNode())nodes.push(n);let first=null;nodes.forEach(node=>{rx.lastIndex=0;if(!rx.test(node.nodeValue))return;const span=document.createElement('span');span.innerHTML=node.nodeValue.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(rx,'<mark>$1<\/mark>');if(!first)first=span;node.parentNode.replaceChild(span,node);});if(first){const m=first.querySelector('mark')||first;setTimeout(()=>m.scrollIntoView({block:'center',behavior:'smooth'}),80);}}
 function doSearch(q){
   const res=document.getElementById('searchResults');
   const browse=document.getElementById('ruleBrowse');
@@ -609,6 +616,7 @@ function doSearch(q){
     if(score>0)scored.push([score,i]);
   }
   scored.sort((a,b)=>b[0]-a[0]);
+  _results=scored.slice(0,30).map(a=>a[1]);
   res.innerHTML='';
   scored.slice(0,30).forEach(([sc,i])=>{
     const sec=RULES_DATA[i];
@@ -617,22 +625,26 @@ function doSearch(q){
     let snip=sec.x.slice(Math.max(0,idx-40), idx+120).replace(/</g,'&lt;');
     terms.forEach(t=>{snip=snip.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>');});
     div.innerHTML='<div class="f">'+sec.f+'</div><div class="t">'+sec.t+'</div><div class="s">…'+snip+'…</div>';
-    div.onclick=()=>openDoc(i);
+    div.onclick=()=>openDoc(i,q);
     res.appendChild(div);
   });
   if(!scored.length)res.innerHTML='<div class="small" style="padding:12px">No matches for “'+q.replace(/</g,'&lt;')+'”.</div>';
 }
-function openDoc(i){
+function openDoc(i,hl){
   document.getElementById('rulesList').style.display='none';
   const dv=document.getElementById('ruleDoc');dv.classList.add('active');
-  document.getElementById('ruleDocBody').innerHTML='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
+  const el=document.getElementById('ruleDocBody');
+  el.innerHTML='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
+  document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
   window.scrollTo(0,0);
+  if(hl)highlightIn(el,hl);
 }
 function closeDoc(){
   document.getElementById('rulesList').style.display='block';
   document.getElementById('ruleDoc').classList.remove('active');
+  var lb=document.getElementById('ruleListBack');if(lb)lb.style.display=ruleOrigin?'':'none';
 }
-function searchFor(q){go('rules');document.getElementById('ruleSearch').value=q;doSearch(q);}
+function searchFor(q){var from=curTab;go('rules');ruleOrigin=(from&&from!=='rules')?from:'tan';var lb=document.getElementById('ruleListBack');if(lb)lb.style.display='';document.getElementById('ruleSearch').value=q;doSearch(q);if(_results&&_results.length)openDoc(_results[0],q);}
 /* browse list */
 (function(){
   const files={};
