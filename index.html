@@ -79,6 +79,7 @@ details .inner{padding:0 12px 12px}
 .rollout .miss{color:var(--red)}
 .rollout .dice{color:var(--dim);font-size:13px}
 .rlink{color:var(--radiant);border-bottom:1px dotted var(--radiant);cursor:pointer}
+.spelldiv{border:0;border-top:2px solid var(--radiant);opacity:.45;margin:26px 0 4px}
 .rbtn{font-size:14px;padding:9px 10px}
 .advctl{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
   border-radius:12px;padding:6px 10px;margin:8px 0}
@@ -603,7 +604,7 @@ function genRoll(n){
 function norm(s){return s.toLowerCase();}
 let curTab='tan',ruleOrigin=null,_results=[];
 function backToSheet(){go(ruleOrigin||'tan');}
-function highlightIn(el,q){q=String(q).trim();if(q.length<2)return;function esc(t){return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}function run(rx){var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);var nodes=[],n;while(n=w.nextNode())nodes.push(n);var marks=[];nodes.forEach(function(node){rx.lastIndex=0;if(!rx.test(node.nodeValue))return;var span=document.createElement('span');span.innerHTML=node.nodeValue.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(rx,'<mark>$1<\/mark>');node.parentNode.replaceChild(span,node);span.querySelectorAll('mark').forEach(function(mk){marks.push(mk);});});return marks;}var marks=run(new RegExp('(\\b'+esc(q.toLowerCase())+'\\b)','ig'));if(!marks.length){var terms=q.toLowerCase().split(/\s+/).filter(function(t){return t.length>2;}).map(esc);if(terms.length)marks=run(new RegExp('\\b('+terms.join('|')+')\\b','ig'));}if(!marks.length)return;var target=null,kk=q.toLowerCase();for(var i=0;i<marks.length;i++){var a=marks[i].closest&&marks[i].closest('strong,b,h1,h2,h3,h4,h5,h6');if(a){var tt=a.textContent.toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(tt===kk){target=marks[i];break;}}}if(!target)for(var i2=0;i2<marks.length;i2++){if(marks[i2].closest&&marks[i2].closest('strong,b,h1,h2,h3,h4,h5,h6')){target=marks[i2];break;}}if(!target)target=marks[0];setTimeout(function(){target.scrollIntoView({block:'center',behavior:'smooth'});},80);}
+function highlightIn(el,q){q=String(q).trim();if(q.length<2)return;function esc(t){return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}function run(rx){var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);var nodes=[],n;while(n=w.nextNode())nodes.push(n);var marks=[];nodes.forEach(function(node){rx.lastIndex=0;if(!rx.test(node.nodeValue))return;var span=document.createElement('span');span.innerHTML=node.nodeValue.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(rx,'<mark>$1<\/mark>');node.parentNode.replaceChild(span,node);span.querySelectorAll('mark').forEach(function(mk){marks.push(mk);});});return marks;}var marks=run(new RegExp('(\\b'+esc(q.toLowerCase())+'\\b)','ig'));if(!marks.length){var terms=q.toLowerCase().split(/\s+/).filter(function(t){return t.length>2;}).map(esc);if(terms.length)marks=run(new RegExp('\\b('+terms.join('|')+')\\b','ig'));}if(!marks.length)return;var target=null,kk=q.toLowerCase();function _exact(sel){for(var j=0;j<marks.length;j++){var a=marks[j].closest&&marks[j].closest(sel);if(a){var tt=a.textContent.toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(tt===kk)return marks[j];}}return null;}target=_exact('h1,h2,h3,h4,h5,h6')||_exact('strong,b');if(!target)for(var i2=0;i2<marks.length;i2++){if(marks[i2].closest&&marks[i2].closest('strong,b,h1,h2,h3,h4,h5,h6')){target=marks[i2];break;}}if(!target)target=marks[0];setTimeout(function(){target.scrollIntoView({block:'center',behavior:'smooth'});},80);}
 function doSearch(q){
   const res=document.getElementById('searchResults');
   const browse=document.getElementById('ruleBrowse');
@@ -645,7 +646,9 @@ function openDoc(i,hl){
   document.getElementById('rulesList').style.display='none';
   const dv=document.getElementById('ruleDoc');dv.classList.add('active');
   const el=document.getElementById('ruleDocBody');
-  el.innerHTML='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
+  var body='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
+  body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(\s*<p><strong>Spell List)/g,'<hr class="spelldiv">$1$2');
+  el.innerHTML=body;
   document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
   window.scrollTo(0,0);
   if(hl)highlightIn(el,hl);
@@ -659,7 +662,8 @@ function _esc(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function _wc(x,k){return (x.match(new RegExp('\\b'+_esc(k)+'\\b','g'))||[]).length;}
 function _boldHasWord(html,k){return new RegExp('<(strong|b|h[1-6])[^>]*>[^<]*\\b'+_esc(k)+'\\b','i').test(html);}
 function _headingHas(html,k){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{1,40})<\/(?:strong|b|h[1-6])>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
-function _home(key){var best=-1,bs=0;for(var i=0;i<RULES_DATA.length;i++){var c=_wc(RULES_DATA[i].x,key);if(!c)continue;var s=c+(_headingHas(RULES_DATA[i].h,key)?10000:0)+(_boldHasWord(RULES_DATA[i].h,key)?1000:0)-(/changelog|errata|extraction/i.test((RULES_DATA[i].t||'')+(RULES_DATA[i].f||''))?800:0);if(s>bs){bs=s;best=i;}}return best;}
+function _hHas(html,k){var re=/<h[1-6][^>]*>([^<]{1,40})<\/h[1-6]>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
+function _home(key){var best=-1,bs=0;for(var i=0;i<RULES_DATA.length;i++){var c=_wc(RULES_DATA[i].x,key);if(!c)continue;var s=c+(_hHas(RULES_DATA[i].h,key)?100000:0)+(_headingHas(RULES_DATA[i].h,key)?10000:0)+(_boldHasWord(RULES_DATA[i].h,key)?1000:0)-(/changelog|errata|extraction/i.test((RULES_DATA[i].t||'')+(RULES_DATA[i].f||''))?800:0);if(s>bs){bs=s;best=i;}}return best;}
 function _condTarget(key){for(var j=0;j<CONDSECTIONS.length;j++){var i=CONDSECTIONS[j];if(_headingHas(RULES_DATA[i].h,key))return i;}return -1;}
 function searchFor(q){var from=curTab;go('rules');ruleOrigin=(from&&from!=='rules')?from:'tan';var lb=document.getElementById('ruleListBack');if(lb)lb.style.display='';q=_clean(q);document.getElementById('ruleSearch').value=q;doSearch(q);var key=q.toLowerCase(),b=-1;if(CONDS_SET.has(key)){b=_condTarget(key);if(b<0)b=_home(key);}else{b=_home(key);}if(b>=0)openDoc(b,q);else if(_results&&_results.length)openDoc(_results[0],q);}
 /* browse list */
