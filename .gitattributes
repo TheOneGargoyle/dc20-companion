@@ -1,0 +1,14 @@
+# Force LF line endings for all text files everywhere — the repo, your local
+# clone's working tree, and the Linux GitHub Actions build all agree on LF.
+# This stops the OneDrive -> clone sync (sync-to-repo.bat) from showing
+# "changed" files that differ only by line endings (CRLF vs LF).
+* text=auto eol=lf
+ 
+# Binary files: never translate their bytes.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.ico  binary
+ 
