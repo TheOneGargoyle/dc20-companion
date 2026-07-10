@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>DC20 Companion — Shadowdale</title>
+<style>
+:root{
+  --bg:#15110d; --panel:#221b14; --panel2:#2b2219; --line:#3c3023;
+  --ink:#e8ddc8; --dim:#a3937a; --gold:#c9a45c; --radiant:#e9c46a;
+  --red:#b5533c; --green:#7fa35c; --blue:#6d94a8; --gmred:#8e2f2f;
+  --shadow:0 2px 8px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.45;
+  overscroll-behavior:none}
+button{font-family:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;font-size:15px;cursor:pointer}
+button:active{background:var(--line)}
+input,textarea,select{font-family:inherit;font-size:16px;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:8px}
+h1,h2,h3,h4{font-weight:600;line-height:1.2}
+.app{padding-bottom:64px;max-width:860px;margin:0 auto}
+.tab{display:none;padding:10px 12px 24px}
+.tab.active{display:block}
+
+/* bottom nav */
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#1b1611;
+  border-top:1px solid var(--line);z-index:50;box-shadow:0 -2px 10px rgba(0,0,0,.5)}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:7px 0 6px;font-size:11px;color:var(--dim)}
+nav button .ic{display:block;font-size:19px;line-height:1.15}
+nav button.on{color:var(--gold)}
+
+/* generic */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:12px;margin:10px 0;box-shadow:var(--shadow)}
+.card h3{margin:0 0 8px;color:var(--gold);font-size:17px}
+.small{font-size:13px;color:var(--dim)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;gap:8px}
+.pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+  border-radius:999px;padding:3px 10px;font-size:13px;margin:2px}
+.pill.on{background:var(--gmred);border-color:#c96a4a;color:#ffe9dd}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:8px 0}
+details summary{padding:10px 12px;cursor:pointer;color:var(--gold);font-size:15.5px;list-style:none}
+details summary::before{content:'▸ ';color:var(--dim)}
+details[open] summary::before{content:'▾ '}
+details .inner{padding:0 12px 12px}
+.hr{border-top:1px solid var(--line);margin:10px 0}
+.warn{background:#3a2320;border:1px solid var(--gmred);border-radius:10px;padding:8px 12px;
+  color:#f0c9b8;font-size:13.5px;margin:8px 0}
+
+/* Tan sheet */
+.tanhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;margin:4px 2px}
+.tanhead h1{margin:0;font-size:22px;color:var(--radiant)}
+.tanhead .sub{font-size:13px;color:var(--dim)}
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center}
+.stat .v{font-size:19px;color:var(--radiant);font-weight:700}
+.stat .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
+.tracker{display:flex;align-items:center;justify-content:space-between;gap:6px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:6px 0}
+.tracker .name{font-size:13px;color:var(--dim);width:34px}
+.tracker .val{font-size:22px;font-weight:700;min-width:72px;text-align:center}
+.tracker button{width:44px;height:40px;font-size:20px;padding:0}
+.tracker .tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.hpbar{height:7px;border-radius:4px;background:#3a2a20;overflow:hidden;margin:4px 0 2px}
+.hpbar div{height:100%;background:var(--green);transition:width .2s}
+.appips{display:flex;gap:8px}
+.appip{width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);background:none;padding:0;font-size:0}
+.appip.spent{background:var(--gold);opacity:.35}
+.togglebtn{font-size:13px;padding:6px 10px;border-radius:999px}
+.togglebtn.on{background:#4a3b1f;border-color:var(--gold);color:var(--radiant)}
+.rollout{background:#100d0a;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+  margin:8px 0;min-height:52px;font-size:15px}
+.rollout .big{font-size:30px;font-weight:700;color:var(--radiant)}
+.rollout .crit{color:#ffd54d;font-weight:700}
+.rollout .miss{color:var(--red)}
+.rollout .dice{color:var(--dim);font-size:13px}
+.rlink{color:var(--radiant);border-bottom:1px dotted var(--radiant);cursor:pointer}
+.spelldiv{border:0;border-top:2px solid var(--radiant);opacity:.45;margin:26px 0 4px}
+.rbtn{font-size:14px;padding:9px 10px}
+.advctl{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:6px 10px;margin:8px 0}
+.advctl .lab{min-width:86px;text-align:center;font-size:15px;color:var(--radiant)}
+.skgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.skgrid button{display:flex;justify-content:space-between;padding:8px 10px;font-size:14px}
+.skgrid button b{color:var(--radiant)}
+
+/* rules search */
+.searchbox{position:sticky;top:0;background:var(--bg);padding:12px;margin:-10px -12px 0;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.searchbox input{width:100%;padding-right:38px}
+.clrbtn{position:absolute;right:20px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--dim);font-size:18px;line-height:1;padding:4px 8px;width:auto;cursor:pointer}
+.result{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0;cursor:pointer}
+.result .t{color:var(--gold);font-size:15px}
+.result .f{font-size:11.5px;color:var(--blue)}
+.result .s{font-size:13px;color:var(--dim);margin-top:2px}
+.result .s mark{background:#5a4413;color:#ffe9b0;border-radius:2px;padding:0 1px}
+.docview{display:none}
+.docview.active{display:block}
+.mdbody{font-size:15px}
+.mdbody h1,.mdbody h2{font-size:19px;color:var(--radiant);margin:14px 0 6px}
+.mdbody h3{font-size:17px;color:var(--gold);margin:12px 0 6px}
+.mdbody h4{font-size:15.5px;color:var(--gold);margin:10px 0 4px}
+.mdbody table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0;display:block;overflow-x:auto}
+.mdbody th,.mdbody td{border:1px solid var(--line);padding:4px 7px;text-align:left}
+.mdbody th{background:var(--panel2);color:var(--gold)}
+.mdbody code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:13px}
+.mdbody blockquote{border-left:3px solid var(--gold);margin:10px 0;padding:6px 12px;color:var(--dim);
+  background:rgba(201,164,92,.06);border-radius:0 8px 8px 0;font-size:14px}
+.mdbody blockquote p{margin:4px 0}
+.mdbody a{color:var(--blue)}
+.mdbody p{margin:9px 0}
+.mdbody p:has(> strong:only-child){margin:14px 0 4px}
+.mdbody p > strong:only-child{color:var(--gold);font-size:15.5px;letter-spacing:.2px}
+.mdbody ul,.mdbody ol{padding-left:22px;margin:8px 0}
+.mdbody li{margin:4px 0}
+.backbtn{position:sticky;top:0;z-index:6;display:block;width:calc(100% + 24px);margin:-10px -12px 8px;padding:14px 12px;text-align:left;background:#1b1611;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.docnav{position:sticky;top:0;z-index:6;display:flex;gap:8px;margin:-10px -12px 8px;padding:10px 12px;background:#1b1611;border-bottom:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.45)}
+.docnav button{flex:1;padding:12px;background:#241c14;border:1px solid var(--line);border-radius:8px}
+.charchips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch}
+.charchips button{white-space:nowrap;border-radius:999px;padding:6px 14px;font-size:14px}
+.charchips button.on{background:var(--gold);color:#1b1611;border-color:var(--gold);font-weight:700}
+
+/* maps */
+.mapbox{position:relative;width:100%;height:62vh;background:#000;border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;touch-action:none;margin:8px 0}
+.mapbox img{position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none}
+.maptabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.maptabs button.on{border-color:var(--gold);color:var(--radiant)}
+
+/* GM screen */
+.gmsec{margin:8px 0}
+.blur{filter:blur(6px);cursor:pointer;position:relative}
+.blur::after{content:'👁 tap to reveal';position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;filter:none;color:transparent}
+.blurwrap{position:relative}
+.blurwrap .revealhint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:#e6b8a0;font-size:14px;z-index:2;cursor:pointer;background:rgba(20,10,8,.25);border-radius:8px}
+
+/* log */
+.logquick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0}
+.logquick button.sel{border-color:var(--radiant);color:var(--radiant);background:rgba(230,180,80,.12)}
+.logentry{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin:5px 0;font-size:14px}
+.logentry .lt{color:var(--dim);font-size:11px}
+.logentry .del{float:right;color:var(--red);background:none;border:none;font-size:14px;padding:0 4px}
+.toast{position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:#3b2f1c;
+  border:1px solid var(--gold);color:var(--radiant);padding:8px 16px;border-radius:999px;
+  font-size:14px;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ============ TAN ============ -->
+<div class="tab active" id="tab-tan">
+  <div class="charchips" id="charChips"></div>
+  <div class="tanhead">
+    <h1 id="cName"></h1>
+    <div class="sub" id="cSub"></div>
+  </div>
+
+  <div class="statgrid" id="cStats"></div>
+  <div class="small" style="text-align:center" id="defDetail"></div>
+
+  <!-- trackers -->
+  <div class="tracker">
+    <span class="name">HP</span>
+    <button onclick="chg('hp',-1)">−</button>
+    <div style="flex:1">
+      <div class="val" id="hpVal"></div>
+      <div class="hpbar"><div id="hpBar" style="width:100%"></div></div>
+      <div class="small" style="text-align:center" id="hpState">Healthy</div>
+    </div>
+    <button onclick="chg('hp',1)">+</button>
+  </div>
+  <div class="tracker" id="mpspRow" style="justify-content:center;gap:16px">
+    <span class="name" id="mpLab">MP</span>
+    <button id="mpMinus" onclick="chg('mp',-1)">−</button><div class="val" id="mpVal"></div><button id="mpPlus" onclick="chg('mp',1)">+</button>
+    <span class="name" style="width:auto" id="spLab">SP</span>
+    <button id="spMinus" onclick="chg('sp',-1)">−</button><div class="val" id="spVal"></div><button id="spPlus" onclick="chg('sp',1)">+</button>
+  </div>
+  <div class="tracker" id="gritRow" style="justify-content:center;gap:16px">
+    <span class="name">Grit</span>
+    <button onclick="chg('grit',-1)">−</button><div class="val" id="gritVal"></div><button onclick="chg('grit',1)">+</button>
+  </div>
+  <div class="small" id="gritHint" style="text-align:center;margin:-2px 4px 6px">Grit — reduce damage taken, or gain ADV on a Save</div>
+  <div class="tracker">
+    <span class="name">AP</span>
+    <div class="appips" id="apPips"></div>
+    <button style="width:auto;font-size:13px;padding:6px 10px" onclick="newRound()">New turn</button>
+  </div>
+  <div class="small" style="margin:2px 4px;color:var(--dim)">AP resets to 4 at the <b>end of your turn</b>; AP spent on Reactions between your turns comes out of your next turn's pool.</div>
+  <div class="small" style="margin:2px 4px" id="roundNote"></div>
+
+  <div class="row" style="margin:8px 0" id="togRow"></div>
+
+  <div class="card">
+    <h3>Conditions</h3>
+    <div id="condRow"></div>
+  </div>
+
+  <!-- roller -->
+  <div class="card">
+    <h3>Roll</h3>
+    <div class="advctl">
+      <button onclick="advStep(-1)">−</button>
+      <div class="lab" id="advLab">Normal</div>
+      <button onclick="advStep(1)">+</button>
+      <span class="small" style="flex:1">ADV/DisADV stack (cancel 1:1)</span>
+      <input id="tgtDef" type="number" inputmode="numeric" placeholder="vs Def" style="width:74px">
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr" id="rollGrid"></div>
+    <div class="rollout" id="rollOut"><span class="small">Tap a button. Set “vs Def” to auto-grade Hit / Heavy / Brutal.</span></div>
+    <div class="small">Bench: at +5 vs an equal-level foe you hit on 8+ (65%), Heavy on 13+, crit on 20. Crit = auto-hit, +2 dmg, bypasses DR. Heavy +1 / Brutal +2 / every +5 beyond adds +1.</div>
+  </div>
+
+  <div class="card">
+    <h3>Skills &amp; Trades</h3>
+    <div class="skgrid" id="skGrid"></div>
+    <div class="small" style="margin-top:6px" id="skNote"></div>
+  </div>
+
+
+  <div id="tanAccordions"></div>
+</div>
+
+<!-- ============ DICE ============ -->
+<div class="tab" id="tab-dice">
+  <h2 style="color:var(--radiant)">Dice</h2>
+  <div class="card">
+    <div class="row">
+      <label class="small">Count</label>
+      <button onclick="dCount(-1)">−</button><span id="diceCount" style="font-size:18px;min-width:24px;text-align:center">1</span><button onclick="dCount(1)">+</button>
+      <label class="small">Drop</label>
+      <button onclick="dDrop(-1)">−</button><span id="diceDrop" style="font-size:18px;min-width:24px;text-align:center">0</span><button onclick="dDrop(1)">+</button>
+      <label class="small">Mod</label>
+      <input id="diceMod" type="number" inputmode="numeric" value="0" style="width:64px">
+    </div>
+    <div class="advctl" style="margin-top:8px">
+      <button onclick="gAdvStep(-1)">−</button>
+      <div class="lab" id="gAdvLab">Normal</div>
+      <button onclick="gAdvStep(1)">+</button>
+      <span class="small" style="flex:1">ADV/DisADV applies to d20</span>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:8px">
+      <button class="rbtn" onclick="genRoll(4)">d4</button>
+      <button class="rbtn" onclick="genRoll(6)">d6</button>
+      <button class="rbtn" onclick="genRoll(8)">d8</button>
+      <button class="rbtn" onclick="genRoll(10)">d10</button>
+      <button class="rbtn" onclick="genRoll(12)">d12</button>
+      <button class="rbtn" onclick="genRoll(20)">d20</button>
+      <button class="rbtn" onclick="genRoll(100)">d100</button>
+      <button class="rbtn" onclick="document.getElementById('diceHist').innerHTML=''">Clear</button>
+    </div>
+    <div class="small" style="margin-top:8px">Presets</div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
+      <button class="rbtn" onclick="preset(1,20,0,0,0)">d20</button>
+      <button class="rbtn" onclick="preset(1,20,0,1,0)">d20 ADV</button>
+      <button class="rbtn" onclick="preset(1,20,0,-1,0)">d20 DisADV</button>
+      <button class="rbtn" onclick="preset(2,6,0,0,0)">2d6</button>
+      <button class="rbtn" onclick="preset(3,6,0,0,0)">3d6</button>
+      <button class="rbtn" onclick="preset(4,6,0,0,1)">4d6 drop 1</button>
+    </div>
+    <div class="rollout" id="diceOut"><span class="small">Roll something. ADV/DisADV applies to d20.</span></div>
+    <div id="diceHist"></div>
+  </div>
+</div>
+
+<!-- ============ RULES ============ -->
+<div class="tab" id="tab-rules">
+  <div id="rulesList">
+    <div class="searchbox"><input id="ruleSearch" placeholder="Search the rules… (e.g. grapple, exposed, spell duel)" oninput="doSearch(this.value)"><button class="clrbtn" onclick="clearRuleSearch()" aria-label="Clear search">✕</button></div>
+    <div id="ruleListBack" style="display:none;margin:8px 0"><button class="rbtn" style="width:auto" onclick="backToSheet()">↩ Back to sheet</button></div>
+    <div id="searchResults"></div>
+    <div id="ruleBrowse"></div>
+  </div>
+  <div class="docview" id="ruleDoc">
+    <div class="docnav" id="ruleDocNav"></div>
+    <div class="mdbody" id="ruleDocBody"></div>
+  </div>
+</div>
+
+<!-- ============ HOUSE RULES ============ -->
+<div class="tab" id="tab-house">
+  <h2 style="color:var(--radiant)">House Rules &amp; Conventions</h2>
+  <div class="small" style="margin:-4px 4px 10px">Our table's conventions &amp; handy references, alongside the DC20 0.10.5 rules.</div>
+  <div class="card"><h3>Always round up</h3>
+  Any fraction rounds up, always. <span class="small">Official in DC20, but the rulebook only states it inside an example (the standalone rule looks to have been dropped between versions), so we call it out explicitly.</span></div>
+  <div class="card"><h3>Sense Magic (broader than RAW)</h3>
+  By the book, Sense Magic detects specific creature-types within 20 Spaces via a Spell Check. At our table it senses <b>magic generally</b> (creatures, items, and effects), with loose, GM-driven adjudication (sometimes via an Awareness check instead of a Spell Check).</div>
+  <div class="card"><h3>Design-math rules of thumb</h3>
+  <span class="small">From the DC20 devs' behind-the-scenes design notes (relayed via Darryl), for judging spends &amp; encounters.</span><br>
+  <b>1 MP = 2 SP = 2 AP.</b><br>
+  <b>~6 rounds/day</b> (≈ 2 combats × 3 rounds).<br>
+  <b>1 Talent = 1 Class Feature = 4 Ancestry Points = 8 AP/day.</b><br>
+  <b>~65% to-hit</b> between equal-level combatants (a +5 attack hits on 8+, Heavy 13+, crit 20).</div>
+  <div class="card"><h3>Free rebuild on ruleset updates</h3>
+  Every new DC20 version, <b>all PCs get a free full rebuild</b> to realign with the new rules. Keep each character's identity stable; make the minimum tweaks needed. Maneuvers and spells change the most.</div>
+</div>
+
+<!-- ============ ABOUT ============ -->
+<div class="tab" id="tab-about">
+  <h2 style="color:var(--radiant)">About this app</h2>
+  <div class="card">
+    An <b>unofficial, fan-made</b> companion built for our own home DC20 campaign — a personal, non-commercial tool for use at our table. It is not affiliated with, endorsed by, or associated with The Dungeon Coach or DC20.
+  </div>
+  <div class="card">
+    The DC20 game rules referenced here are created by <b>The Dungeon Coach</b> (Alan Bjorkgren) and are being released under the <b>Open RPG Creative (ORC) License</b>. DC20 is in beta (this app tracks v0.10.5) and still evolving — please refer to the official sources for the authoritative and current rules, and consider supporting the game directly.
+  </div>
+  <div class="card">
+    <b>Links</b><br>
+    <a href="https://thedungeoncoach.com/pages/dc20" target="_blank" rel="noopener">DC20 official page</a><br>
+    <a href="https://paizo.com/orclicense" target="_blank" rel="noopener">Open RPG Creative (ORC) License</a><br>
+    <a href="https://www.kickstarter.com/projects/thedungeoncoach/dc20" target="_blank" rel="noopener">DC20 on Kickstarter</a>
+  </div>
+</div>
+
+<!-- ============ GM ============ -->
+<div class="tab" id="tab-gm">
+  <div class="warn">🛡 <b>GM screen.</b> Content stays blurred until tapped, and re-blurs whenever you leave this tab. Angle the phone away anyway.</div>
+  <div id="gmSecs"></div>
+</div>
+
+<!-- ============ LOG ============ -->
+<div class="tab" id="tab-log">
+  <h2 style="color:var(--radiant)">Session log</h2>
+  <div class="logquick">
+    <button onclick="quickLog(this,'🔍 Clue')">🔍 Clue</button>
+    <button onclick="quickLog(this,'👤 NPC')">👤 NPC</button>
+    <button onclick="quickLog(this,'💰 Loot')">💰 Loot</button>
+    <button onclick="quickLog(this,'⚔ Combat')">⚔ Combat</button>
+    <button onclick="quickLog(this,'⚖ Ruling')">⚖ Ruling</button>
+    <button onclick="quickLog(this,'💬 Quote')">💬 Quote</button>
+  </div>
+  <div class="row">
+    <input id="logText" placeholder="Note… (tap a tag above, then Add)" style="flex:1" onkeydown="if(event.key==='Enter')addLog()">
+    <button onclick="addLog()">Add</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button onclick="copyLog()">📋 Copy all (paste back to Claude after the session)</button>
+    <button onclick="clearLog()" style="color:var(--red)">Clear</button>
+  </div>
+  <div id="logList"></div>
+</div>
+
+</div><!-- app -->
+
+<nav>
+  <button class="on" data-tab="tan" onclick="go('tan')"><span class="ic">⚔️</span>Party</button>
+  <button data-tab="dice" onclick="go('dice')"><span class="ic">🎲</span>Dice</button>
+  <button data-tab="rules" onclick="go('rules')"><span class="ic">📖</span>Rules</button>
+  <button data-tab="house" onclick="go('house')"><span class="ic">📜</span>House</button>
+  <button data-tab="gm" onclick="go('gm')"><span class="ic">🛡️</span>GM</button>
+  <button data-tab="log" onclick="go('log')"><span class="ic">📝</span>Log</button>
+  <button data-tab="about" onclick="go('about')"><span class="ic">ℹ️</span>About</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================== injected data ==================== */
+const RULES_DATA = __RULES_DATA__;
+const GM_DATA = __GM_DATA__;
+var RULE_CORPUS=' '+RULES_DATA.map(function(r){return r.x||'';}).join(' ').replace(/[^a-z0-9 '’\/-]+/g,' ').replace(/\s+/g,' ')+' ';
+function _clean(t){return String(t).replace(/\s*\(.*$/,'').replace(/[:;].*$/,'').replace(/\s+/g,' ').trim();}
+function _corpusHas(k){return RULE_CORPUS.indexOf(' '+k+' ')>=0;}
+function _hasCost(t){return /\([^)]*\b(?:MP|AP|SP)\b/i.test(t);}
+function _linkable(name){if(!name||name.length<4)return false;var c0=name.charAt(0);if(c0===c0.toLowerCase())return false;var k=name.toLowerCase();if(CONDS_SET.has(k))return true;return (k.indexOf(' ')>=0)?_corpusHas(k):DEFINED.has(k);}
+function _mk(disp,name){return '<span class="rlink" data-q="'+_clean(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+disp+'<\/span>';}
+function linkifyTerms(html){return String(html)
+  .replace(/<b>([^<]{3,40})<\/b>/g,function(m,inner){var nm=_clean(inner);if(_hasCost(inner)&&nm.indexOf(' ')<0)return m;return _linkable(nm)?'<b>'+_mk(inner,nm)+'<\/b>':m;})
+  .replace(/<h3>([^<]{3,48}?)(\s*)(<span|<\/h3>)/g,function(m,name,ws,tail){return _linkable(_clean(name))?'<h3>'+_mk(name.trim(),name)+ws+tail:m;});}
+const TAN_ACCORDIONS = __TAN_ACCORDIONS__;
+
+/* ==================== storage (graceful) ==================== */
+const mem = {};
+function sget(k,d){ try{const v=localStorage.getItem('dc20_'+k); return v===null?d:JSON.parse(v);}catch(e){return k in mem?mem[k]:d;} }
+function sset(k,v){ mem[k]=v; try{localStorage.setItem('dc20_'+k,JSON.stringify(v));}catch(e){} }
+
+/* ==================== toast ==================== */
+let toastT;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1800);}
+
+/* ==================== tabs ==================== */
+function go(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+  if(name!=='gm') reblurGM();
+  curTab=name; ruleOrigin=null; var lb=document.getElementById('ruleListBack'); if(lb)lb.style.display='none';
+  window.scrollTo(0,0);
+}
+
+/* ==================== Party engine ==================== */
+const CONDS=['Exposed','Hindered','Impaired','Dazed','Taunted','Prone','Bleeding','Poisoned','Charmed','Frightened','Grappled','Stunned'];
+const CONDS_SET=new Set(CONDS.map(function(c){return c.toLowerCase();}));
+const _STOP=new Set(['same','each','both','more','move','hit','turn','target','attack','damage','with','when','your','this','that','from','into','also','next','once','they','their','then','than','only','used','gain','give','make','take','have']);
+const DEFINED=new Set();(function(){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{2,40})<\/(?:strong|b|h[1-6])>/ig,m;for(var i=0;i<RULES_DATA.length;i++){var s=RULES_DATA[i].h;re.lastIndex=0;while(m=re.exec(s)){var t=m[1].replace(/[:.,;]+$/,'').toLowerCase().trim();if(t&&t.indexOf(' ')<0&&t.length>=4&&!_STOP.has(t))DEFINED.add(t);}}})();
+const CONDSECTIONS=(function(){var a=[];for(var i=0;i<RULES_DATA.length;i++)if((RULES_DATA[i].t||'').toLowerCase()==='conditions')a.push(i);return a;})();
+const CHARS={
+tan:{short:'Tan',name:'Tanrielle Sablethorn',
+ sub:'“Moraeg” · Half-elf Spellblade (Paladin) · <b>L4</b> · CM 2 · Player: Darryl',
+ hp:14,mp:6,sp:3,grit:0,pd:17,ad:12,
+ stats:[['+5','Attack'],['15','Save DC'],['+5','Initiative'],['6','Move'],['3','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'hide',l:'Primal Hide',pd:2},{k:'loh',l:'Lay on Hands 1/LR',rest:true},{k:'lt',l:'Life Tap 1/LR',rest:true},{k:'pf',l:'Patron’s Favor 1/rd',round:true}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[5,'Initiative','⚡ Init +5'],[4,'Might Save','Mig Save +4'],[5,'Agility Save','Agi Save +5'],[5,'Int Save','Int Save +5'],[0,'Charisma Save','Cha Save +0'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',7],['Herbalism',7],['Athletics',4],['Acrobatics',5],['Stealth',5],['Medicine',5],['Survival',5],['Arcana',5],['Nature',5],['Gaming',5],['Brewing',5],['Cooking',5]],
+ sknote:'Languages: Common, Elvish. Cha −2 and no social skills — that’s deliberate: assist, don’t lead (see Player craft).',
+ roundnote:'New turn: AP→4, Patron’s Favor resets. <b>Stamina Regen</b> (errata): once/round after a Bound-Weapon hit, Spell Check, or Weapon-tag spell → regain up to <b>2 SP</b>. SP refills fully at combat end.',
+ roundtoast:' Patron’s Favor back. Remember SP regen (2).',
+ audit:'',acc:'TAN'},
+min:{short:'Minimus',name:'Minimus Conductrix',
+ sub:'Halfling (Kitsune) Commander (Warlord) · <b>L4</b> · CM 2 · Player: Kristian',
+ hp:14,mp:6,sp:3,grit:5,pd:13,ad:14,
+ stats:[['+5','Attack'],['15','Save DC'],['+4','Initiative'],['5','Move'],['2','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'wf',l:'Kitsune Wild Form',onl:'🦊 KITSUNE FORM — PD/AD 13 · 3 HP · Mv 6 · Acro/Athl +3',def:false}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[4,'Initiative','⚡ Init +4'],[2,'Might Save','Mig Save +2'],[4,'Agility Save','Agi Save +4'],[2,'Int Save','Int Save +2'],[5,'Charisma Save','Cha Save +5'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',5],['Influence',5],['Insight',5],['Acrobatics',4],['Survival',2],['History',2],['Nature',2],['Disguise',5],['Gaming',5],['Theatre',5]],
+ sknote:'Languages: Common, Halfling; Dwarven &amp; Orcish (limited). <i>Skill values inferred from the sheet’s mastery ticks — the number boxes are blank.</i>',
+ roundnote:'New turn: AP→4. <b>Commander’s Call</b> 1 AP + 1 SP — grant an ally an action. Helm telepathy: range 10, no need to see/hear the target.',
+ roundtoast:'',
+ audit:'📋 Audit: HP 14 (class 14 + Mig 0) ✓, MP 6 (Caster path ×2) ✓, SP 3 ✓, PD 13 / MD 14 (incl. Defensive Light Armour +1/+1) ✓ vs the Commander table. Skill numbers computed from ticks (blank on sheet).',
+ acc:''},
+runt:{short:'Runt',name:'Runt Muckle',
+ sub:'Giantborn (ogre, dwarf-raised) Warlock (Eldritch) · <b>L4</b> · CM 2 · Player: Phil',
+ hp:16,mp:9,sp:2,grit:1,pd:17,ad:12,
+ stats:[['+5','Attack'],['15','Save DC'],['+2','Initiative'],['5','Move'],['1','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'hide',l:'Primal Hide (morning cast)',pd:2},{k:'lt',l:'Life Tap 1/combat',rest:true},{k:'db',l:'Desperate Bargain 1/combat',rest:true},{k:'brute',l:'Brute 1/combat',rest:true},{k:'sb',l:'Strong Body 1/combat',rest:true},{k:'fk',l:'Forbidden Knowledge 1/SR',rest:true}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[2,'Initiative','⚡ Init +2'],[5,'Might Save','Mig Save +5'],[2,'Agility Save','Agi Save +2'],[5,'Int Save','Int Save +5'],[1,'Charisma Save','Cha Save +1'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',5],['Athletics',7],['Intimidation',5],['Arcana',5],['History',5],['Nature',5],['Occultism',5],['Religion',5],['Survival',5],['Acrobatics',2],['Masonry',5],['Cooking',5],['Leatherwork',2]],
+ sknote:'Languages: Common, Dwarf, Deep Speech. <i>Survival &amp; Acrobatics values inferred from ticks.</i> PDR (Half) from the ancestral armour; MDR from Pact Armor.',
+ roundnote:'New turn: AP→4. <b>Stamina regen — 2 triggers, max 1 benefit/round</b> (corrected 2026-07-04, Martial Expansion): use a <b>Spell Enhancement</b>, or <b>succeed on Athletics/Acrobatics or Hit with a Martial Attack</b> (Monk regen) → regain up to 1 SP (half max). Casting <i>and</i> wrestling turns both self-fuel. <b>Hasty Bargain:</b> 1 HP → ADV on a check, 1/turn. <b>Eldritch Bargain:</b> 1 HP to switch an attack between PD/AD.',
+ roundtoast:'',
+ audit:'📋 Audit: HP 16 ✓ (class 12 + Mig 3 + Tough 1). SP 2 = Martial path ×2 ✓. PD per Phil’s worked note (16 base; 17 with Guard staff; +2 more w/ Primal Hide). <b>MP 9 ✓</b> (L1 +6, L3 +3; the sheet’s 8 was a previous-version value — confirmed 2026-07-04, update the paper sheet). Maneuvers 8 ✓ (Pact Weapon 2 + Pact Armor 2 + Martial path ×2 + <b>Martial Expansion 2</b> — confirmed 2026-07-04; the talent also gives Monk SP-regen + Heavy Armor/Shield training). Second Talent slot: contents TBC with Phil (minor).',
+ acc:''},
+scale:{short:'Scaletrix',name:'Scaletrix D’Nandrews',
+ sub:'“Scalectrix McQueen” (sheet) · Dragonborn/Fiend Druid (Phoenix) · <b>L4</b> · CM 2 · Player: Damo',
+ hp:13,mp:17,sp:0,grit:4,pd:13,ad:15,
+ stats:[['+5','Attack'],['15','Save DC'],['+3','Initiative'],['5','Move'],['1','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'bw',l:'Draconic Breath',rest:true},{k:'sb2',l:'Second Breath',rest:true},{k:'ff',l:'Fiery Form',onl:'🔥 FIERY FORM active',def:false}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[3,'Initiative','⚡ Init +3'],[6,'Might Save','Mig Save +6'],[4,'Agility Save','Agi Save +4'],[2,'Int Save','Int Save +2'],[5,'Charisma Save','Cha Save +5'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',5],['Athletics',5],['Animal',6],['Nature',1],['Disguise',4],['Cartography',2],['Herbalism',1]],
+ sknote:'Languages: Common, Draconic; Infernal (limited). Saves include the Amulet of Minor General Resilience (+1 to all Saves). Radiant &amp; Umbral Weakness (fiend).',
+ roundnote:'New turn: AP→4. <b>Druid Domain:</b> 1 AP + 1 MP (Nature’s Grasp, Wild Growth). <b>Nature’s Torrent:</b> 1 AP Reaction, 3×3 — Vulnerability (1), DisADV vs moved/Prone. Meta Magic: Quickened / Vicious.',
+ roundtoast:'',
+ audit:'📋 Audit: <b>MP 17 ✓ RESOLVED</b> (2026-07-03) = class 9 + Spellcaster Path ×2 (+6) + Fiend Mana Increase (+1) + Innate Power (+1). Spells ✓ = 10 (5 class + 2 path + 2 Intuitive Magic + 1 Fiend Arcane) — the sheet’s “Spells (8)” header is a miscount. Sheet’s Level box still says 3 but HP/features read L4 ✓ (13 = class 10 + Mig 3). Innate Power also grants a <b>free 1-pt Focus Property</b>, changeable each Long Rest — is it assigned? (Channeling +1 Spell Checks is the damage pick.) Wild Form ✓ standard Druid L1 in 0.10.5 (earlier flag withdrawn) — but <b>no Spells or Ancestry Traits while transformed</b> (no Fireball, no Breath in form). <b>Second Breath = twice per combat</b>, not per round. Bloodied shown 7/4 (DC20 rounds up; sheet had 6/3). See 13_scaletrix_build.md.',
+ acc:''},
+bonan:{short:'Bonan',name:'Bonan O’Cryin',
+ sub:'“Meltor the Magnificent” · Halfling (Beastborn) Barbarian (Elemental Fury — Fire) · <b>L4</b> · CM 2 · Player: Ed',
+ hp:17,mp:3,sp:4,grit:5,pd:9,ad:18,
+ stats:[['+5','Attack'],['15','Save DC'],['+2','Initiative'],['6','Move'],['6','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'rage',l:'Rage (1 AP + 1 SP, 1 min)',onl:'😡 RAGING — PD −5 · half Phys/Elem dmg · +1 melee dmg',pd:-5,def:false},{k:'bob',l:'Burst of Bravery',rest:true},{k:'band',l:'Bandolier of Unrelenting 1/day',rest:true}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[2,'Initiative','⚡ Init +2'],[5,'Might Save','Mig Save +5'],[2,'Agility Save','Agi Save +2'],[1,'Int Save','Int Save +1'],[5,'Charisma Save','Cha Save +5'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',5],['Athletics',5],['Intimidation',7],['Influence',5],['Insight',5],['Animal',3]],
+ sknote:'Trades (values blank on sheet): Brewing, Cooking, Musician, Tinkering. Languages: Common, Halfling. Misc: +2 Regard with the Marquis.',
+ roundnote:'New turn: AP→4. <b>Berserker:</b> free 2-Space move immediately before a melee attack. <b>Battlecry</b> 1 AP + 1 SP, 10 Spaces: Fortitude / Fury / Urgent Shout. <b>Titan Grip (raging):</b> 2H weapons one-handed → dual-wield mace + glaive; 2nd attack with the <i>other</i> weapon <b>ignores MCP</b> (1/turn).',
+ roundtoast:'',
+ audit:'📋 Audit: HP 17 ✓ (class 14 + Mig 3). SP 4 ✓ (class 3 + Martial path). PD 9 ✓ unarmored (8 + CM 2 + Agi 0 + Int −1); <b>drops to 4 while Raging</b> (Rage −5, offset by Resistance Half Phys/Elem). <b>MD 18 ✓ resolved</b> = 16 + Berserker Defense +2 AD (unarmored). Jump: Mighty Leap keys Jump off Might (3) + Titanic Leap (+1) = 4; sheet says 6 — ask Ed. Sheet lists maneuver <b>Recovery, which isn’t in the 0.10.5 rules</b> — see 12_bonan_build.md (suggest Heroic Taunt).',
+ acc:''},
+xan:{short:'Xanwyn',name:'Xanwyn',
+ sub:'Elvan Clandestine Alchemist · Spellblade (Rune Knight) · <b>L4</b> · CM 2 · Player: Jesse',
+ hp:13,mp:6,sp:3,grit:2,pd:17,ad:13,
+ stats:[['+5','Attack'],['15','Save DC'],['+5','Initiative'],['5','Move'],['3','Jump'],['2','MSL / SSL']],
+ toggles:[{k:'hide',l:'Primal Hide',pd:2},{k:'imbue',l:'Umbral Imbue (Sustained)',onl:'🗡 Umbral Imbue — Bound Weapon +1 Umbral',def:false},{k:'lt',l:'Life Tap 1/LR',rest:true},{k:'ss',l:'Signature School −1 MP (1/LR + Init)',rest:true},{k:'rune',l:'Rune: WATER — Wave (Smite→Prone) · Healing Waters (+1 HP on MP heals)',onl:'🔥 Rune: FLAME — Scorching (Smite→Burning) · Hearth (+2 RP on Short Rest)',def:false}],
+ rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[5,'Initiative','⚡ Init +5'],[1,'Might Save','Mig Save +1'],[5,'Agility Save','Agi Save +5'],[5,'Int Save','Int Save +5'],[2,'Charisma Save','Cha Save +2'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
+ skills:[['Awareness',5],['Acrobatics',5],['Trickery',5],['Stealth',7],['Investigation',5],['Arcana',7],['Streetwise',5],['Alchemy',5],['Lockpick',5],['Engineering',5]],
+ sknote:'Languages: Common, Elvan, Fey. Prowler: ADV on Stealth in darkness · Darkvision 10 · Keen Sense (vision) · Climb Speed + Spider Climb.',
+ roundnote:'New turn: AP→4. <b>Spellstrike:</b> once/turn, Martial Attack + Spell as one action (−1 AP). <b>Stamina Regen:</b> once/round on a Spell-Attack hit or Spell Check success → regain up to <b>2 SP</b>. <b>Blink Blade:</b> 1/turn, teleport 1 Space right before or after an Attack. <b>Smite:</b> X SP → +X Bound dmg + a free Martial Enhancement (Rune rider triggers on Smite).',
+ roundtoast:' Remember SP regen (2).',
+ audit:'📋 Audit: HP 13 ✓ (class 12 + Mig −1 + Amulet of Health +2). MP 6 ✓ (class 5 + Magus). SP 3 ✓ (class 1 + Martial path ×2). Spells 5 ✓ (2 class + Magus + Spell School Initiate ×2; all legal in Null/Invoc/Transmutation). Maneuvers 4 ✓. Attribute pts 13 ✓ (12 + L3). Ancestry 7 pts ✓ (5 + L4’s 2: Elf 3 + Beast 4). Defenses ✓ (Darryl’s catch): PD 17 = 8 + CM 2 + Agi 3 + Int 3 + <b>Guard short sword +1</b>; AD 13 = 9 base + Fortified armour +2 + Light Shield +2 (matches the sheet’s misc note). Note: the Shield Table (restored 2026-07-04) has no PD 0 / AD +2 Light Shield — Light Shields cap at +1 AD (double AD Increase is Heavy-only) — so the +2 AD shield is a GM item or house call. Jesse’s call.',
+ acc:''}
+};
+let cur=sget('curchar','tan');
+if(!(cur in CHARS))cur='tan';
+let S=null;
+function defState(c){const t={};c.toggles.forEach(x=>{t[x.k]=x.def!==undefined?x.def:true;});
+  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,ap:4,t:t,conds:[]};}
+function loadS(){const c=CHARS[cur];S=sget('cstate_'+cur,null);
+  if(!S&&cur==='tan'){const o=sget('tanstate',null);
+    if(o){S={hp:o.hp,mp:o.mp,sp:o.sp,grit:0,ap:o.ap,t:{hide:!!o.hide,loh:!!o.loh,lt:!!o.lt,pf:!!o.pf},conds:o.conds||[]};}}
+  if(!S)S=defState(c);
+  c.toggles.forEach(x=>{if(!(x.k in S.t))S.t[x.k]=x.def!==undefined?x.def:true;});
+  saveS();}
+function saveS(){sset('cstate_'+cur,S);}
+function pickChar(k){cur=k;sset('curchar',k);loadS();renderParty();}
+function chg(k,d){const c=CHARS[cur];const lo=k==='hp'?-5:0;
+  const hi={hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit}[k];
+  S[k]=Math.max(lo,Math.min(hi,S[k]+d));saveS();renderParty();}
+function tog(k){S.t[k]=!S.t[k];saveS();renderParty();}
+function newRound(){const c=CHARS[cur];S.ap=4;c.toggles.forEach(x=>{if(x.round)S.t[x.k]=true;});
+  saveS();renderParty();toast('New turn — 4 AP.'+(c.roundtoast||''));}
+function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
+  if('hide' in S.t && keep!==undefined)S.t.hide=keep;
+  saveS();renderParty();toast('Long Rest: everything restored.');}
+function togCond(x){const i=S.conds.indexOf(x);if(i>=0)S.conds.splice(i,1);else S.conds.push(x);saveS();renderParty();}
+function curPD(){const c=CHARS[cur];let pd=c.pd;c.toggles.forEach(x=>{if(x.pd&&S.t[x.k])pd+=x.pd;});return pd;}
+function renderParty(){
+  const c=CHARS[cur];
+  const chips=document.getElementById('charChips');chips.innerHTML='';
+  Object.keys(CHARS).sort((a,b)=>CHARS[a].short.localeCompare(CHARS[b].short)).forEach(k=>{const b=document.createElement('button');
+    b.textContent=CHARS[k].short;if(k===cur)b.className='on';
+    b.onclick=()=>pickChar(k);chips.appendChild(b);});
+  document.getElementById('cName').textContent=c.name;
+  document.getElementById('cSub').innerHTML=c.sub;
+  const pd=curPD();
+  let sg='<div class="stat"><div class="v" id="pdVal">'+pd+'</div><div class="l">'+(pd>c.pd?'PD (buffed)':pd<c.pd?'PD (raging)':'PD')+'</div></div>'+
+         '<div class="stat"><div class="v">'+c.ad+'</div><div class="l">AD</div></div>';
+  c.stats.forEach(([v,l])=>{sg+='<div class="stat"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';});
+  document.getElementById('cStats').innerHTML=sg;
+  document.getElementById('defDetail').innerHTML='PD: Heavy '+(pd+5)+' · Brutal '+(pd+10)+' &nbsp;|&nbsp; AD: Heavy '+(c.ad+5)+' · Brutal '+(c.ad+10);
+  const hp=S.hp,bl=Math.ceil(c.hp/2),wb=Math.ceil(c.hp/4);
+  document.getElementById('hpVal').textContent=hp+' / '+c.hp;
+  document.getElementById('hpBar').style.width=Math.max(0,hp/c.hp*100)+'%';
+  document.getElementById('hpBar').style.background=hp<=0?'#7a2d2d':hp<=wb?'var(--red)':hp<=bl?'#c98a3c':'var(--green)';
+  let st='Healthy';
+  if(hp<=-5)st='☠ DEAD (−5)';
+  else if(hp<0)st='☠ Death’s Door ('+hp+' of −5)';
+  else if(hp===0)st='☠ Death’s Door (0)';
+  else if(hp<=wb)st='Well-Bloodied';
+  else if(hp<=bl)st='Bloodied';
+  document.getElementById('hpState').textContent=st;
+  document.getElementById('mpVal').textContent=S.mp+' / '+c.mp;
+  document.getElementById('spVal').textContent=S.sp+' / '+c.sp;
+  ['mpLab','mpMinus','mpVal','mpPlus'].forEach(id=>document.getElementById(id).style.display=c.mp?'':'none');
+  ['spLab','spMinus','spVal','spPlus'].forEach(id=>document.getElementById(id).style.display=c.sp?'':'none');
+  document.getElementById('gritRow').style.display=c.grit?'':'none';document.getElementById('gritHint').style.display=c.grit?'':'none';
+  if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
+  document.getElementById('roundNote').innerHTML=c.roundnote;
+  const pips=document.getElementById('apPips');pips.innerHTML='';
+  for(let i=0;i<4;i++){const b=document.createElement('button');b.className='appip'+(i>=S.ap?' spent':'');
+    b.onclick=()=>{S.ap=(i>=S.ap)?i+1:i;saveS();renderParty();};pips.appendChild(b);}
+  const tr=document.getElementById('togRow');tr.innerHTML='';
+  c.toggles.forEach(x=>{const b=document.createElement('button');
+    b.className='togglebtn'+(S.t[x.k]?' on':'');
+    b.textContent=S.t[x.k]?(x.onl||('● '+x.l+(x.pd?' (+'+x.pd+' PD)':''))):('○ '+x.l);
+    b.onclick=()=>tog(x.k);tr.appendChild(b);});
+  const lr=document.createElement('button');lr.className='togglebtn';lr.textContent='☀ Long Rest reset';
+  lr.onclick=restReset;tr.appendChild(lr);
+  const cr=document.getElementById('condRow');cr.innerHTML='';
+  CONDS.forEach(x=>{const s=document.createElement('span');s.className='pill'+(S.conds.includes(x)?' on':'');
+    s.textContent=x;s.onclick=()=>togCond(x);cr.appendChild(s);});
+  const rg=document.getElementById('rollGrid');rg.innerHTML='';
+  c.rolls.forEach(([mod,label,txt])=>{const b=document.createElement('button');b.className='rbtn';b.textContent=txt;
+    b.onclick=()=>{if(mod==='d8')rollDie(8,label);else roll(mod,label);};rg.appendChild(b);});
+  const sk=document.getElementById('skGrid');sk.innerHTML='';
+  c.skills.forEach(([n,m])=>{const b=document.createElement('button');
+    b.innerHTML=n+' <b>+'+m+'</b>';
+    b.onclick=()=>{roll(m,n);window.scrollTo({top:document.getElementById('rollOut').offsetTop-140,behavior:'smooth'});};
+    sk.appendChild(b);});
+  document.getElementById('skNote').innerHTML=c.sknote;
+  document.getElementById('tanAccordions').innerHTML=linkifyTerms((c.acc==='TAN')?TAN_ACCORDIONS:c.acc);
+}
+function initParty(){loadS();renderParty();var ta=document.getElementById('tanAccordions');if(ta)ta.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('.rlink'):null;if(t)searchFor(t.getAttribute('data-q'));});}
+
+/* ==================== d20 roller ==================== */
+let adv=0;
+function advStep(d){adv=Math.max(-3,Math.min(3,adv+d));
+  document.getElementById('advLab').textContent = adv===0?'Normal':(adv>0?'ADV '+adv:'DisADV '+(-adv));}
+function d(n){return 1+Math.floor(Math.random()*n);}
+function roll(mod,label){
+  const n=1+Math.abs(adv);
+  const dice=[];for(let i=0;i<n;i++)dice.push(d(20));
+  const kept = adv>=0?Math.max(...dice):Math.min(...dice);
+  const total=kept+mod;
+  const nat20=kept===20, nat1=kept===1;
+  let html='<div><b>'+label+'</b> <span class="dice">['+dice.join(', ')+'] keep '+kept+(mod?(mod>0?' +':' ')+mod:'')+'</span></div>';
+  html+='<span class="big">'+total+'</span>';
+  if(nat20)html+=' <span class="crit">NAT 20 — CRIT! auto-hit, +2 dmg, bypasses DR</span>';
+  if(nat1)html+=' <span class="miss">nat 1</span>';
+  const defEl=document.getElementById('tgtDef');
+  const def=parseInt(defEl.value);
+  if(!isNaN(def)&&(label==='Attack'||label==='Spell Check')){
+    const over=total-def;
+    if(over<0&&!nat20)html+='<div class="miss">Miss vs '+def+'</div>';
+    else{
+      const o=Math.max(0,over);
+      const bonus=Math.floor(o/5)+(nat20?2:0);
+      let tier = o>=15?'Beyond Brutal':o>=10?'Brutal Hit':o>=5?'Heavy Hit':'Hit';
+      if(nat20&&over<0)tier='Hit (crit auto-hit)';
+      html+='<div style="color:var(--green)"><b>'+tier+'</b> vs '+def+' → bonus dmg +'+bonus+(nat20?' (incl. crit +2)':'')+'</div>';
+    }
+  }
+  document.getElementById('rollOut').innerHTML=html;
+}
+function rollDie(n,label){
+  const v=d(n);
+  document.getElementById('rollOut').innerHTML='<div><b>'+label+'</b></div><span class="big">'+v+'</span>';
+}
+
+/* generic dice tab */
+let dc=1, gadv=0, ddrop=0;
+function dCount(x){dc=Math.max(1,Math.min(20,dc+x));document.getElementById('diceCount').textContent=dc;if(ddrop>dc-1){ddrop=Math.max(0,dc-1);document.getElementById('diceDrop').textContent=ddrop;}}
+function dDrop(x){ddrop=Math.max(0,Math.min(Math.max(0,dc-1),ddrop+x));document.getElementById('diceDrop').textContent=ddrop;}
+function gAdvStep(x){gadv=Math.max(-3,Math.min(3,gadv+x));document.getElementById('gAdvLab').textContent=gadv===0?'Normal':(gadv>0?'ADV +'+gadv:'DisADV '+gadv);}
+function preset(cnt,sides,mod,a,drop){dc=cnt;document.getElementById('diceCount').textContent=dc;ddrop=drop;document.getElementById('diceDrop').textContent=ddrop;gadv=a;document.getElementById('gAdvLab').textContent=gadv===0?'Normal':(gadv>0?'ADV +'+gadv:'DisADV '+gadv);document.getElementById('diceMod').value=mod;genRoll(sides);}
+function critSpan(v,n){var st=v===n?' style="color:#ffd54d;font-weight:700"':(v===1?' style="color:var(--red)"':'');return '<span'+st+'>'+v+'</span>';}
+function genRoll(n){
+  const mod=parseInt(document.getElementById('diceMod').value)||0;
+  const out=document.getElementById('diceOut');const h=document.getElementById('diceHist');
+  let sum,detail,label;
+  const mtxt=mod?(mod>0?' +'+mod:' '+mod):'';const mlbl=mod?(mod>0?'+'+mod:''+mod):'';
+  if(n===20&&gadv!==0){
+    const k=Math.abs(gadv)+1;const dice=[];for(let i=0;i<k;i++)dice.push(d(20));
+    const kept=gadv>0?Math.max.apply(null,dice):Math.min.apply(null,dice);
+    sum=kept+mod;
+    detail=(gadv>0?'ADV':'DisADV')+' d20 ['+dice.map(function(v){return critSpan(v,20);}).join(', ')+'] keep '+kept+mtxt;
+    label=(gadv>0?'d20 ADV':'d20 DisADV')+mlbl;
+  }else{
+    const rolls=[];for(let i=0;i<dc;i++)rolls.push(d(n));
+    const nd=Math.min(ddrop,dc-1);
+    const kept=rolls.slice().sort(function(a,b){return a-b;}).slice(nd);
+    sum=kept.reduce(function(a,b){return a+b;},0)+mod;
+    detail=dc+'d'+n+(nd?' drop '+nd:'')+mtxt+' → ['+rolls.map(function(v){return critSpan(v,n);}).join(', ')+']';
+    label=dc+'d'+n+(nd?'-drop'+nd:'')+mlbl;
+  }
+  out.innerHTML='<div class="dice">'+detail+'</div><span class="big">'+sum+'</span>';
+  const e=document.createElement('div');e.className='small';e.textContent=label+' = '+sum;
+  h.prepend(e);while(h.children.length>12)h.removeChild(h.lastChild);
+}
+
+/* ==================== rules search ==================== */
+function norm(s){return s.toLowerCase();}
+let curTab='tan',ruleOrigin=null,_results=[];
+function backToSheet(){go(ruleOrigin||'tan');}
+function highlightIn(el,q){q=String(q).trim();if(q.length<2)return;function esc(t){return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}function run(rx){var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);var nodes=[],n;while(n=w.nextNode())nodes.push(n);var marks=[];nodes.forEach(function(node){rx.lastIndex=0;if(!rx.test(node.nodeValue))return;var span=document.createElement('span');span.innerHTML=node.nodeValue.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(rx,'<mark>$1<\/mark>');node.parentNode.replaceChild(span,node);span.querySelectorAll('mark').forEach(function(mk){marks.push(mk);});});return marks;}var marks=run(new RegExp('(\\b'+esc(q.toLowerCase())+'\\b)','ig'));if(!marks.length){var terms=q.toLowerCase().split(/\s+/).filter(function(t){return t.length>2;}).map(esc);if(terms.length)marks=run(new RegExp('\\b('+terms.join('|')+')\\b','ig'));}if(!marks.length)return;var target=null,kk=q.toLowerCase();function _exact(sel){for(var j=0;j<marks.length;j++){var a=marks[j].closest&&marks[j].closest(sel);if(a){var tt=a.textContent.toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(tt===kk)return marks[j];}}return null;}target=_exact('h1,h2,h3,h4,h5,h6')||_exact('strong,b');if(!target)for(var i2=0;i2<marks.length;i2++){if(marks[i2].closest&&marks[i2].closest('strong,b,h1,h2,h3,h4,h5,h6')){target=marks[i2];break;}}if(!target)target=marks[0];setTimeout(function(){target.scrollIntoView({block:'center',behavior:'smooth'});},80);}
+function doSearch(q){
+  const res=document.getElementById('searchResults');
+  const browse=document.getElementById('ruleBrowse');
+  q=q.trim();
+  if(q.length<2){res.innerHTML='';browse.style.display='block';return;}
+  browse.style.display='none';
+  const terms=norm(q).split(/\s+/).filter(t=>t.length>1);
+  const scored=[];
+  for(let i=0;i<RULES_DATA.length;i++){
+    const sec=RULES_DATA[i];
+    let score=0;
+    const tl=norm(sec.t), xl=sec.x; // x pre-lowercased
+    for(const t of terms){
+      if(tl.includes(t))score+=12;
+      if(tl.startsWith(t))score+=6;
+      let idx=xl.indexOf(t), cnt=0;
+      while(idx>=0&&cnt<20){cnt++;idx=xl.indexOf(t,idx+1);}
+      score+=Math.min(cnt,8);
+      if(cnt===0&&!tl.includes(t)){score=-999;break;}
+    }
+    if(score>0)scored.push([score,i]);
+  }
+  scored.sort((a,b)=>b[0]-a[0]);
+  _results=scored.slice(0,30).map(a=>a[1]);
+  res.innerHTML='';
+  scored.slice(0,30).forEach(([sc,i])=>{
+    const sec=RULES_DATA[i];
+    const div=document.createElement('div');div.className='result';
+    const idx=sec.x.indexOf(norm(terms[0]));
+    let snip=sec.x.slice(Math.max(0,idx-40), idx+120).replace(/</g,'&lt;');
+    terms.forEach(t=>{snip=snip.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>');});
+    div.innerHTML='<div class="f">'+sec.f+'</div><div class="t">'+sec.t+'</div><div class="s">…'+snip+'…</div>';
+    div.onclick=()=>openDoc(i,q);
+    res.appendChild(div);
+  });
+  if(!scored.length)res.innerHTML='<div class="small" style="padding:12px">No matches for “'+q.replace(/</g,'&lt;')+'”.</div>';
+}
+function openDoc(i,hl){
+  document.getElementById('rulesList').style.display='none';
+  const dv=document.getElementById('ruleDoc');dv.classList.add('active');
+  const el=document.getElementById('ruleDocBody');
+  var body='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
+  body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(\s*<p><strong>(?:Spell List|Source))/g,'<hr class="spelldiv">$1$2');
+  el.innerHTML=body;
+  document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
+  window.scrollTo(0,0);
+  if(hl)highlightIn(el,hl);
+}
+function closeDoc(){
+  document.getElementById('rulesList').style.display='block';
+  document.getElementById('ruleDoc').classList.remove('active');
+  var lb=document.getElementById('ruleListBack');if(lb)lb.style.display=ruleOrigin?'':'none';
+}
+function _esc(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function _wc(x,k){return (x.match(new RegExp('\\b'+_esc(k)+'\\b','g'))||[]).length;}
+function _boldHasWord(html,k){return new RegExp('<(strong|b|h[1-6])[^>]*>[^<]*\\b'+_esc(k)+'\\b','i').test(html);}
+function _headingHas(html,k){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{1,40})<\/(?:strong|b|h[1-6])>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
+function _hHas(html,k){var re=/<h[1-6][^>]*>([^<]{1,40})<\/h[1-6]>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
+function _home(key){var best=-1,bs=0;for(var i=0;i<RULES_DATA.length;i++){var c=_wc(RULES_DATA[i].x,key);if(!c)continue;var s=c+(_hHas(RULES_DATA[i].h,key)?100000:0)+(_headingHas(RULES_DATA[i].h,key)?10000:0)+(_boldHasWord(RULES_DATA[i].h,key)?1000:0)-(/changelog|errata|extraction/i.test((RULES_DATA[i].t||'')+(RULES_DATA[i].f||''))?800:0);if(s>bs){bs=s;best=i;}}return best;}
+function _condTarget(key){for(var j=0;j<CONDSECTIONS.length;j++){var i=CONDSECTIONS[j];if(_headingHas(RULES_DATA[i].h,key))return i;}return -1;}
+function clearRuleSearch(){var i=document.getElementById('ruleSearch');if(i){i.value='';doSearch('');i.focus();}}
+function searchFor(q){var from=curTab;go('rules');ruleOrigin=(from&&from!=='rules')?from:'tan';var lb=document.getElementById('ruleListBack');if(lb)lb.style.display='';q=_clean(q);document.getElementById('ruleSearch').value=q;doSearch(q);var key=q.toLowerCase(),b=-1;if(CONDS_SET.has(key)){b=_condTarget(key);if(b<0)b=_home(key);}else{b=_home(key);}if(b>=0)openDoc(b,q);else if(_results&&_results.length)openDoc(_results[0],q);}
+/* browse list */
+(function(){
+  const files={};
+  RULES_DATA.forEach((s,i)=>{(files[s.f]=files[s.f]||[]).push(i);});
+  const bx=document.getElementById('ruleBrowse');
+  let html='<div class="hr"></div><div class="small">Or browse:</div>';
+  for(const f in files){
+    html+='<details><summary>'+f+' <span class="small">('+files[f].length+')</span></summary><div class="inner">';
+    files[f].forEach(i=>{html+='<div class="result" onclick="openDoc('+i+')"><div class="t">'+RULES_DATA[i].t+'</div></div>';});
+    html+='</div></details>';
+  }
+  bx.innerHTML=html;
+})();
+
+/* ==================== GM screen ==================== */
+(function(){
+  const box=document.getElementById('gmSecs');
+  GM_DATA.forEach((file,fi)=>{
+    let html='<details class="gmsec"><summary>🛡 '+file.f+'</summary><div class="inner">';
+    file.secs.forEach((s,si)=>{
+      html+='<details><summary>'+s.t+'</summary><div class="inner blurwrap">'+
+        '<div class="revealhint" onclick="reveal(this)">👁 tap to reveal</div>'+
+        '<div class="mdbody gmbody" style="filter:blur(7px)">'+s.h+'</div></div></details>';
+    });
+    html+='</div></details>';
+    box.innerHTML+=html;
+  });
+})();
+function reveal(hint){hint.style.display='none';hint.nextElementSibling.style.filter='none';}
+function reblurGM(){
+  document.querySelectorAll('.gmbody').forEach(el=>el.style.filter='blur(7px)');
+  document.querySelectorAll('.revealhint').forEach(el=>el.style.display='flex');
+  document.querySelectorAll('#gmSecs details').forEach(el=>el.open=false);
+}
+
+/* ==================== log ==================== */
+let LOG=sget('sessionlog',[]);
+function renderLog(){
+  const l=document.getElementById('logList');l.innerHTML='';
+  LOG.slice().reverse().forEach((e,ri)=>{
+    const i=LOG.length-1-ri;
+    const div=document.createElement('div');div.className='logentry';
+    div.innerHTML='<button class="del" onclick="delLog('+i+')">✕</button><span class="lt">'+e.t+'</span><br>'+e.m.replace(/</g,'&lt;');
+    l.appendChild(div);
+  });
+}
+function stamp(){const n=new Date();return n.toLocaleDateString()+' '+n.toTimeString().slice(0,5);}
+let LOGTAG='';
+function quickLog(btn,tag){ /* chips select a type for the pending note (2026-07-05 UX rework) */
+  const was=btn.classList.contains('sel');
+  document.querySelectorAll('.logquick button').forEach(b=>b.classList.remove('sel'));
+  LOGTAG=was?'':tag;
+  if(!was)btn.classList.add('sel');
+}
+function addLog(){const inp=document.getElementById('logText');const v=inp.value.trim();
+  if(!v&&!LOGTAG)return;
+  LOG.push({t:stamp(),m:(LOGTAG?LOGTAG+(v?' — ':''):'')+v});
+  inp.value='';LOGTAG='';document.querySelectorAll('.logquick button').forEach(b=>b.classList.remove('sel'));
+  sset('sessionlog',LOG);renderLog();}
+function delLog(i){LOG.splice(i,1);sset('sessionlog',LOG);renderLog();}
+function clearLog(){if(confirm('Clear the whole session log?')){LOG=[];sset('sessionlog',LOG);renderLog();}}
+function copyLog(){
+  const txt=LOG.map(e=>'- ['+e.t+'] '+e.m).join('\n');
+  const done=()=>toast('Copied '+LOG.length+' entries');
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,()=>fallbackCopy(txt,done));}
+  else fallbackCopy(txt,done);
+}
+function fallbackCopy(txt,done){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);
+  ta.select();try{document.execCommand('copy');done();}catch(e){prompt('Copy manually:',txt);}document.body.removeChild(ta);}
+
+/* ==================== party accordions ==================== */
+CHARS.min.acc=`
+<details open><summary>Maneuvers (3) &amp; Spells (2)</summary><div class="inner">
+<div class="card"><h3>Maneuvers</h3><b>Volley</b> — ranged multi-shot line for the Arcane Crossbow.<br><b>Parry</b> — Reaction, protect PD.<br><b>Heroic Taunt</b> — force attention onto him (and away from the squishy).</div>
+<div class="card"><h3>Spells</h3><b>Grease</b> — area control, knock ’em down.<br><b>Close Wounds</b> — the party’s backup heal.<br><span class="small">Spell Check +5. MP 6 from Caster path ×2.</span></div>
+</div></details>
+<details><summary>Commander features</summary><div class="inner">
+<div class="card"><h3>Command suite</h3><b>Commander’s Call</b> (1 AP + 1 SP) — order an ally to Attack, Move or Dodge on his turn.<br><b>Inspiring Presence</b> — heals/morale on his terms.<br><b>Commanding Aura</b> — the buff bubble.<br><b>Warlord (subclass):</b> Morale Breaker · Battlefield Tactics · Priority Target.<br><b>Coordinated Command</b> (L4 talent) — multi-ally orders.</div>
+<div class="card"><h3>Kitsune Wild Form <span class="small">(L2 talent)</span></h3>Small Beast · 3 HP · PD/AD 13 · Move 6 · Jump 3 as Minor Action · Acrobatics &amp; Athletics +3 · (+2 Trait Pts/MP).</div>
+<div class="card"><h3>Ancestry</h3>Halfling: Beast Whisperer, Deft Footwork, Halfling Bravery, Halfling Endurance, Small-Sized. Beast: Keen Sense (Sight), Darkvision, Sprint.</div>
+</div></details>
+<details><summary>Gear &amp; magic items</summary><div class="inner">
+<div class="card"><b>Commander’s Helm of Telepathy</b> — the party channel: range 10, no need to see/hear the target.<br><b>Arcane Crossbow</b> — light crossbow, Arcane ammo, no reload (3P, 15/45, Deft, 2H).<br><b>Longpole</b> — 1B, Guard, Impact, Reach 1.<br><b>Defensive Light Armour</b> (+1 PD, +1 AD).<br><b>Pearl of Water Breathing</b> <span class="small">(01 ledger)</span>.<br>Short sword, 5× daggers, long staff, adventuring pack.</div>
+</div></details>`;
+CHARS.runt.acc=`
+<details open><summary>Spells (6) &amp; maneuvers (8)</summary><div class="inner">
+<div class="card"><h3>Spells <span class="small">(Elemental · Invocation · Nullification)</span></h3><b>Lightning Torrent</b> · <b>Heal</b> · <b>Vampiric Touch</b> · <b>Wild Guard</b> · <b>Psychic Imbued</b> (the +1 on his weapons) · <b>Tendrils from Beyond</b>.</div>
+<div class="card"><h3>Maneuvers</h3>Attack: <b>Cleave</b>, <b>Pathcarver</b>.<br>Defence: <b>Brace</b>, <b>Side Step</b> <span class="small">(the defensive pair rides Pact Armor)</span>.<br>General: <b>Slam</b>, <b>Body Block</b>, <b>Throw Creature</b>, <b>Heroic Intimidate</b>.</div>
+</div></details>
+<details><summary>Warlock features &amp; daily routine</summary><div class="inner">
+<div class="card"><h3>Bargains</h3><b>Hasty Bargain</b> — 1 HP → ADV on a check, 1/turn.<br><b>Desperate Bargain</b> — 1 AP → heal +Prime, become Exposed UEYNT, 1/combat.<br><b>Life Tap</b> — spend HP instead of MP.<br><b>Eldritch Bargain</b> — 1 HP: switch an attack between PD and AD.<br><b>Forbidden Knowledge</b> — each rest, borrow any spell 1× at −2 MP.</div>
+<div class="card"><h3>Daily routine <span class="small">(from the sheet)</span></h3><b>Start of day:</b> Forbidden Knowledge → Primal Hide, Duration-enhanced 8 hrs → +2 PD (the toggle above).<br><b>Each short rest:</b> Forbidden Knowledge → Imbue, no-Sustain → +1 dmg on martial attacks.<br><b>Pact Weapon</b> (staff, Powerful focus: +1 spell dmg) &amp; <b>Pact Armor</b> (+1 PD, MDR, +2 defence maneuvers) — summon/dismiss as Minor.</div>
+<div class="card"><h3>Giantborn traits</h3>Powerful Build (Large: ADV to grapple, escapees at DisADV) · Brute (1/combat shove/grapple as Minor) · Strong Body (1/combat reduce attack damage by Prime) · Titanic Toss · Mighty Hurl · Tough · Unyielding Movement · Heavy Riser (4 move to stand).</div>
+</div></details>
+<details><summary>Gear &amp; magic items</summary><div class="inner">
+<div class="card"><b>Ancestral Dwarven Heavy Armor</b> — +2 PD, PDR (Half).<br><b>Steadfast Boots</b> — Reaction: reduce forced movement by 3.<br><b>Brass Knuckles</b> — 1B, Impact, Concealable (ADV on first attack/creature), free hand while grappling. <span class="small">(The old “+1 vs grappled” rider is retired — previous-version rules.)</span><br><b>Pact Staff</b> — 1B, 2H, Guard, Reach, Impact, +1 psychic imbue.<br><span class="small">01 ledger also lists a <b>Staff of Lightning</b> (Spellcasting 2; Lightning spells gain Impact) — not on the sheet; confirm which is current.</span></div>
+</div></details>`;
+CHARS.scale.acc=`
+<details open><summary>Spells (10 listed)</summary><div class="inner">
+<div class="card"><h3>Primal</h3><b>Wild Guard</b> · <b>Primal Hide</b> · <b>Fireball</b> · <b>Fire Bolt</b> · <b>Regenerate</b>.</div>
+<div class="card"><h3>Arcane</h3><b>Command</b> · <b>Disintegrating Beam</b> · <b>Gravity Well</b> · <b>Dispel Magic</b> · <b>Telekinesis</b>.<br><span class="small">Staff: Powerful (+1 dmg on all spells), Impact. Meta Magic: Quickened / Vicious.</span></div>
+</div></details>
+<details><summary>Druid &amp; Phoenix features</summary><div class="inner">
+<div class="card"><h3>Druid</h3><b>Druid Domain</b> — 1 AP + 1 MP: Nature’s Grasp, Wild Growth (the “king of lockdown” engine).<br><b>Nature’s Torrent</b> — 1 AP Reaction, 3×3 area: Vulnerability (1), DisADV vs moved or Prone.<br><b>Wild Speech</b> — talk to animals.</div>
+<div class="card"><h3>Phoenix (subclass)</h3><b>Fiery Form</b> · <b>Cleansing Flames</b> · <b>Rolling Wild Fire</b> · Fire Within (flavour).</div>
+<div class="card"><h3>Ancestry</h3>Dragonborn (Fire): Draconic Breath Weapon, Second Breath, Concussive Breath. Redemption Fiend: Darkvision, Mana Increase, Arcane spell access, Radiant &amp; Umbral Weakness.</div>
+<div class="card"><h3>Wild forms <span class="small">(canon, pre-0.10.5?)</span></h3>Owl, falcon, wolf, worg, horse, fox — per the 01 roster, but <i>not on the 0.10.5 sheet</i>. Confirm with Damo whether Druid Domain replaced them in the rebuild.</div>
+</div></details>
+<details><summary>Gear &amp; magic items</summary><div class="inner">
+<div class="card"><b>Druidic Light Armour +1</b> (+3 PD total).<br><b>Mage Staff of Impact</b> — Powerful, Impact.<br><b>Amulet of Minor General Resilience</b> — +1 to all Saves.<br><span class="small">01 ledger also lists a <b>Wand of Impact</b>.</span></div>
+</div></details>`;
+CHARS.bonan.acc=`
+<details open><summary>Maneuvers (4) &amp; Spells (3)</summary><div class="inner">
+<div class="card"><h3>Maneuvers</h3><b>Whirlwind</b> — hit everything adjacent.<br><b>Side Step</b> — Reaction, attacker gets DisADV.<br><b>Heroic Intimidate</b> — weaponised Intimidation +7.<br><b>Recovery</b> — self-heal maneuver.</div>
+<div class="card"><h3>Spells <span class="small">(MC Bard — Auditory expression)</span></h3><b>Command</b> · <b>Charm</b> · <b>Frost Bolt</b>.<br><span class="small">Remarkable Repertoire talent: +2 skill pts, 2 spells. The angry musician casts by playing.</span></div>
+</div></details>
+<details><summary>Barbarian features</summary><div class="inner">
+<div class="card"><h3>Rage &amp; Berserker</h3><b>Rage</b> — 1 AP + 1 SP, 1 minute (~6 rounds).<br><b>Berserker</b> — move 2 Spaces free immediately before a melee attack.<br><b>Unfathomable Strength</b> (L4 talent) — while raging, wield 2H weapons in one hand.</div>
+<div class="card"><h3>Battlecry <span class="small">(1 AP + 1 SP, 10 Spaces, until your next turn)</span></h3><b>Fortitude Shout</b> — allies get Resistance (1) vs next Physical/Elemental damage.<br><b>Fury Shout</b> — allies deal +1 damage on their next Attack vs 1 target.<br><b>Urgent Shout</b> — allies gain +1 Speed.</div>
+<div class="card"><h3>Elemental Fury — Fire</h3><b>Elemental Affinity</b> · <b>Elemental Blast</b> · <b>Erupting Elements</b>.</div>
+<div class="card"><h3>Ancestry</h3>Halfling: Beast Insight, Burst of Bravery, Beast Whisperer, Deft Footwork, Halfling Bravery/Endurance, Small-Sized. Beastborn: <b>Jumper</b> (Jump as Minor) &amp; <b>Strong Jumper</b> (no run-up needed) — the Jump 6.</div>
+</div></details>
+<details><summary>Gear &amp; magic items</summary><div class="inner">
+<div class="card"><b>Baleful Black Iron Mace</b> — 2B, 2H, Heavy, Impact; target can’t regain HP until your next turn.<br><b>Heavy Glaive</b> — 2S, 2H, Heavy, Reach, Impact.<br><b>Hand Axe</b> — 1S, Concealable, Toss (5/10).<br><b>Bandolier of Unrelenting</b> <span class="small">(01 ledger)</span> — drop to 1 HP instead of Death’s Door (the toggle above).</div>
+</div></details>`;
+
+CHARS.xan.acc=`
+<details open><summary>Spells (5) &amp; Maneuvers (4)</summary><div class="inner">
+<div class="card"><h3>Spells <span class="small">(Nullification · Invocation · Transmutation + Weapon/Ward tags)</span></h3><b>Umbral Imbued</b> — Bound Weapon +1 Umbral (the Round-1 cast).<br><b>Primal Hide</b> — +2 PD (the toggle above).<br><b>Vampiric Touch</b> — Umbral drain.<br><b>Death Bolt</b> — Umbral bolt.<br><b>Regenerate</b> — sustained healing.<br><span class="small">Signature School (Transmutation): −1 MP, once per Long Rest, back on Initiative.</span></div>
+<div class="card"><h3>Maneuvers</h3><b>Swift Strike</b> — extra fast attack.<br><b>Cleave</b> · <b>Pathcarver</b> — multi-target/mobile attack lines.<br><b>Resolve</b> — defensive save maneuver.</div>
+</div></details>
+<details><summary>Spellblade &amp; Rune Knight features</summary><div class="inner">
+<div class="card"><h3>Bound Weapon <span class="small">(Light Weight Short Sword)</span></h3><b>Smite</b> — X SP → +X Bound dmg + 1 free Martial Enhancement.<br><b>Somatic Weapon</b> — cast through the blade.<br><b>Illuminate</b> · <b>Recall</b> (20 Spaces, free).</div>
+<div class="card"><h3>Disciplines</h3><b>Magus</b> — +1 MP, +1 spell.<br><b>Blink Blade</b> — 1/turn, teleport 1 Space immediately before or after an Attack.</div>
+<div class="card"><h3>Rune Weapon <span class="small">(1 rune at a time; swap on Quick Rest — the toggle above)</span></h3><b>Flame:</b> Scorching — Smite → Physical Save or Burning · Hearth — +2 Rest Points on Short Rest after combat.<br><b>Water:</b> Wave — Smite → Physical Save or Prone · Healing Waters — +1 HP whenever an MP effect heals you.</div>
+<div class="card"><h3>Ancestry &amp; flavour</h3>Elf: Nimble, Peerless Sight. Beast: Climb Speed, Spider Climb, Darkvision 10, Keen Sense (vision), Prowler, Small-Sized.<br>Underworld Connections · Sense Magic (1 min, 20 Spc) · Rune Expert.</div>
+<div class="card"><h3>Jesse’s round crib <span class="small">(from the sheet)</span></h3>R1: cast Umbral Imbue, Move (or gain ADV), Attack (Swift Strike), Nimble.<br>R2+: Move (or other), Attack +ADV, Nimble.<br>Damage stack: Base 1 + Imbue 1 + Smite 1 + Power Attack 1 + Spellstrike 1 = <b>5</b> (+2 if Heavy).</div>
+</div></details>
+<details><summary>Gear &amp; magic items</summary><div class="inner">
+<div class="card"><b>Light Weight Short Sword</b> — 1S, Impact, Guard, Toss (5/10).<br><b>Fortified Light Armour</b> (+2 AD) · <b>Light Shield</b> (see audit).<br><b>Amulet of Health</b> — +2 HP.<br><b>Ring of Fire Resist (1)</b>.<br>Lockpicks · Tinker tools · Alchemical tools.</div>
+</div></details>`;
+
+initParty();renderLog();advStep(0);
+</script>
+</body>
+</html>
