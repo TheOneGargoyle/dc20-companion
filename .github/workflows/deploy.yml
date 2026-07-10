@@ -15,9 +15,9 @@
 #
 # The published output is companion-src/build.py's player edition only
 # (assemble(gm=False)) written to dist/index.html.
- 
+
 name: Deploy Companion
- 
+
 on:
   push:
     branches: [main]
@@ -28,36 +28,36 @@ on:
       - "builds/**"          # future: build.py will bake party stats from the ledgers
       - ".github/workflows/deploy.yml"
   workflow_dispatch:          # allow a manual run from the Actions tab
- 
+
 # Least-privilege token: read the repo, write Pages, mint the deploy OIDC token.
 permissions:
   contents: read
   pages: write
   id-token: write
- 
+
 # Never let two deploys race; a newer push supersedes an in-flight one.
 concurrency:
   group: pages
   cancel-in-progress: true
- 
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
- 
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
- 
+
       - name: Install build dependency
         run: pip install markdown
- 
+
       - name: Build the player Companion
         run: python3 companion-src/build.py dist/index.html
- 
+
       - name: Guard - output is complete and player-safe
         run: |
           set -e
@@ -73,15 +73,15 @@ jobs:
             echo "::error::embedded image data found in player build - aborting deploy"; exit 1
           fi
           echo "Guards passed: $(du -h dist/index.html | cut -f1) build, ends in </html>, no GM/map leak."
- 
+
       - name: Disable Jekyll processing
         run: touch dist/.nojekyll
- 
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
- 
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -92,4 +92,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
- 
