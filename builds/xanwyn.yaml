@@ -1,0 +1,89 @@
+# Build ledger: Xanwyn Andaaras. Sources: builds/sources/Xanwyn_LevelUp_Summary.txt,
+# 14_xanwyn_build.md, sheet validated 2026-07-04.
+schema: 1
+ruleset: "DC20 0.10.5"
+character: "Xanwyn Andaaras"
+player: Jesse
+class: Spellblade
+subclass: "Rune Knight (Flame + Water runes)"
+ancestry: "Elvan (Elf + Beast trait lists)"
+background: "Clandestine Alchemist"
+current_level: 4
+
+chargen:
+  attribute_method: point_buy
+  attributes: {might: -1, agility: 3, charisma: -1, intelligence: 3}
+  # Point buy: M-1=1, A3=5, C-1=1, I3=5 = 12. L3 point assumed Charisma -1->0 (final C0). ASK JESSE
+  # (alternative: Might -2->-1 route).
+  ancestry_traits:
+    - {name: Nimble, source: Elf, cost: 2}
+    - {name: Peerless Sight, source: Elf, cost: 1}
+    - {name: Climb Speed, source: Beast, cost: 1}
+    - {name: Spider Climb, source: Beast, cost: 1}
+    - {name: Darkvision, source: Beast, cost: 1}
+    - {name: Small-Sized, source: Beast, cost: -1}
+    # Total 5 = L1 budget; Prowler + Keen Sense = the L4 spend (budget-inferred; Phil's summary
+    # noted the L4 points were "folded into the list", the budget confirms 2 pts of it are L4).
+  spell_schools: [Nullification, Invocation]
+  class_choices:
+    - {slot: bound_weapon_options, picks: [Smite, Somatic Weapon, Illuminate, Recall]}
+    - {slot: spellblade_disciplines, picks: [Magus, Blink Blade], grants: {mp: 1, spells: 1},
+       note: "Magus: +1 MP, +1 Spell (unlike Tan, Xanwyn's Magus is an L1 pick)"}
+  spells: [Umbral Imbued, Vampiric Touch]
+  maneuvers: [Swift Strike]
+  combat_training: [Weapons, Spell Focuses, Light Armor, Light Shields]
+
+levels:
+  2:
+    - {slot: class_feature, pick: Spellstrike}
+    - {slot: path, pick: Martial}
+    - {slot: talent, pick: "Spell School Initiate: Transmutation", grants: {spells: 2},
+       note: "School Magic = 2 Arcane spells from the school; Signature School = -1 MP once/rest (classes.md l.3526+)"}
+    - {slot: maneuver, pick: Resolve, inferred: true, source: "Martial path rank 1"}
+    - {slot: spell, pick: "Death Bolt + Regenerate (the 2 SSI picks; timing/order inferred)", inferred: true}
+  3:
+    - {slot: subclass, pick: "Rune Knight (Flame + Water)"}
+    - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed. ASK JESSE."}
+    - {slot: spell, pick: Primal Hide, inferred: true, source: "Magus +1 spell (timing inferred)"}
+    - {slot: maneuver, pick: Pathcarver, inferred: true, source: "class table +1"}
+  4:
+    - {slot: talent, pick: Life Tap, note: "HP in place of MP, 1/Long Rest, regain on Initiative"}
+    - {slot: path, pick: Martial}
+    - {slot: ancestry_trait, pick: Prowler, source: Beast, cost: 1, inferred: true}
+    - {slot: ancestry_trait, pick: "Keen Sense (Vision)", source: Beast, cost: 1, inferred: true}
+    - {slot: maneuver, pick: Cleave, inferred: true, source: "Martial path rank 2"}
+
+skills:
+  allocation_confidence: inferred
+  masteries:
+    Awareness: {mastery: Novice}
+    Acrobatics: {mastery: Novice}
+    Trickery: {mastery: Novice}
+    Stealth: {mastery: Adept, limit_raise: skill_point_purchase}
+    Investigation: {mastery: Novice}
+trades:
+  masteries:
+    Arcana: {mastery: Adept, limit_raise: trade_point_purchase}
+    Streetwise: {mastery: Novice}
+    Alchemy: {mastery: Novice}
+    Lockpick: {mastery: Novice}
+    Engineering: {mastery: Novice}
+  knowledge_trades: [Arcana]
+languages:
+  - {name: Common, fluency: Fluent, cost: 0}
+  - {name: Elvan, fluency: Fluent, cost: 2}
+  - {name: Fey, fluency: Limited, cost: 1}
+
+equipment:
+  - {name: Light Shield, ad: 2, mods: "sheet +2 AD; per the restored Shield Table (09, confirmed vs page image 2026-07-04) NO light shield reaches +2 AD RAW (AD Increase x2 is Heavy-only) - GM item or house call, needs Jesse (09). Defenses reconcile with it as-is."}
+  - {name: Fortified Light Armour, pd: 0, ad: 2, mods: "Fortified = AD Increase x2 (+2 AD, +0 PD) per the restored Armor Examples table"}
+  - {name: Light Weight Short Sword, pd: 1, mods: "Impact, Guard (+1 PD while wielding = the off-by-one Darryl caught 2026-07-04), Toss 5/10"}
+  - {name: Amulet of Health, mods: "+2 HP (worn)"}
+  - {name: Fire Resist trinket, mods: "Resist 1 (worn)"}
+  - {name: "Lockpicks, tinker tools, alchemical tools"}
+
+expected: {hp: 11, sp: 3, mp: 6, spells: 5, maneuvers: 4, grit: 2, attack: 5, save_dc: 15, initiative: 5, pd: 17, ad: 13}
+# hp 11 = base; sheet shows 11+2 with the Amulet of Health (equipment overlay).
+
+notes:
+  - "Spell attribution: 2 L1 + 1 Magus + 2 Spell School Initiate = 5. The '01 Sculpting-vs-Engineering' nit remains in 09 fact-checks."

@@ -1,0 +1,45 @@
+# CURATED cross-cutting cost list — spell-school membership for the Spellblade access model.
+# Source: rules/spells.md "Spells sorted by Schools" section (l.332-519). The Spellblade "draws
+# magic from Spell Schools" (classes.md l.2834), so this school-flattened list is the right one —
+# NO magic-source tracking is needed for the Spellblade (that §11 wrinkle only bites source-drawing
+# classes like Cleric/Druid). tools/catalog_verify.py re-parses that section and asserts these lists
+# match the source.
+#
+# Access rule: a Spell is a legal Spellblade pick if it is in one of the character's CHOSEN schools
+# OR carries a tag in tag_access. (Primal Hide is School: Transmutation but Tags: Embolden, Ward —
+# legal for Tanrielle via the Ward tag, spells.md l.6628-6631.)
+#
+# Scope (validate-don't-enumerate): only the schools the walked builds touch. Tanrielle chose
+# Invocation + Divination (tanrielle.yaml l.28), so those two are curated. Add schools as builds
+# reach them.
+
+catalog_version: 1
+model: schools
+tag_access: [Weapon, Ward]
+schools:
+  Invocation:
+    - Cleanse
+    - Close Wounds
+    - Death Ward
+    - Divine Protection
+    - Heal
+    - Healing Wave
+    - Illuminate
+    - Life Transfer
+    - Light
+    - Luminous Burst
+    - Mass Heal
+    - Radiant Bolt
+    - Regenerate
+    - Revivify
+    - Solar Beam
+    - Spirit Link
+    - Sunburst
+  Divination:
+    - Bless
+    - Danger Sense
+    - Detect Magic
+    - Empowered Sight
+    - Foresight
+    - Locate Target
+    - Scrying

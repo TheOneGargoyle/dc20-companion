@@ -1,0 +1,75 @@
+# Build ledger: Minimus Conductrix. Sources: builds/sources/Minimus_LevelUp_Summary.txt,
+# 11_minimus_build.md, canon corrections (Oil Slick, AD naming).
+schema: 1
+ruleset: "DC20 0.10.5"
+character: "Minimus Conductrix"
+player: Kristian
+class: Commander
+subclass: Warlord
+ancestry: "Halfling Kitsune (Halfling + Beast trait lists)"
+background: Urchin
+current_level: 4
+
+chargen:
+  attribute_method: point_buy
+  attributes: {might: 0, agility: 1, charisma: 3, intelligence: 0}
+  # Point buy: M0=2, A1=3, C3=5, I0=2 = 12. L3 point assumed Agility 1->2 (final A2). ASK KRISTIAN.
+  ancestry_traits:
+    - {name: Beast Whisperer, source: Halfling, cost: 0}
+    - {name: Deft Footwork, source: Halfling, cost: 1}
+    - {name: Halfling Bravery, source: Halfling, cost: 2}
+    - {name: Halfling Endurance, source: Halfling, cost: 1}
+    - {name: Small-Sized, source: Halfling, cost: -1}
+    - {name: Keen Sense (Sight), source: Beast, cost: 1}
+    - {name: Darkvision, source: Beast, cost: 1}
+    # Total 5 = exactly the L1 budget; Sprint is the L4 spend (budget-confirmed).
+  spells: []
+  maneuvers: [Volley, Parry]
+  combat_training: [Weapons, Armors, Shields]
+
+levels:
+  2:
+    - {slot: class_feature, pick: Commanding Aura}
+    - {slot: path, pick: Spellcaster}
+    - {slot: talent, pick: Wild Form, note: "Kitsune Small Beast form: 3 HP, AD/PD 13, Move 6, +3 Acro/Ath"}
+    - {slot: spell, pick: "Oil Slick", inferred: true, source: "Spellcaster path +1 spell",
+       note: "Sheet reads Grease = pre-0.10.5 name; canonically Oil Slick"}
+  3:
+    - {slot: subclass, pick: Warlord, note: "Morale Breaker, Battlefield Tactics, Priority Target"}
+    - {slot: attribute, pick: agility, inferred: true, note: "Destination unconfirmed (A1->2 assumed). ASK KRISTIAN."}
+    - {slot: maneuver, pick: Heroic Taunt, inferred: true, source: "class table +1"}
+  4:
+    - {slot: talent, pick: Coordinated Command}
+    - {slot: path, pick: Spellcaster}
+    - {slot: ancestry_trait, pick: Sprint, source: Beast, cost: 2}
+    - {slot: spell, pick: Close Wounds, inferred: true, source: "Spellcaster path +1 spell"}
+
+skills:
+  allocation_confidence: unknown
+  masteries: {}
+  # Sheet gives only "(5,6)" point totals with no per-skill breakdown; engine will show
+  # under-spent skill points until Kristian's sheet is refreshed. ASK KRISTIAN.
+trades:
+  masteries:
+    Disguise: {mastery: Novice}
+    Gaming: {mastery: Novice}
+    Theatre: {mastery: Novice}
+languages:
+  - {name: Common, fluency: Fluent, cost: 0}
+  - {name: Halfling, fluency: Fluent, cost: 2}
+  - {name: Dwarven, fluency: Limited, cost: 1}
+  - {name: Orcish, fluency: Limited, cost: 1}
+
+equipment:
+  - {name: Short Sword}
+  - {name: Daggers x5}
+  - {name: Defensive Light Armour, pd: 1, ad: 1, mods: "+1 PD +1 AD = exactly the Defensive Light row of the restored Armor Examples table"}
+  - {name: Long Staff}
+  - {name: Commander's Helm of Telepathy, mods: "Commander's Call range 10, no see/hear needed; the party comms channel"}
+  - {name: Arcane Crossbow, mods: "Light Crossbow, Arcane Ammo, no Reload"}
+
+expected: {hp: 14, sp: 3, mp: 6, spells: 2, maneuvers: 3, grit: 5, attack: 5, save_dc: 15, initiative: 4, pd: 13, ad: 14}
+
+notes:
+  - "Class = Commander per tables.md; Phil's summary calls it Warlord (Commander). Subclass = Warlord."
+  - "Skill breakdown missing from sheet; part of the 09 party-wide sheet refresh."

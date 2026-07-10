@@ -1,0 +1,125 @@
+# Build ledger: Tanrielle Moraeg. Schema: builds/SCHEMA.md (v1).
+# Sources: 08_tanrielle_build_DARRYL.md (verified progression + locked L5-L6 plan),
+# builds/sources/Tanrielle_LevelUp_Summary.txt (Phil, 2026-07-10, corrected per sources/README.md),
+# sheets/Tanrielle, Spellblade lvl 4 (v0.10.5).pdf.
+
+schema: 1
+ruleset: "DC20 0.10.5"
+character: "Tanrielle Moraeg (Sablethorn)"
+player: Darryl
+class: Spellblade
+subclass: Paladin
+ancestry: "Half-elf (Human + Elf trait lists)"
+background: Herbalist
+current_level: 4
+
+chargen:
+  attribute_method: point_buy
+  attributes: {might: 0, agility: 3, charisma: -2, intelligence: 3}
+  # Point-buy result BEFORE ancestry traits (costs from -2 base: M0=2, A3=5, C-2=0, I3=5 = 12 pts).
+  # CONFIRMED by Darryl 2026-07-10: Agi & Int maxed from L1 (char concept); Human trait raises
+  # Might 0->1, the L3 attribute point raises Might 1->2.
+  ancestry_traits:
+    - {name: Attribute Increase (Might), source: Human, cost: 2}
+    - {name: Trade Expertise (Herbalism), source: Human, cost: 1,
+       note: "Mastery Cap AND Level +1 in Herbalism (free step), ancestries.md l.343"}
+    - {name: Discerning Sight, source: Elf, cost: 0}
+    - {name: Nimble, source: Elf, cost: 2}
+  spell_schools: [Invocation, Divination]
+  # Divination = identity/forward pick, revisitable until a Divination spell is taken (~L9). 08 l.203.
+  class_choices:
+    - {slot: bound_weapon_options, picks: [Illuminate, Smite, Recall]}
+    - {slot: spellblade_disciplines, picks: [Acolyte, Blink Blade],
+       note: "L1 grants exactly 2 (classes.md l.2873). Magus is NOT L1, see L3."}
+  spells: [Close Wounds, Radiant Bolt]
+  maneuvers: [Parry]
+  combat_training: [Weapons, Spell Focuses, Light Armor]
+
+levels:
+  2:
+    - {slot: talent, pick: "MC Warlock (Novice): Pact Spell",
+       note: "Pact Spell = Radiant Bolt (+1 dmg vs Bloodied, +1/+5 range, ADV 1/round)"}
+    - {slot: path, pick: Martial}
+    - {slot: maneuver, pick: Meteor Strike, inferred: true, source: "Martial path rank 1"}
+  3:
+    - {slot: subclass, pick: Paladin}
+    - {slot: discipline, pick: Magus, source: "Paladin Lay on Hands (already knew Acolyte -> gain another; classes.md l.3041)",
+       grants: {mp: 1, spells: 1}}
+    - {slot: attribute, pick: might,
+       note: "Might 1->2. CONFIRMED by Darryl 2026-07-10 (both Ancestry Increase and the L3 point went to Might)."}
+    - {slot: spell, pick: Primal Hide, inferred: true, source: "Magus +1 spell"}
+    - {slot: maneuver, pick: Swift Strike, inferred: true, source: "class table L3 +1 maneuver"}
+  4:
+    - {slot: talent, pick: "MC Warlock (Adept): Life Tap",
+       note: "HP in place of MP, 1/Long Rest, regain on Initiative. Beseech Patron auto-granted for holding 2 Warlock features (classes.md l.3867-91, narrative-only)."}
+    - {slot: path, pick: Martial}
+    - {slot: ancestry_trait, pick: Speed Increase, source: Elf, cost: 2,
+       note: "L4 grants 2 ancestry points; budget 5+2=7, all spent"}
+    - {slot: maneuver, pick: Whirlwind, inferred: true, source: "Martial path rank 2"}
+
+  # ---- PLAN (locked 2026-06-21, 08 "L5-L6 build plan - LOCKED") ----
+  5:
+    - {slot: attribute, pick: agility, note: "Agility 3->4, Prime->4 (attribute limit rises to 4 at L5)"}
+    - {slot: class_feature, pick: Expert Spellblade, note: "auto: Spellstrike goes AoE/multi, Acolyte MP-scaled healing, Bound Damage ignores Resistance"}
+    - {slot: discipline, pick: Spell Breaker, source: "Expert Spellblade +1 discipline"}
+    - {slot: spell, pick: Luminous Burst, source: "class table L5 +1 spell"}
+    - {slot: skill, pick: "Awareness Adept->Expert (1 SP; limit purchase from L1-4 carries, core-rules.md l.991-1005)"}
+    - {slot: skill, pick: "1 SP -> 2 TP conversion"}
+    - {slot: trade, pick: "Herbalism Adept->Expert (1 TP; Trade Expertise cap carries)"}
+    - {slot: trade, pick: "Arcana none->Adept +7... see note", note: "Arcana & Nature Novice->Adept, 1 TP each (Knowledge Trades)"}
+  6:
+    - {slot: talent, pick: "MC Warlock (Expert): +2 any-source spells", grants: {spells: 2},
+       note: "Picks = Radiant Imbued + Bless. 2nd Pact Spell = Luminous Burst."}
+    - {slot: path, pick: Martial, note: "rank 3: SP->5, regen->3; maneuver = Side Step"}
+    - {slot: maneuver, pick: Side Step, source: "Martial path rank 3"}
+    - {slot: skill, pick: "Stealth Novice->Adept (1 SP; rode the L5 Agility bump)"}
+
+skills:
+  allocation_confidence: inferred   # totals verified vs sheet at L4; per-level timing reconstructed
+  masteries:
+    Awareness: {mastery: Adept, limit_raise: skill_point_purchase}
+    Athletics: {mastery: Novice}
+    Acrobatics: {mastery: Novice}
+    Stealth: {mastery: Novice}
+    Medicine: {mastery: Novice}
+    Survival: {mastery: Novice}
+trades:
+  masteries:
+    Herbalism: {mastery: Adept, limit_raise: "Trade Expertise (Human ancestry trait)"}
+    Gaming: {mastery: Novice}
+    Brewing: {mastery: Novice}
+    Cooking: {mastery: Novice}
+    Arcana: {mastery: Novice}
+    Nature: {mastery: Novice}
+  knowledge_trades: [Arcana, Nature]
+languages:
+  - {name: Common, fluency: Fluent, cost: 0}
+  - {name: Elvish, fluency: Fluent, cost: 2}
+
+equipment:
+  - {name: Greatsword of the Keepers, pd: 1, mods: "Spell Focus; Guardians' Regalia set (Powerful 2pt focus: +1 spell attacks, Jesse-approved through Spellstrike). +1 PD: a magic item added the Guard property to her previous 'Defensive Greatsword'; whether Guard carried over to the Keepers' sword is an OPEN JESSE RULING (queued in 09) — the sheet's PD assumes it did"}
+  - {name: Amulet of Steadfastness, mods: "Spell Focus; Guardians' Regalia set"}
+  - {name: Longbow}
+  - {name: Fortified Light Armour, pd: 0, ad: 2, mods: "Fortified = AD Increase x2 (+2 AD, +0 PD) per the restored Armor Examples table"}
+  - {name: First Aid Kit}
+  - {name: Healing Balms}
+
+expected:   # from the L4 sheet / 08 live block
+  hp: 14
+  sp: 3
+  mp: 6
+  spells: 3
+  maneuvers: 4
+  grit: 0
+  attack: 5
+  save_dc: 15
+  initiative: 5
+  pd: 17     # base incl. the sword's Guard +1 (see equipment). Sheet's 19 = 17 + Primal Hide 2.
+             # NOT a sheet error (Darryl clarified 2026-07-10) — but conditional on Jesse ruling
+             # that Guard carried over to the Keepers' sword; if it didn't, base drops to 16 / 18 buffed.
+  ad: 12
+
+notes:
+  - "Maneuver/spell acquisition ORDER at L2-L4 is inferred (sheet lists totals only); the sets are confirmed."
+  - "L3 attribute point: proven spent by the attribute-sum budget; Darryl confirmed 2026-07-10 it went to Might (as did the ancestry increase)."
+  - "PD/AD derived from core-rules.md l.2137/2158 + equipment. Base PD 17; the 19 in 08 includes Primal Hide (+2 PD)."

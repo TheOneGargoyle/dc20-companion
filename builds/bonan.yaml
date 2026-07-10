@@ -1,0 +1,80 @@
+# Build ledger: Bonan O'Cryin "Meltor". Sources: builds/sources/Bonan_LevelUp_Summary.txt,
+# 12_bonan_build.md, 09 audit items (Recovery maneuver, Jump 6 vs 4).
+schema: 1
+ruleset: "DC20 0.10.5"
+character: "Bonan O'Cryin (Meltor)"
+player: Ed
+class: Barbarian
+subclass: "Elemental Fury (Fire)"
+ancestry: "Halfling Beastborn"
+background: Musician
+current_level: 4
+
+chargen:
+  attribute_method: point_buy
+  attributes: {might: 3, agility: 0, charisma: 2, intelligence: -1}
+  # Point buy: M3=5, A0=2, C2=4, I-1=1 = 12. L3 point assumed Charisma 2->3 (final C3). ASK ED.
+  ancestry_traits:
+    - {name: Beast Insight, source: Halfling, cost: 1}
+    - {name: Burst of Bravery, source: Halfling, cost: 1}
+    - {name: Small-Sized, source: Halfling, cost: -1}
+    - {name: Beast Whisperer, source: Halfling, cost: 0}
+    - {name: Deft Footwork, source: Halfling, cost: 1}
+    - {name: Halfling Bravery, source: Halfling, cost: 2}
+    - {name: Halfling Endurance, source: Halfling, cost: 1}
+    # Total 5 = L1 budget; Jumper + Strong Jumper = the L4 spend (budget-inferred, ties to the Jump audit).
+  class_choices:
+    - {slot: class_features, picks: [Rage, Berserker, Battlecry, Shouts], grants: {ad: 2},
+       note: "Berserker Defense: +2 AD while not wearing Armor (classes.md); he wears none, which also explains PD 9"}
+  spells: []
+  maneuvers: [Whirlwind, Side Step]
+  combat_training: [Weapons, Armors, Shields]
+
+levels:
+  2:
+    - {slot: talent, pick: "MC Bard: Remarkable Repertoire", grants: {spells: 2, skill_points: 2},
+       note: "2 Skill Points, 2 Spells, Expression (Auditory)"}
+    - {slot: path, pick: Spellcaster, inferred: true,
+       note: "Both paths rank 1 on sheet, not level-tagged; Spellcaster assumed L2 (pairs with the Bard talent). ASK ED."}
+    - {slot: spell, pick: "Command, Charm, Frost Bolt (3 across L2 sources, order unknown)", inferred: true}
+  3:
+    - {slot: subclass, pick: "Elemental Fury (Raging Elements: Fire)", note: "Elemental Affinity, Elemental Blast, Erupting Elements"}
+    - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed (C2->3 assumed). ASK ED."}
+    - {slot: maneuver, pick: Heroic Intimidate, inferred: true, source: "class table +1"}
+  4:
+    - {slot: talent, pick: Unfathomable Strength, note: "wield Two-Handed weapons one-handed while raging"}
+    - {slot: path, pick: Martial, inferred: true}
+    - {slot: ancestry_trait, pick: Jumper, source: Beastborn, cost: 1, inferred: true}
+    - {slot: ancestry_trait, pick: Strong Jumper, source: Beastborn, cost: 1, inferred: true}
+    - {slot: maneuver, pick: "4th maneuver: sheet says Recovery, which does NOT exist in 0.10.5", inferred: true,
+       note: "Known audit item (09/12); Ed to re-pick at the sheet refresh"}
+
+skills:
+  allocation_confidence: inferred
+  masteries:
+    Awareness: {mastery: Novice}
+    Athletics: {mastery: Novice}
+    Intimidation: {mastery: Adept, limit_raise: skill_point_purchase}
+    Influence: {mastery: Novice}
+    Insight: {mastery: Novice}
+  # Animal 3 = Cha 3 + no mastery (0 points spent), so not listed.
+trades:
+  masteries:
+    Brewing: {mastery: Novice}
+    Musician: {mastery: Novice}
+    Tinkering: {mastery: Novice}
+    Cooking: {mastery: Novice}
+languages:
+  - {name: Common, fluency: Fluent, cost: 0}
+  - {name: Halfling, fluency: Fluent, cost: 2}
+
+equipment:
+  - {name: Black Iron Mace}
+  - {name: Heavy Glaive}
+  - {name: Hand Axe}
+
+expected: {hp: 17, sp: 4, mp: 3, spells: 3, maneuvers: 4, grit: 5, attack: 5, save_dc: 15, initiative: 2, pd: 9, ad: 18}
+
+notes:
+  - "PD 9 RESOLVED: no armor + no bonuses = 8+CM+Agi+Int = 9 exactly; AD 18 = 16 + Berserker Defense. Not a sheet error."
+  - "Recovery maneuver invalid in 0.10.5; Jump 6-vs-4 audit open (09)."

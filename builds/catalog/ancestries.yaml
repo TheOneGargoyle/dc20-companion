@@ -1,0 +1,39 @@
+# CURATED cross-cutting cost list — ancestry-trait point costs.
+# Source: rules/ancestries.md (Human l.329-352, Elf l.354-383). Costs are the (N) prefix on
+# each trait line; negative = drawback that refunds points. tools/catalog_verify.py re-parses
+# ancestries.md and asserts every cost below matches the source.
+#
+# Scope (validate-don't-enumerate): the ancestries the six walked builds touch. Tanrielle is
+# Half-elf (Human + Elf trait lists), so Human + Elf are curated here. Add ancestries as ledgers
+# reach them; the other four PCs' ancestries (Giantborn/Dwarf, Human, Halfling, Fiendborn/Dragonborn)
+# are the next additions.
+
+catalog_version: 1
+ancestries:
+  Human:
+    # Default Traits
+    - {name: Attribute Increase, cost: 2}
+    - {name: Skill Expertise, cost: 2}
+    - {name: Human Resolve, cost: 1}
+    - {name: Undying, cost: 0}
+    # Expanded Traits
+    - {name: Trade Expertise, cost: 1}
+    - {name: Human Determination, cost: 1}
+    - {name: Unbreakable, cost: 1}
+    - {name: Attribute Decrease, cost: -1}
+  Elf:
+    # Default Traits
+    - {name: Elven Will, cost: 1}
+    - {name: Nimble, cost: 2}
+    - {name: Agile Explorer, cost: 2}
+    - {name: Discerning Sight, cost: 0}
+    # Expanded Traits
+    - {name: Quick Reactions, cost: 1}
+    - {name: Peerless Sight, cost: 1}
+    - {name: Climb Speed, cost: 1}
+    - {name: Speed Increase, cost: 2}
+    - {name: Trade Expertise, cost: 1}
+    - {name: Plant Knowledge, cost: 1}
+    - {name: Brittle, cost: -1}
+    - {name: Frail, cost: -1}
+    - {name: Might Attribute Decrease, cost: -1}
