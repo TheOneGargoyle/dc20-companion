@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DC20 Builder - widget wireframe (design pass)</title>
+<style>
+:root{
+  --ink:#1f2430; --muted:#6b7280; --line:#c9ced8; --paper:#f7f8fa;
+  --accent:#3d5a80; --accent2:#98c1d9; --ok:#2e7d32; --bad:#b23; --warn:#b7791f;
+  --sketch:#8a90a0;
+}
+*{box-sizing:border-box}
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--ink);margin:0;background:#eef0f4;line-height:1.4}
+.wrap{max-width:1080px;margin:0 auto;padding:1.4rem 1.4rem 3rem}
+h1{font-size:1.4rem;margin:.2rem 0}
+.sub{color:var(--muted);margin:.2rem 0 1rem;font-size:.92rem}
+.badge{display:inline-block;font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--accent);color:#fff;border-radius:4px;padding:.12rem .45rem;vertical-align:middle}
+.note{background:#fffbe9;border:1px solid #ecdca0;border-radius:6px;padding:.55rem .8rem;font-size:.85rem;color:#5c521f;margin:.6rem 0}
+
+/* flow strip */
+.flow{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.8rem 0 1.4rem}
+.flow .step{background:#fff;border:1px solid var(--line);border-radius:6px;padding:.5rem .7rem;font-size:.82rem;text-align:center;min-width:96px}
+.flow .step b{display:block;font-size:.74rem;color:var(--accent);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.15rem}
+.flow .arw{color:var(--sketch);font-size:1.1rem}
+.flow .commit{border-style:dashed;background:var(--paper)}
+
+/* two-col builder mock */
+.builder{display:grid;grid-template-columns:150px 1fr;gap:1rem;background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem}
+.rail h3,.stage h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.1rem 0 .5rem}
+.rail ol{list-style:none;margin:0;padding:0}
+.rail li{border:1px solid var(--line);border-radius:6px;padding:.4rem .5rem;margin-bottom:.35rem;font-size:.83rem;background:var(--paper)}
+.rail li.done{color:var(--muted)}
+.rail li.cur{border-color:var(--accent);background:#eaf1f8;font-weight:600}
+.rail li.next{border-style:dashed;color:var(--accent);}
+.rail .tag{display:block;font-size:.68rem;color:var(--sketch)}
+
+.widget{border:1.5px dashed var(--sketch);border-radius:8px;padding:.7rem .8rem;margin-bottom:.9rem;background:#fcfcfd}
+.widget .wl{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--sketch);border-radius:4px;padding:.1rem .45rem}
+.widget .wt{font-weight:600;margin:.35rem 0 .1rem}
+.widget .wd{font-size:.82rem;color:var(--muted);margin-bottom:.55rem}
+
+/* mock controls */
+.stepper{display:flex;align-items:center;gap:.5rem;margin:.25rem 0;font-size:.86rem}
+.stepper .name{width:96px}
+.stepper .btn{border:1px solid var(--line);border-radius:5px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;background:#fff}
+.stepper .val{width:34px;text-align:center;border:1px solid var(--line);border-radius:5px;padding:.15rem 0;background:#fff}
+.meter{font-size:.8rem;color:var(--accent);margin-top:.3rem}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.15rem .6rem;margin:.15rem .2rem .15rem 0;font-size:.82rem;background:#fff}
+.pill.sel{border-color:var(--accent);background:#eaf1f8;font-weight:600}
+.cost{font-size:.72rem;color:var(--warn);margin-left:.25rem}
+.select{border:1px solid var(--line);border-radius:6px;padding:.35rem .5rem;background:#fff;font-size:.85rem;min-width:220px}
+.ladder{display:flex;gap:.25rem;align-items:center;font-size:.8rem;margin:.2rem 0}
+.rung{border:1px solid var(--line);border-radius:5px;padding:.15rem .5rem;background:#fff}
+.rung.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* review */
+table.derived{border-collapse:collapse;width:100%;font-size:.83rem}
+table.derived th,table.derived td{border:1px solid var(--line);padding:.25rem .5rem;text-align:left}
+table.derived th{background:var(--paper);color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase}
+.ok{color:var(--ok);font-weight:600}
+.prob{background:#fdecec;border:1px solid #f3b6b6;color:var(--bad);border-radius:6px;padding:.5rem .7rem;font-size:.83rem;margin-top:.5rem}
+.prob.clean{background:#e9f6ea;border-color:#a9d6ab;color:var(--ok)}
+.exportbtn{margin-top:.6rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.5rem .9rem;font-size:.88rem}
+.legend{font-size:.78rem;color:var(--muted);margin-top:1rem}
+.legend b{color:var(--sketch)}
+.k{display:inline-block;border:1.5px dashed var(--sketch);border-radius:4px;width:16px;height:12px;vertical-align:middle;margin:0 .2rem}
+</style></head>
+<body><div class="wrap">
+
+<h1>DC20 Character Builder <span class="badge">wireframe</span></h1>
+<p class="sub">Design pass for RUNG3_PLAN &sect;6 (UI note). Non-functional mock. Establishes the <b>five reusable
+decision widgets</b> and the <b>level-up-night flow</b> before the live builder is wired to the engine. Dashed
+boxes <span class="k"></span> are widget placeholders, not final styling.</p>
+
+<div class="note"><b>The core idea (&sect;6):</b> the builder is not 40 bespoke screens. Chargen and every level-up are an
+<i>ordered list of decisions</i> the ledger + class table already dictate. So the UI is ~5 reusable widgets, and the
+ledger sequence decides which appear, in what order. Adding a level or a class adds <i>data</i>, not screens.</p>
+
+<h3 style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Level-up-night flow</h3>
+<div class="flow">
+  <div class="step"><b>1 Load</b>Open builder<br>?char=tanrielle</div><span class="arw">&rarr;</span>
+  <div class="step"><b>2 Level</b>Append next<br>level (or edit)</div><span class="arw">&rarr;</span>
+  <div class="step"><b>3 Decide</b>Walk the<br>decision widgets</div><span class="arw">&rarr;</span>
+  <div class="step"><b>4 Validate</b>Engine re-runs<br>live on each edit</div><span class="arw">&rarr;</span>
+  <div class="step"><b>5 Export</b>Download<br>updated YAML</div><span class="arw">&rarr;</span>
+  <div class="step commit"><b>6 Commit</b>Darryl only<br>lands the file</div>
+</div>
+
+<div class="builder">
+  <div class="rail">
+    <h3>Levels</h3>
+    <ol>
+      <li class="done">L1 <span class="tag">chargen &check;</span></li>
+      <li class="done">L2 <span class="tag">talent, path, man.</span></li>
+      <li class="done">L3 <span class="tag">subclass, attr&hellip;</span></li>
+      <li class="cur">L4 <span class="tag">editing now</span></li>
+      <li class="next">+ L5 <span class="tag">level-up night</span></li>
+      <li class="next">+ L6 <span class="tag">planned</span></li>
+    </ol>
+  </div>
+
+  <div class="stage">
+    <h3>Decisions for the selected level</h3>
+
+    <!-- WIDGET 1 -->
+    <div class="widget">
+      <span class="wl">Widget 1</span>
+      <div class="wt">Point-buy allocator</div>
+      <div class="wd">L1 attributes. Four steppers from a &minus;2 base, 12 points to spend, cap +3 (rises at L5/10/15/20).
+        Live "points remaining" is the engine's point-buy check surfaced inline.</div>
+      <div class="stepper"><span class="name">Might</span><span class="btn">&minus;</span><span class="val">0</span><span class="btn">+</span></div>
+      <div class="stepper"><span class="name">Agility</span><span class="btn">&minus;</span><span class="val">3</span><span class="btn">+</span></div>
+      <div class="stepper"><span class="name">Charisma</span><span class="btn">&minus;</span><span class="val">-2</span><span class="btn">+</span></div>
+      <div class="stepper"><span class="name">Intelligence</span><span class="btn">&minus;</span><span class="val">3</span><span class="btn">+</span></div>
+      <div class="meter">Points remaining: 0 / 12 &nbsp;&bull;&nbsp; cap +3</div>
+    </div>
+
+    <!-- WIDGET 2 -->
+    <div class="widget">
+      <span class="wl">Widget 2</span>
+      <div class="wt">Option-picker (single / multi)</div>
+      <div class="wd">The workhorse. Any pick from a short catalog list: subclass, path, discipline, spell, maneuver,
+        talent. Shows names, costs, and rule text where it fits. Illegal picks are rejected by the engine, not hidden.</div>
+      <div style="margin:.2rem 0"><span style="font-size:.8rem;color:var(--muted)">Subclass:</span>
+        <span class="pill sel">Paladin</span><span class="pill">Rune Knight</span><span class="pill">Paragon</span></div>
+      <div style="margin:.2rem 0"><span style="font-size:.8rem;color:var(--muted)">Path (L4):</span>
+        <span class="pill sel">Martial</span><span class="pill">Spellcaster</span></div>
+      <div style="margin:.2rem 0"><span style="font-size:.8rem;color:var(--muted)">Spell (chosen schools + Weapon/Ward tag):</span>
+        <select class="select"><option>Primal Hide (Ward tag)</option><option>Radiant Bolt (Invocation)</option><option>Bless (Divination)</option></select></div>
+    </div>
+
+    <!-- WIDGET 3 -->
+    <div class="widget">
+      <span class="wl">Widget 3</span>
+      <div class="wt">Skill / trade allocator</div>
+      <div class="wd">Mastery ladders per skill and trade. Spend skill/trade points to climb; mastery cap by level
+        (Novice&rarr;L4, Adept&rarr;L5, Expert&rarr;L10). Engine tracks earned-vs-spent and the SP&rarr;TP&rarr;LP conversions.</div>
+      <div class="ladder"><span class="name" style="width:96px">Awareness</span>
+        <span class="rung on">Novice</span><span class="rung on">Adept</span><span class="rung">Expert</span></div>
+      <div class="ladder"><span class="name" style="width:96px">Herbalism (tr)</span>
+        <span class="rung on">Novice</span><span class="rung on">Adept</span><span class="rung">Expert</span></div>
+      <div class="meter">Skill points: 8 / 9 &nbsp;&bull;&nbsp; Trade: 6 (bal. via 1 SP&rarr;2 TP) &nbsp;&bull;&nbsp; Lang: 2 / 2</div>
+    </div>
+
+    <!-- WIDGET 4 -->
+    <div class="widget">
+      <span class="wl">Widget 4</span>
+      <div class="wt">Ancestry-spend allocator</div>
+      <div class="wd">Buy ancestry traits from the character's ancestry lists (Human / Elf for Tanrielle). Each trait shows
+        its point cost from the catalog; a running total tracks the 5 + 2@L4 + 2@L8 budget. <b>This is the widget the
+        live skeleton implements first.</b></div>
+      <div><span class="pill sel">Attribute Increase<span class="cost">2</span></span><span class="pill sel">Trade Expertise<span class="cost">1</span></span>
+        <span class="pill sel">Discerning Sight<span class="cost">0</span></span><span class="pill sel">Nimble<span class="cost">2</span></span></div>
+      <div style="margin-top:.3rem"><span style="font-size:.8rem;color:var(--muted)">L4 spend:</span>
+        <select class="select"><option>Speed Increase (2)</option><option>Agile Explorer (2)</option><option>Quick Reactions (1)</option><option>Elven Will (1)</option></select></div>
+      <div class="meter">Ancestry points: 7 / 7</div>
+    </div>
+
+    <!-- WIDGET 5 -->
+    <div class="widget">
+      <span class="wl">Widget 5</span>
+      <div class="wt">Review screen</div>
+      <div class="wd">The always-visible verdict. Every derived stat vs the sheet, the point budgets, and a problems panel.
+        This is <code>replay()</code>'s output rendered; it refreshes on every edit. Export is here.</div>
+      <table class="derived"><thead><tr><th>Stat</th><th>Derived</th><th>Sheet</th><th>Check</th></tr></thead>
+        <tbody>
+          <tr><td>HP</td><td>14</td><td>14</td><td class="ok">OK</td></tr>
+          <tr><td>MP</td><td>6</td><td>6</td><td class="ok">OK</td></tr>
+          <tr><td>Spells known</td><td>3</td><td>3</td><td class="ok">OK</td></tr>
+          <tr><td>Save DC</td><td>15</td><td>15</td><td class="ok">OK</td></tr>
+          <tr><td>PD / AD</td><td>17 / 12</td><td>17 / 12</td><td class="ok">OK</td></tr>
+        </tbody></table>
+      <div class="prob clean">&check; All checks passed - budgets balanced, no illegal picks.</div>
+      <button class="exportbtn">&darr; Export tanrielle.yaml</button>
+    </div>
+
+  </div>
+</div>
+
+<p class="legend"><b>Legend.</b> <span class="k"></span> reusable widget placeholder &nbsp;&bull;&nbsp;
+solid-blue = current level &nbsp;&bull;&nbsp; dashed rail rows = future levels appended on level-up night.
+The five widgets above cover every decision in all six PCs' ledgers; a new class or level is new catalog rows feeding
+the same five, never a new screen.</p>
+
+</div></body></html>
