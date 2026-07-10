@@ -2,20 +2,18 @@
 # Spine numbers come straight from CLASS_TABLES; names cross-checked vs classes.md.
 catalog_version: 1
 ruleset: DC20 0.10.5
-class: Spellblade
+class: Commander
 generated_by: tools/catalog_build.py
-source: CLASS_TABLES (build_engine.py) + rules/classes.md l.2759-3048 + rules/tables.md l.157-170
+source: CLASS_TABLES (build_engine.py) + rules/classes.md l.1059-1269 + rules/tables.md l.67-81
 spine:
   1:
     hp: 8
-    sp: 1
-    maneuvers: 1
-    mp: 3
-    spells: 2
+    sp: 2
+    maneuvers: 2
     features:
     - Class Features
   2:
-    hp: 1
+    hp: 2
     features:
     - Class Feature
     - Talent
@@ -25,12 +23,12 @@ spine:
     attribute_points: 1
     skill_points: 1
     trade_points: 1
+    sp: 1
     maneuvers: 1
-    mp: 2
     features:
     - Subclass
   4:
-    hp: 1
+    hp: 2
     features:
     - Talent
     - 2 Ancestry Points
@@ -40,25 +38,23 @@ spine:
     attribute_points: 1
     skill_points: 2
     trade_points: 1
-    sp: 1
-    mp: 1
-    spells: 1
+    maneuvers: 1
     features:
     - Class Feature
   6:
-    hp: 1
+    hp: 2
     skill_points: 1
     features:
     - Talent
     - Path
   7:
     hp: 2
+    sp: 1
     maneuvers: 1
-    mp: 2
     features:
     - Subclass Expert
   8:
-    hp: 1
+    hp: 2
     attribute_points: 1
     skill_points: 1
     trade_points: 1
@@ -69,48 +65,25 @@ spine:
   9:
     hp: 2
     sp: 1
-    mp: 1
-    spells: 1
+    maneuvers: 1
     features:
     - Class Capstone
   10:
-    hp: 1
+    hp: 2
     attribute_points: 1
     skill_points: 2
     trade_points: 1
+    sp: 1
     maneuvers: 1
-    mp: 2
     features:
     - Subclass Capstone
-disciplines_pick_l1: 2
-disciplines:
-- name: Magus
-  grants:
-    mp: 1
-    spells: 1
-- name: Warrior
-  grants:
-    maneuvers: 1
-  training:
-  - Heavy Armor
-  - Heavy Shield
-- name: Acolyte
-- name: Hex Warrior
-- name: Spell Breaker
-- name: Spell Warder
-- name: Blink Blade
-- name: Sense Magic
-  flavor: true
 subclasses:
-- Paladin
-- Rune Knight
+- Crusader
+- Warlord
 - Paragon
 spellcasting:
-  model: schools
-  schools_chosen: 2
-  tag_access:
-  - Weapon
-  - Ward
+  model: none
+  path_rider: spell list of choice from any class (character-creation.md l.753-756)
 paths:
 - Martial
 - Spellcaster

@@ -2,16 +2,14 @@
 # Spine numbers come straight from CLASS_TABLES; names cross-checked vs classes.md.
 catalog_version: 1
 ruleset: DC20 0.10.5
-class: Spellblade
+class: Warlock
 generated_by: tools/catalog_build.py
-source: CLASS_TABLES (build_engine.py) + rules/classes.md l.2759-3048 + rules/tables.md l.157-170
+source: CLASS_TABLES (build_engine.py) + rules/classes.md l.3145-3465 + rules/tables.md l.172-186
 spine:
   1:
     hp: 8
-    sp: 1
-    maneuvers: 1
-    mp: 3
-    spells: 2
+    mp: 6
+    spells: 4
     features:
     - Class Features
   2:
@@ -25,8 +23,8 @@ spine:
     attribute_points: 1
     skill_points: 1
     trade_points: 1
-    maneuvers: 1
-    mp: 2
+    mp: 3
+    spells: 1
     features:
     - Subclass
   4:
@@ -40,8 +38,7 @@ spine:
     attribute_points: 1
     skill_points: 2
     trade_points: 1
-    sp: 1
-    mp: 1
+    mp: 3
     spells: 1
     features:
     - Class Feature
@@ -53,8 +50,8 @@ spine:
     - Path
   7:
     hp: 2
-    maneuvers: 1
-    mp: 2
+    mp: 3
+    spells: 1
     features:
     - Subclass Expert
   8:
@@ -68,8 +65,7 @@ spine:
     - Path
   9:
     hp: 2
-    sp: 1
-    mp: 1
+    mp: 3
     spells: 1
     features:
     - Class Capstone
@@ -78,39 +74,37 @@ spine:
     attribute_points: 1
     skill_points: 2
     trade_points: 1
-    maneuvers: 1
-    mp: 2
+    mp: 3
+    spells: 1
     features:
     - Subclass Capstone
-disciplines_pick_l1: 2
-disciplines:
-- name: Magus
+pact_boons_pick_l1: 1
+pact_boons:
+- name: Pact Weapon
   grants:
-    mp: 1
-    spells: 1
-- name: Warrior
+    maneuvers: 2
+  note: 2 Attack Maneuvers; Weapon Training; Spell Focus property
+- name: Pact Armor
   grants:
-    maneuvers: 1
-  training:
-  - Heavy Armor
-  - Heavy Shield
-- name: Acolyte
-- name: Hex Warrior
-- name: Spell Breaker
-- name: Spell Warder
-- name: Blink Blade
-- name: Sense Magic
-  flavor: true
+    maneuvers: 2
+  note: 2 Defensive Maneuvers; Armor Training; +1 AD & MDR while worn (contextual, not a grant)
+- name: Pact Spell
+  note: an existing known Spell becomes the Pact Spell (no resource delta)
+- name: Pact Familiar
+  note: summons a familiar (no resource delta)
 subclasses:
-- Paladin
-- Rune Knight
+- Eldritch
+- Fey
 - Paragon
+subclass_grants:
+  Eldritch:
+    grants:
+      spells: 1
+    spell_access:
+      tag: Psychic
 spellcasting:
   model: schools
-  schools_chosen: 2
-  tag_access:
-  - Weapon
-  - Ward
+  schools_chosen: 3
 paths:
 - Martial
 - Spellcaster

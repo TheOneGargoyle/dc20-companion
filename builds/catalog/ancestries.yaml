@@ -1,14 +1,25 @@
 # CURATED cross-cutting cost list — ancestry-trait point costs.
-# Source: rules/ancestries.md (Human l.329-352, Elf l.354-383). Costs are the (N) prefix on
+# Source: rules/ancestries.md (Human l.329-352, Elf l.354-383, Dwarf l.385-417, Halfling
+# l.418-453, Dragonborn l.522-597, Giantborn l.598-634, Angelborn l.635-693, Fiendborn
+# l.694-763, Beastborn l.764-973 incl. the Beast Traits list). Costs are the (N) prefix on
 # each trait line; negative = drawback that refunds points. tools/catalog_verify.py re-parses
 # ancestries.md and asserts every cost below matches the source.
 #
-# Scope (validate-don't-enumerate): the ancestries the six walked builds touch. Tanrielle is
-# Half-elf (Human + Elf trait lists), so Human + Elf are curated here. Add ancestries as ledgers
-# reach them; the other four PCs' ancestries (Giantborn/Dwarf, Human, Halfling, Fiendborn/Dragonborn)
-# are the next additions.
+# Scope (validate-don't-enumerate): the ancestries the six walked builds touch.
+#   Tanrielle  Half-elf            -> Human + Elf
+#   Runt       Giantborn / Dwarf   -> Giantborn + Dwarf
+#   Minimus    Halfling Kitsune    -> Halfling + Beastborn (ledger source name: Beast)
+#   Bonan      Halfling Beastborn  -> Halfling + Beastborn
+#   Scaletrix  Redemption Fiendborn + Dragonborn -> Fiendborn + Dragonborn (+ Angelborn via
+#              the Redeemed trait: "you can now spend your Ancestry Points on Angelborn Traits")
+#   Xanwyn     Elvan (Elf + Beast) -> Elf + Beastborn
+#
+# source_aliases: ledger `source:` names that map onto a curated list here.
+# aliases on a trait: ledger names for the same rules-text trait (e.g. Scaletrix's "Arcane
+# Spell" is the Fiendborn trait the rules call "Fiendish Magic": learn 1 Arcane spell).
 
 catalog_version: 1
+source_aliases: {Beast: Beastborn}
 ancestries:
   Human:
     # Default Traits
@@ -37,3 +48,165 @@ ancestries:
     - {name: Brittle, cost: -1}
     - {name: Frail, cost: -1}
     - {name: Might Attribute Decrease, cost: -1}
+  Dwarf:
+    # Default Traits
+    - {name: Tough, cost: 1}
+    - {name: Toxic Fortitude, cost: 2}
+    - {name: Physically Sturdy, cost: 2}
+    - {name: Iron Stomach, cost: 0}
+    # Expanded Traits
+    - {name: Thick-Skinned, cost: 1}
+    - {name: Natural Combatant, cost: 1}
+    - {name: Stone Blood, cost: 1}
+    - {name: Minor Tremorsense, cost: 1}
+    - {name: Stubborn, cost: 2}
+    - {name: Trade Expertise, cost: 1}
+    - {name: Earthen Knowledge, cost: 1}
+    - {name: Charisma Attribute Decrease, cost: -1}
+    - {name: Short-Legged, cost: -1}
+  Halfling:
+    # Default Traits
+    - {name: Small-Sized, cost: -1}
+    - {name: Elusive, cost: 2}
+    - {name: Halfling Bravery, cost: 2}
+    - {name: Halfling Endurance, cost: 1}
+    - {name: Deft Footwork, cost: 1}
+    - {name: Beast Whisperer, cost: 0}
+    # Expanded Traits
+    - {name: Beast Insight, cost: 1}
+    - {name: Burst of Bravery, cost: 1}
+    - {name: Trade Expertise, cost: 1}
+    - {name: Critter Knowledge, cost: 1}
+    - {name: Brittle, cost: -1}
+    - {name: Intelligence Attribute Decrease, cost: -1}
+    - {name: Short-Legged, cost: -1}
+  Giantborn:
+    # Default Traits
+    - {name: Tough, cost: 1}
+    - {name: Powerful Build, cost: 2}
+    - {name: Unstoppable, cost: 1}
+    - {name: Giant's Resolve, cost: 1}
+    - {name: Unyielding Movement, cost: 0}
+    # Expanded Traits
+    - {name: Giant's Fortitude, cost: 2}
+    - {name: Strong Body, cost: 2}
+    - {name: Mighty Hurl, cost: 1}
+    - {name: Titanic Toss, cost: 1}
+    - {name: Mighty Leap, cost: 1}
+    - {name: Brute, cost: 1}
+    - {name: Heavy Riser, cost: -1}
+    - {name: Clumsiness, cost: -1}
+    - {name: Intelligence Attribute Decrease, cost: -1}
+  Dragonborn:
+    # Default Traits
+    - {name: Darkvision, cost: 1}
+    - {name: Draconic Resistance, cost: 2}
+    - {name: Draconic Breath Weapon, cost: 2}
+    - {name: Reptilian Superiority, cost: 0}
+    # Expanded Traits
+    - {name: Mana Increase, cost: 1}
+    - {name: Thick-Skinned, cost: 1}
+    - {name: Second Breath, cost: 2}
+    - {name: Concussive Breath, cost: 1}
+    - {name: Draconic Affinity, cost: 1}
+    - {name: Dying Breath, cost: 1}
+    - {name: Draconic Ward, cost: 1}
+    - {name: Draconic Protection, cost: 1}
+    - {name: Glide Speed, cost: 2}
+    - {name: Guardian's Bond, cost: -1}
+  Fiendborn:
+    # Fiendborn Redemption
+    - {name: Redeemed, cost: 0, note: "may spend Ancestry Points on Angelborn Traits"}
+    # Default Traits
+    - {name: Fiendish Resistance, cost: 2}
+    - {name: Fiendish Magic, cost: 2, aliases: [Arcane Spell],
+       note: "learn 1 Arcane spell (Elemental or Enchantment school, Fiendish damage type)"}
+    - {name: Darkvision, cost: 1}
+    - {name: Light's Bane, cost: 0}
+    # Expanded Traits
+    - {name: Mana Increase, cost: 1}
+    - {name: Silver-Tongued, cost: 1}
+    - {name: Fiendish Aura, cost: 1}
+    - {name: Superior Darkvision, cost: 1}
+    - {name: Infernal Bravery, cost: 1}
+    - {name: Intimidator, cost: 1}
+    - {name: Charming Gaze, cost: 1}
+    - {name: Glide Speed, cost: 2}
+    - {name: Radiant Weakness, cost: -1}
+    - {name: Divine Dampening, cost: -1}
+  Angelborn:
+    # Reachable by Redemption Fiendborn via the Redeemed trait (Scaletrix's Umbral Weakness).
+    - {name: Fallen, cost: 0}
+    - {name: Radiant Resistance, cost: 1}
+    - {name: Celestial Magic, cost: 2}
+    - {name: Healing Touch, cost: 2}
+    - {name: Divine Glow, cost: 0}
+    - {name: Mana Increase, cost: 1}
+    - {name: Celestial Clarity, cost: 1}
+    - {name: Angelic Insight, cost: 1}
+    - {name: Gift of the Angels, cost: 2}
+    - {name: Blinding Light, cost: 1}
+    - {name: Glide Speed, cost: 2}
+    - {name: Pacifist, cost: -1}
+    - {name: Umbral Weakness, cost: -1}
+  Beastborn:
+    # Origin
+    - {name: Beastkind, cost: 0}
+    # Beast Traits — Senses
+    - {name: Darkvision, cost: 1}
+    - {name: Echolocation, cost: 1}
+    - {name: Keen Sense, cost: 1, note: "hearing, sight, or smell; repeatable"}
+    - {name: Sunlight Sensitivity, cost: -2}
+    # Mobility
+    - {name: Quick Reactions, cost: 1}
+    - {name: Climb Speed, cost: 1}
+    - {name: Spider Climb, cost: 1}
+    - {name: Web Walk, cost: 1}
+    - {name: Water Breathing, cost: 1}
+    - {name: Swim Speed, cost: 1}
+    - {name: Speed Increase, cost: 2}
+    - {name: Sprint, cost: 2}
+    - {name: Charge, cost: 2}
+    - {name: Burrow Speed, cost: 2}
+    # Jumping
+    - {name: Jumper, cost: 1}
+    - {name: Strong Jumper, cost: 1}
+    # Flying
+    - {name: Glide Speed, cost: 2}
+    - {name: Limited Flight, cost: 2}
+    - {name: Full Flight, cost: 2}
+    - {name: Flyby, cost: 1}
+    - {name: Stealth Feathers, cost: 2}
+    - {name: Winged Arms, cost: -1}
+    # Body
+    - {name: Tough, cost: 1}
+    - {name: Thick-Skinned, cost: 1}
+    - {name: Hazardous Hide, cost: 1}
+    - {name: Powerful Build, cost: 2}
+    - {name: Long-Limbed, cost: 3}
+    - {name: Additional Limb, cost: 1}
+    - {name: Capable Limb, cost: 2}
+    - {name: Natural Armor, cost: 2}
+    - {name: Hard Shell, cost: 1}
+    - {name: Shell Retreat, cost: 1}
+    - {name: Camouflage, cost: 2}
+    - {name: Prowler, cost: 1}
+    - {name: Cold Resistance, cost: 2}
+    - {name: Fire Resistance, cost: 2}
+    - {name: Short-Legged, cost: -1}
+    - {name: Small-Sized, cost: -1}
+    - {name: Reckless, cost: -1}
+    # Natural Weapons
+    - {name: Natural Weapon, cost: 1}
+    - {name: Extended Natural Weapon, cost: 2}
+    - {name: Natural Projectile, cost: 1}
+    - {name: Natural Weapon Style, cost: 1}
+    - {name: Rend, cost: 1}
+    - {name: Retractable Natural Weapon, cost: 1}
+    - {name: Venomous Natural Weapon, cost: 1}
+    # Miscellaneous
+    - {name: Fast Reflexes, cost: 2}
+    - {name: Mimicry, cost: 1}
+    - {name: Intimidating Shout, cost: 2}
+    - {name: Toxic Fortitude, cost: 2}
+    - {name: Shoot Webs, cost: 2}

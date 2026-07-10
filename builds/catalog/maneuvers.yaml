@@ -1,0 +1,48 @@
+# CURATED cross-cutting cost list — the Maneuver name list.
+# Source: rules/combat.md "Maneuvers" chapter (Attack l.972+, Defense l.1225+, Grapple
+# l.1376+, Utility l.1471+). All Maneuvers cost 1 to learn (class table / Martial path /
+# grants supply the slots; the engine validates the counts), so this list is names + type
+# only: it is the legality list the engine did not have, and the option list the builder's
+# picker offers. tools/catalog_verify.py asserts every name below appears as a Maneuver
+# heading in combat.md (transcription-drift check).
+#
+# KNOWN INVALID, deliberately absent: "Recovery" (Bonan's sheet) does not exist in 0.10.5 —
+# the standing 09/12 audit item; his ledger carries it as an inferred placeholder and the
+# verifier whitelists that entry rather than blessing the name.
+
+catalog_version: 1
+maneuvers:
+  Attack:
+    - Heroic Bash
+    - Savage Strike
+    - Sunder Strike
+    - Swift Strike
+    - Meteor Strike
+    - Cleave
+    - Whirlwind
+    - Pathcarver
+    - Piercing Shot
+    - Scattershot
+    - Volley
+  Defense:
+    - Parry
+    - Brace
+    - Side Step
+    - Protect
+    - Endure
+    - Resolve
+    - Swap
+  Grapple:
+    - Slam
+    - Restrain
+    - Body Block
+    - Throw Creature
+  Utility:
+    - Recover
+    - Heroic Pass Through
+    - Line Run
+    - Reposition
+    - Heroic Taunt
+    - Heroic Intimidate
+    - Heroic Shove
+    - Heroic Extend Jump

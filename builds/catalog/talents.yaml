@@ -1,0 +1,77 @@
+# CURATED cross-cutting cost list — the Talent catalog (the talent names a ledger's
+# `slot: talent` pick may resolve to).
+# Sources: rules/character-creation.md — General Talents l.327-366, Class Talents l.367-672
+# (per-class sections), Multiclass Talents l.673-726 — plus rules/classes.md for the class
+# FEATURES reachable through Multiclass talents (mc_features below).
+#
+# Ledger conventions this catalog resolves (see the six builds/*.yaml):
+#   "Martial Expansion"                      -> general talent, by name
+#   "Coordinated Command"                    -> class talent, by name
+#   "MC Warlock (Novice): Pact Spell"        -> Novice Multiclass; feature = Pact Spell
+#   "MC Bard: Remarkable Repertoire"         -> Novice Multiclass; feature by name
+#   "Life Tap" / "Meta Magic (...)"          -> Adept Multiclass; L2 feature by (base) name
+#   "Spell School Initiate: Transmutation"   -> Novice Multiclass; Wizard L1 feature
+# Grants mirror the ledger `grants:` convention; only unconditional resource deltas are
+# recorded (a boon-dependent talent like Expanded Boon takes its grants from the chosen
+# Pact Boon, see warlock.yaml pact_boons).
+#
+# Scope (validate-don't-enumerate): general + multiclass in full (they are short), class
+# talents only for the classes the six PCs walk or multiclass into.
+
+catalog_version: 1
+general:
+  - {name: Ancestry Increase, grants: {ancestry_points: 4}}
+  - {name: Attribute Increase, grants: {attribute_points: 2}}
+  - {name: Skill Increase, grants: {skill_points: 4}}
+  - {name: Martial Expansion, grants: {maneuvers: 2}, once: true,
+     note: "Combat Training (Weapons, Heavy Armors, all Shields) + a Stamina Regen of choice"}
+  - {name: Spellcasting Expansion, grants: {spells: 3}, once: true,
+     note: "Combat Training (Spell Focuses) + 1 Spell Source or 3 Spell Schools added to Spell List"}
+multiclass:
+  - {name: Novice Multiclass, repeatable: true, gives: "a Level 1 Class Feature from any Class"}
+  - {name: Adept Multiclass, requires_level: 4, repeatable: true, gives: "the Level 2 Class Feature of any Class"}
+  - {name: Expert Multiclass, requires_level: 6, repeatable: true,
+     gives: "a Level 5 Class Expert Feature, or the Level 3 Subclass Feature of a Class you have a Feature from"}
+  - {name: Master Multiclass, requires_level: 8, repeatable: true,
+     gives: "the Level 7 Subclass Expert Feature of a Subclass you have the L3 feature from"}
+class_talents:
+  Barbarian:
+    - {name: Unfathomable Strength, requires: "Rage, Level 3"}
+  Commander:
+    - {name: Seize Momentum, requires: "Commander's Call, Commanding Aura, Level 3"}
+    - {name: Coordinated Command, requires: "Commander's Call, Level 3"}
+  Druid:
+    - {name: Wild Form Expansion, requires: "Wild Form, Level 3"}
+    - {name: Nature's Vortex, requires: "Nature's Torrent, Level 3"}
+  Sorcerer:
+    - {name: Expanded Meta Magic, requires: "Meta Magic", grants: {mp: 2}}
+    - {name: Greater Innate Power, requires: "Innate Power, Level 3", grants: {mp: 1}}
+    - {name: Font of Magic, requires: "Meta Magic, Level 3"}
+  Spellblade:
+    - {name: Expanded Disciplines, requires: "Spellblade Disciplines", grants: {disciplines: 2}}
+    - {name: Sling-Blade, requires: "Bound Weapon, Spellstrike, Level 3"}
+    - {name: Adaptive Bond, requires: "Bound Weapon, Level 3"}
+  Warlock:
+    - {name: Expanded Boon, requires: "Pact Boon",
+       note: "grants = the chosen Pact Boon's grants (see warlock.yaml pact_boons)"}
+    - {name: Pact Bane, requires: "Pact Boon, Level 3", grants: {spells: 1}}
+    - {name: Warlock Subcontract, requires: "Warlock Contract, Level 3"}
+  Wizard:
+    - {name: Expanded Spell School, requires: "Spell School Initiate", grants: {spells: 2}}
+    - {name: Crowned Sigil, requires: "Arcane Sigil Feature, Level 3"}
+    - {name: Overly Prepared Spellcaster, requires: "Prepared Spell, Spell School Initiate, Level 3"}
+mc_features:   # class features the six ledgers reach via Multiclass talents (rules/classes.md)
+  - {name: Pact Spell, class: Warlock, feature_level: 1, via: Novice Multiclass,
+     note: "one of the 4 Pact Boon options; an existing known Spell becomes the Pact Spell"}
+  - {name: Wild Form, class: Druid, feature_level: 1, via: Novice Multiclass}
+  - {name: Remarkable Repertoire, class: Bard, feature_level: 1, via: Novice Multiclass,
+     grants: {spells: 2, skill_points: 2},
+     note: "Jack of All Trades 2 SP + Magical Secrets 2 spells from ANY Spell List + Expression"}
+  - {name: Innate Power, class: Sorcerer, feature_level: 1, via: Novice Multiclass,
+     grants: {mp: 1},
+     note: "+1 MP + 1pt Focus Property; Intuitive Magic origin adds 2 spells from the Sorcerer's chosen-Source list"}
+  - {name: Spell School Initiate, class: Wizard, feature_level: 1, via: Novice Multiclass,
+     grants: {spells: 2},
+     note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}
+  - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass}
+  - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass}

@@ -1,21 +1,26 @@
-# CURATED cross-cutting cost list — spell-school membership for the Spellblade access model.
-# Source: rules/spells.md "Spells sorted by Schools" section (l.332-519). The Spellblade "draws
-# magic from Spell Schools" (classes.md l.2834), so this school-flattened list is the right one —
-# NO magic-source tracking is needed for the Spellblade (that §11 wrinkle only bites source-drawing
-# classes like Cleric/Druid). tools/catalog_verify.py re-parses that section and asserts these lists
-# match the source.
+# CURATED cross-cutting cost list — spell-school membership for the SCHOOLS-model classes.
+# Source: rules/spells.md "Spells sorted by Schools" section (l.332-519). Two of the walked
+# classes draw magic from Spell Schools: the Spellblade ("Choose 2 Spell Schools",
+# classes.md l.2834, plus Weapon/Ward tag access) and the Warlock ("Choose 3 Spell Schools",
+# classes.md l.3204, no tag access). For schools-model classes the school-flattened list is
+# the right source — NO magic-source tracking is needed (the SS11 wrinkle only bites
+# source-drawing classes like the Druid; see spell_sources.yaml). tools/catalog_verify.py
+# re-parses that section and asserts these lists match the source.
 #
-# Access rule: a Spell is a legal Spellblade pick if it is in one of the character's CHOSEN schools
-# OR carries a tag in tag_access. (Primal Hide is School: Transmutation but Tags: Embolden, Ward —
-# legal for Tanrielle via the Ward tag, spells.md l.6628-6631.)
+# Access rule (Spellblade): a Spell is a legal pick if it is in one of the character's CHOSEN
+# schools OR carries a tag in tag_access. (Primal Hide is School: Transmutation but Tags:
+# Embolden, Ward — legal for Tanrielle via the Ward tag, spells.md l.6628-6631.)
+# Access rule (Warlock): chosen schools only, plus any subclass spell_access grant (Eldritch
+# Psychic Spellcasting: Psychic-tag spells, see warlock.yaml subclass_grants).
 #
-# Scope (validate-don't-enumerate): only the schools the walked builds touch. Tanrielle chose
-# Invocation + Divination (tanrielle.yaml l.28), so those two are curated. Add schools as builds
-# reach them.
+# Scope (validate-don't-enumerate): only the schools the walked builds touch.
+#   Tanrielle: Invocation + Divination.  Xanwyn: Nullification + Invocation (+ Transmutation
+#   via the Spell School Initiate talent).  Runt: Elemental + Invocation + Nullification.
+# Add schools as builds reach them.
 
 catalog_version: 1
 model: schools
-tag_access: [Weapon, Ward]
+tag_access: [Weapon, Ward]     # Spellblade only; Warlock has none
 schools:
   Invocation:
     - Cleanse
@@ -43,3 +48,84 @@ schools:
     - Foresight
     - Locate Target
     - Scrying
+  Elemental:
+    - Absorb Element
+    - Acid Stream
+    - Air Slash
+    - Blight Bomb
+    - Cloud Cover
+    - Cold Wave
+    - Cone of Cold
+    - Corrosive Bolt
+    - Corrosive Cascade
+    - Corrosive Wave
+    - Elemental Shield
+    - Eruption
+    - Fireball
+    - Fire Blast
+    - Fire Bolt
+    - Fire Torrent
+    - Freeze
+    - Frost Bolt
+    - Frost Storm
+    - Gust
+    - Hydro Lance
+    - Inflict Poison
+    - Lightning Blast
+    - Lightning Bolt
+    - Lightning Torrent
+    - Lightning Storm
+    - Lightning Rod
+    - Living Bomb
+    - Maelstrom
+    - Mold Earth
+    - Poison Bolt
+    - Spike Bolt
+    - Spike Cluster
+    - Spike Surge
+    - Tornado
+    - Toxic Burst
+    - Water Bolt
+    - Wall of Fire
+    - Wall of Earth
+    - Wall of Water
+    - Wind Blade
+    - Wind Burst
+    - Wind Tunnel
+  Nullification:
+    - Arcane Shield
+    - Bane
+    - Corpse Explosion
+    - Darkness
+    - Death
+    - Death Bolt
+    - Disintegrating Beam
+    - Disintegrate
+    - Dispel Magic
+    - Enfeeble
+    - Muffle
+    - Sanctuary
+    - Sphere of Death
+    - Umbral Burst
+    - Umbral Wave
+    - Vampiric Touch
+    - Wild Guard
+    - Zone of Peace
+  Transmutation:
+    - Acid Imbued
+    - Alter Size
+    - Blessing of Earth
+    - Blessing of Water
+    - Chaos Bolt
+    - Chaos Torrent
+    - Cold Imbued
+    - Enhance Ability
+    - Fire Imbued
+    - Lightning Imbued
+    - Poison Imbued
+    - Psychic Imbued
+    - Primal Hide
+    - Quicksand
+    - Radiant Imbued
+    - Shadowbind
+    - Umbral Imbued

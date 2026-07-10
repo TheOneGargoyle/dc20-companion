@@ -1,0 +1,111 @@
+# CURATED cross-cutting cost list — spell-SOURCE membership for the source-drawing classes.
+# Source: rules/spells.md "Spells sorted by Sources" section (l.7-331). "Certain classes
+# (such as the Cleric, Druid, Sorcerer, or Wizard) draw their magic from a Spell Source."
+# The Druid is the walked one: "When you learn a new Spell, you can choose any Spell on the
+# Primal Spell Source" (classes.md l.1315-16).
+#
+# THIS file is where the RUNG3_PLAN SS11 wrinkle lives: school names repeat across the three
+# magic sources (Arcane / Divine / Primal), so membership is tracked under the PARENT SOURCE
+# heading, source -> school -> spells, exactly mirroring the md structure. (The schools-model
+# classes — Spellblade, Warlock — use the flattened spell_schools.yaml instead and need no
+# source tracking.) tools/catalog_verify.py re-parses the by-Sources section tracking the
+# parent source headings and asserts these lists match.
+#
+# Scope (validate-don't-enumerate): only the sources the walked builds draw from. Scaletrix
+# (Druid) walks Primal. Add Arcane/Divine blocks when a Cleric/Sorcerer/Wizard ledger arrives.
+
+catalog_version: 1
+model: sources
+sources:
+  Primal:
+    Astromancy:
+      - Blessing of Air
+      - Blessing of Zephyr
+    Conjuration:
+      - Bind
+      - Call Familiar
+      - Disguise Self
+      - Elemental Weapon
+      - Entangle
+      - Illusory Image
+      - Nature’s Tether
+      - Oil Slick
+      - Summon Beast
+      - Summon Elemental
+      - Summon Fey
+      - Summon Plant
+    Divination:
+      - Danger Sense
+      - Detect Magic
+      - Empowered Sight
+      - Foresight
+    Elemental:
+      - Absorb Elements
+      - Acid Stream
+      - Air Slash
+      - Blight Bomb
+      - Cloud Cover
+      - Cold Wave
+      - Cone of Cold
+      - Corrosive Bolt
+      - Corrosive Cascade
+      - Corrosive Wave
+      - Elemental Shield
+      - Eruption
+      - Fireball
+      - Fire Blast
+      - Fire Bolt
+      - Fire Torrent
+      - Freeze
+      - Frost Bolt
+      - Frost Storm
+      - Gust
+      - Hydro Lance
+      - Inflict Poison
+      - Lightning Blast
+      - Lightning Bolt
+      - Lightning Rod
+      - Lightning Storm
+      - Lightning Torrent
+      - Living Bomb
+      - Maelstrom
+      - Mold Earth
+      - Poison Bolt
+      - Spike Bolt
+      - Spike Cluster
+      - Spike Surge
+      - Tornado
+      - Toxic Burst
+      - Wall of Earth
+      - Wall of Fire
+      - Wall of Water
+      - Water Bolt
+      - Wind Blade
+      - Wind Burst
+      - Wind Tunnel
+    Enchantment:
+      - Confusion
+    Invocation:
+      - Cleanse
+      - Close Wounds
+      - Healing Wave
+      - Illuminate
+      - Light
+      - Regenerate
+      - Revivify
+      - Solar Beam
+      - Sunburst
+    Nullification:
+      - Enfeeble
+      - Wild Guard
+    Transmutation:
+      - Acid Imbued
+      - Blessing of Earth
+      - Blessing of Water
+      - Cold Imbued
+      - Enhance Ability
+      - Fire Imbued
+      - Lightning Imbued
+      - Poison Imbued
+      - Primal Hide
+      - Quicksand

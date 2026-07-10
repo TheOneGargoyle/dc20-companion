@@ -2,16 +2,14 @@
 # Spine numbers come straight from CLASS_TABLES; names cross-checked vs classes.md.
 catalog_version: 1
 ruleset: DC20 0.10.5
-class: Spellblade
+class: Druid
 generated_by: tools/catalog_build.py
-source: CLASS_TABLES (build_engine.py) + rules/classes.md l.2759-3048 + rules/tables.md l.157-170
+source: CLASS_TABLES (build_engine.py) + rules/classes.md l.1270-1684 + rules/tables.md l.82-96
 spine:
   1:
-    hp: 8
-    sp: 1
-    maneuvers: 1
-    mp: 3
-    spells: 2
+    hp: 7
+    mp: 6
+    spells: 4
     features:
     - Class Features
   2:
@@ -21,12 +19,12 @@ spine:
     - Talent
     - Path
   3:
-    hp: 2
+    hp: 1
     attribute_points: 1
     skill_points: 1
     trade_points: 1
-    maneuvers: 1
-    mp: 2
+    mp: 3
+    spells: 1
     features:
     - Subclass
   4:
@@ -36,12 +34,11 @@ spine:
     - 2 Ancestry Points
     - Path
   5:
-    hp: 2
+    hp: 1
     attribute_points: 1
     skill_points: 2
     trade_points: 1
-    sp: 1
-    mp: 1
+    mp: 3
     spells: 1
     features:
     - Class Feature
@@ -52,9 +49,9 @@ spine:
     - Talent
     - Path
   7:
-    hp: 2
-    maneuvers: 1
-    mp: 2
+    hp: 1
+    mp: 3
+    spells: 1
     features:
     - Subclass Expert
   8:
@@ -67,9 +64,8 @@ spine:
     - 2 Ancestry Points
     - Path
   9:
-    hp: 2
-    sp: 1
-    mp: 1
+    hp: 1
+    mp: 3
     spells: 1
     features:
     - Class Capstone
@@ -78,39 +74,17 @@ spine:
     attribute_points: 1
     skill_points: 2
     trade_points: 1
-    maneuvers: 1
-    mp: 2
+    mp: 3
+    spells: 1
     features:
     - Subclass Capstone
-disciplines_pick_l1: 2
-disciplines:
-- name: Magus
-  grants:
-    mp: 1
-    spells: 1
-- name: Warrior
-  grants:
-    maneuvers: 1
-  training:
-  - Heavy Armor
-  - Heavy Shield
-- name: Acolyte
-- name: Hex Warrior
-- name: Spell Breaker
-- name: Spell Warder
-- name: Blink Blade
-- name: Sense Magic
-  flavor: true
 subclasses:
-- Paladin
-- Rune Knight
+- Phoenix
+- Rampant Growth
 - Paragon
 spellcasting:
-  model: schools
-  schools_chosen: 2
-  tag_access:
-  - Weapon
-  - Ward
+  model: source
+  source: Primal
 paths:
 - Martial
 - Spellcaster
