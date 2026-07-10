@@ -1,0 +1,23 @@
+# --- Secrets: never commit ---
+publish-token.txt
+**/publish-token.txt
+*.token
+*.pat
+ 
+# --- GM / private campaign material: must never reach the public repo ---
+# The published Companion is player-safe; build.py skips these if absent.
+*_GM.md
+_SESSION_LOG.md
+ 
+# --- Author-only working material (not read by the player build) ---
+sheets/
+builds/sources/
+builds/reports/
+*.pdf
+ 
+# --- Build output & local cruft ---
+dist/
+**/__pycache__/
+*.pyc
+.DS_Store
+ 
