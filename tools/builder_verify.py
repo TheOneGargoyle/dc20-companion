@@ -28,6 +28,12 @@ Checks (formalising the step-4 ad-hoc harness + the step-5 additions):
       0 problems); undo_add_level restores the baseline; exports re-validate clean.
   (6) Received-file safety: an exported ledger carrying an illegal edit, reloaded
       as text (the self-serve round trip), still shows the problem.
+  (7) Comment-preserving export: every comment line in each of the six source
+      ledgers survives an untouched export (with no orphan section), the merged
+      export still parses to the same data, EOL comments and aligned continuation
+      blocks re-attach, the expected->expected_at_L<n> rename is followed on
+      promote, comments survive a second round trip and an edited export, and a
+      scratch export carries a generated header.
 
 Exit 0 on PASS, 1 on any failure.
 """
@@ -412,6 +418,66 @@ def check_received():
        any("not legal" in p for p in st(api3)["catalog_problems"]), st(api3)["catalog_problems"])
 
 
+# ---------------------------------------------------------------- (7) comments
+def check_comments():
+    print("## (7) Comment-preserving YAML export")
+    import yaml as _yaml
+    for c in builder_build.CHARS:
+        src = open(c + ".yaml", encoding="utf-8").read()
+        api = builder_api.BuilderAPI(c, CATPATHS)
+        y = api.export_yaml()
+        src_comments = [ln.strip() for ln in src.splitlines()
+                        if ln.strip().startswith("#")]
+        missing = [t for t in src_comments if t not in y]
+        ok("%-10s all %d source comment lines survive export" % (c, len(src_comments)),
+           not missing, missing[:3])
+        ok("%-10s no orphan section on an untouched export" % c,
+           "anchor was edited away" not in y)
+        ok("%-10s merged export parses back to the same data" % c,
+           _yaml.safe_load(y) == api.ledger)
+    # the tanrielle specifics: header, EOL comments, aligned continuation, marker
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    y = api.export_yaml()
+    ok("tanrielle header provenance block stays at the top",
+       y.startswith("# Build ledger: Tanrielle"))
+    ok("tanrielle EOL comment re-attaches (allocation_confidence)",
+       re.search(r"allocation_confidence: inferred\s+# totals verified", y))
+    ok("tanrielle pd EOL comment + continuation block re-attach",
+       re.search(r"pd: 17\s+# base incl", y) and "NOT a sheet error" in y)
+    ok("tanrielle PLAN section marker survives", "# ---- PLAN" in y)
+    # an edit does not disturb the comments
+    s = st(api)
+    d = find_dec(s, lambda d: d["slot"] == "ancestry_trait" and d["level"] == 4)
+    api.set_decision(d["id"], "Quick Reactions")
+    y2 = api.export_yaml()
+    ok("comments survive an edited export",
+       "# ---- PLAN" in y2 and "Quick Reactions" in y2
+       and y2.startswith("# Build ledger: Tanrielle"))
+    # promote: the expected block's EOL comment follows the rename
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    api.add_level()
+    y3 = api.export_yaml()
+    m = [l for l in y3.splitlines() if l.startswith("expected_at_L4:")]
+    ok("promote: expected's EOL comment follows the expected_at_L4 rename",
+       bool(m) and "# from the L4 sheet" in m[0], m[:1])
+    # second round trip: reload the exported text, export again
+    api2 = builder_api.BuilderAPI("tanrielle", CATPATHS, ledger_text=y3)
+    y4 = api2.export_yaml()
+    ok("comments survive a second export round trip",
+       y4.startswith("# Build ledger: Tanrielle") and "# ---- PLAN" in y4
+       and "# from the L4 sheet" in y4 and _yaml.safe_load(y4) == api2.ledger)
+    # a removed anchor goes to the marked orphan section, not silently dropped
+    api3 = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    api3.ledger.pop("expected")
+    y5 = api3.export_yaml()
+    ok("a deleted anchor's comment lands in the marked orphan section",
+       "anchor was edited away" in y5 and "from the L4 sheet" in y5)
+    # scratch export gets a generated header
+    napi = builder_api.BuilderAPI(None, CATPATHS, new_class="druid")
+    ok("scratch export carries a generated header",
+       napi.export_yaml().startswith("# Build ledger: New Druid"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -429,6 +495,7 @@ def main():
         check_scratch()
         check_addlevel()
         check_received()
+        check_comments()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -439,7 +506,8 @@ def main():
             print("  - " + f)
         sys.exit(1)
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
-    print("       add-a-level (promote + generate + undo), received-file safety")
+    print("       add-a-level (promote + generate + undo), received-file safety,")
+    print("       comment-preserving export")
     sys.exit(0)
 
 

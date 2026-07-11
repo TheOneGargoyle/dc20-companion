@@ -19,7 +19,13 @@ Build-order step 5 (RUNG3_PLAN section 7) on top of the step-4 generalisation. T
 - RESPEC POLISH (section 8): a loud you-are-editing-canon banner once a canonical ledger is
   dirty, respec export to <handle>.respec.yaml vs a confirm-gated canon export to
   <handle>.yaml, in-progress persistence via localStorage, and a load-your-own-YAML input
-  (the section 5 self-serve round trip; the engine re-validates anything loaded).
+  (the section 5 self-serve round trip; the engine re-validates anything loaded);
+- COMMENT-PRESERVING EXPORT: export_yaml() re-anchors the source ledger's own YAML
+  comments (header provenance, EOL notes, aligned continuation blocks, section
+  markers) onto the re-serialised file using composer line-paths (format-neutral,
+  PyYAML only - no new deps); the expected <-> expected_at_L<n> rename is followed,
+  and any comment whose anchor was edited away is collected, clearly marked, at the
+  bottom of the file instead of being silently dropped.
 
 Every edit re-runs the REAL tools/build_engine.py via Pyodide; the catalog files supply
 option lists and the catalog-level legality pass; a builder-level pass reports undecided
@@ -120,6 +126,158 @@ def blank_ledger(cls, ccat):
             'notes': ['Created in the rung-3 builder (new-from-scratch mode).']}
 
 
+
+# ---------- comment-preserving YAML export ----------
+def _line_paths(text):
+    # {physical line -> node path} for every mapping key / sequence item, via the
+    # real YAML composer - format-neutral, so hand-written and dumped layouts agree.
+    loader = yaml.SafeLoader(text)
+    try:
+        node = loader.get_single_node()
+    finally:
+        loader.dispose()
+    pairs = []
+
+    def walk(n, path):
+        if isinstance(n, yaml.MappingNode):
+            for k, v in n.value:
+                p = path + (str(k.value),)
+                pairs.append((k.start_mark.line, p))
+                walk(v, p)
+        elif isinstance(n, yaml.SequenceNode):
+            for i, item in enumerate(n.value):
+                pairs.append((item.start_mark.line, path + (i,)))
+                walk(item, path + (i,))
+    if node is not None:
+        walk(node, ())
+    line2path, path2line = {}, {}
+    for ln, p in pairs:
+        line2path[ln] = p            # deeper key wins on shared lines - same rule both sides
+        path2line.setdefault(p, ln)
+    return line2path, path2line
+
+
+def _split_comment(line):
+    # -> (code, comment-including-#, column) or (line, None, -1); quote-aware
+    q = None
+    for i, ch in enumerate(line):
+        if q:
+            if ch == q:
+                q = None
+        elif ch in ('"', "'"):
+            q = ch
+        elif ch == '#' and (i == 0 or line[i - 1] in ' \t'):
+            return line[:i].rstrip(), line[i:], i
+    return line, None, -1
+
+
+def _extract_comments(text):
+    # -> (header_lines, anchors, tail_lines); anchors are dicts:
+    #    {'kind': 'eol',   'path': p, 'text': '# ...', 'col': n}
+    #    {'kind': 'lead'|'trail', 'path': p, 'lines': [raw, ...]}
+    lines = text.splitlines()
+    line2path, _ = _line_paths(text)
+    header, tail, anchors = [], [], []
+    eol_at = {}
+    for n in line2path:
+        _, com, col = _split_comment(lines[n])
+        if com:
+            anchors.append({'kind': 'eol', 'path': line2path[n], 'text': com, 'col': col})
+            eol_at[n] = (line2path[n], col)
+
+    def is_free(n):                  # comment-only or blank line
+        s = lines[n].strip()
+        return n not in line2path and (not s or s.startswith('#'))
+
+    n, N, seen = 0, len(lines), False
+    while n < N:
+        if not is_free(n):
+            seen = True
+            n += 1
+            continue
+        start = n
+        while n < N and is_free(n):
+            n += 1
+        run = lines[start:n]
+        if n >= N and not any(l.strip() for l in run):
+            continue                 # pure trailing blanks
+        prev = start - 1
+        indent0 = len(run[0]) - len(run[0].lstrip())
+        if not seen:
+            header.extend(run)
+        elif n >= N:
+            tail.extend(run)
+        elif prev in eol_at and run[0].strip().startswith('#') \
+                and indent0 >= eol_at[prev][1]:
+            # aligned under the previous line's EOL comment -> continuation block
+            anchors.append({'kind': 'trail', 'path': eol_at[prev][0], 'lines': run})
+        else:
+            m = n                    # attach to the NEXT structural line
+            while m < N and m not in line2path:
+                m += 1
+            if m < N:
+                anchors.append({'kind': 'lead', 'path': line2path[m], 'lines': run})
+            else:
+                tail.extend(run)
+    return header, anchors, tail
+
+
+def merge_comments(src_text, dumped):
+    # re-anchor src_text's comments onto the freshly dumped YAML (same data, new text)
+    header, anchors, tail = _extract_comments(src_text)
+    _, path2line = _line_paths(dumped)
+    top_new = {p[0] for p in path2line if len(p) == 1}
+
+    def resolve(path):
+        if path in path2line:
+            return path
+        k = str(path[0])             # the promote/undo rename: expected <-> expected_at_L<n>
+        if k == 'expected' or k.startswith('expected_at_'):
+            for cand in top_new:
+                c = str(cand)
+                if c == 'expected' or c.startswith('expected_at_'):
+                    p2 = (cand,) + tuple(path[1:])
+                    if p2 in path2line:
+                        return p2
+        return None
+
+    lead, eol, trail, orphans = {}, {}, {}, []
+    for a in anchors:
+        p = resolve(a['path'])
+        if p is None:
+            orphans.append(a)
+            continue
+        ln = path2line[p]
+        if a['kind'] == 'lead':
+            lead.setdefault(ln, []).extend(a['lines'])
+        elif a['kind'] == 'eol':
+            eol[ln] = (a['text'], a['col'])
+        else:
+            trail.setdefault(ln, []).extend(a['lines'])
+    out = list(header)
+    for n, ln in enumerate(dumped.splitlines()):
+        if n in lead:
+            out.extend(lead[n])
+        if n in eol:
+            text, col = eol[n]
+            ln = ln + ' ' * max(col - len(ln), 2) + text
+        out.append(ln)
+        if n in trail:
+            out.extend(trail[n])
+    out.extend(tail)
+    if orphans:
+        out.append('')
+        out.append('# --- comments from the source ledger whose anchor was edited away; '
+                   're-home or drop: ---')
+        for a in orphans:
+            if a['kind'] == 'eol':
+                out.append('# (was on: %s)  %s'
+                           % ('.'.join(str(x) for x in a['path']), a['text']))
+            else:
+                out.extend(l for l in a['lines'] if l.strip())
+    return '\n'.join(out) + '\n'
+
+
 class BuilderAPI:
     # Loads one ledger by handle (or a blank one, or raw YAML text) + the full catalog;
     # exposes a JSON decision-model API.
@@ -132,12 +290,15 @@ class BuilderAPI:
             key = str(new_class).lower()
             self.ledger = blank_ledger(CLASS_NAMES[key], self.cat[key])
             self.handle = 'new-' + key
+            self.src_text = None
         elif ledger_text is not None:
             self.ledger = yaml.safe_load(ledger_text)
             self.handle = str(handle)
+            self.src_text = ledger_text
         else:
             self.handle = str(handle)
-            self.ledger = yaml.safe_load(open(self.handle + '.yaml', encoding='utf-8'))
+            self.src_text = open(self.handle + '.yaml', encoding='utf-8').read()
+            self.ledger = yaml.safe_load(self.src_text)
         self.scratch = (bool(new_class) or self.handle.startswith('new-')
                         or any('new-from-scratch' in str(n)
                                for n in (self.ledger.get('notes') or [])))
@@ -881,7 +1042,18 @@ class BuilderAPI:
         return self.state()
 
     def export_yaml(self):
-        return yaml.dump(self.ledger, sort_keys=False, allow_unicode=True)
+        # width=4096: no line-wrapping, so an EOL comment can never land inside a
+        # wrapped plain scalar
+        dumped = yaml.dump(self.ledger, sort_keys=False, allow_unicode=True, width=4096)
+        if not getattr(self, 'src_text', None):
+            return ('# Build ledger: %s. Created in the rung-3 builder '
+                    '(new-from-scratch mode).\n# Schema: builds/SCHEMA.md (v1).\n'
+                    % self.ledger.get('character')) + dumped
+        try:
+            return merge_comments(self.src_text, dumped)
+        except Exception as e:       # comment merge must never block an export
+            print('comment merge failed (%s); exporting without comments' % e)
+            return dumped
 """
 
 TEMPLATE = r"""<!doctype html>
@@ -1022,8 +1194,9 @@ re-validates live against the engine AND the option catalog. Export writes the u
 and falls back to the bake, so it runs from <code>file://</code> or a server. Pick a character with
 <code>?char=&lt;handle&gt;</code>, start fresh with <code>?new=&lt;class&gt;</code>, or use the dropdown. In-progress
 work is kept in this browser's local storage and offered for resume; you can also re-load your own exported
-YAML (the engine re-validates anything loaded). Export is a clean re-serialisation (inline YAML comments are
-not preserved yet - a v-next item); it round-trips cleanly through the engine.</p>
+YAML (the engine re-validates anything loaded). Export PRESERVES the ledger's own YAML comments (header
+provenance, inline notes, section markers) by re-anchoring them onto the re-serialised file; any comment whose
+anchor was edited away is collected, marked, at the bottom for review. It round-trips cleanly through the engine.</p>
 
 <script>
 const CHARS = __CHARS_JSON__;
