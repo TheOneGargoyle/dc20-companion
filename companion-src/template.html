@@ -42,6 +42,10 @@ nav button.on{color:var(--gold)}
 .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
   border-radius:999px;padding:3px 10px;font-size:13px;margin:2px}
 .pill.on{background:var(--gmred);border-color:#c96a4a;color:#ffe9dd}
+.pmenu{position:fixed;z-index:2000;background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px;min-width:190px;max-width:80vw}
+.pmenu-hd{font-size:12px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.pmenu button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;padding:9px 8px;font-size:14px;color:var(--ink);cursor:pointer}
+.pmenu button:active{background:var(--line)}
 details{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:8px 0}
 details summary{padding:10px 12px;cursor:pointer;color:var(--gold);font-size:15.5px;list-style:none}
 details summary::before{content:'▸ ';color:var(--dim)}
@@ -311,6 +315,11 @@ details .inner{padding:0 12px 12px}
     The DC20 game rules referenced here are created by <b>The Dungeon Coach</b> (Alan Bjorkgren) and are being released under the <b>Open RPG Creative (ORC) License</b>. DC20 is in beta (this app tracks v0.10.5) and still evolving — please refer to the official sources for the authoritative and current rules, and consider supporting the game directly.
   </div>
   <div class="card">
+    <b>Guides &amp; tools</b><br>
+    <a href="https://theonegargoyle.github.io/dc20-companion/howto.html" target="_blank" rel="noopener">Player how-to guide</a><br>
+    <a href="https://theonegargoyle.github.io/dc20-companion/builder.html" target="_blank" rel="noopener">Character builder</a>
+  </div>
+  <div class="card">
     <b>Links</b><br>
     <a href="https://thedungeoncoach.com/pages/dc20" target="_blank" rel="noopener">DC20 official page</a><br>
     <a href="https://paizo.com/orclicense" target="_blank" rel="noopener">Open RPG Creative (ORC) License</a><br>
@@ -517,12 +526,39 @@ function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
   saveS();renderParty();toast('Long Rest: everything restored.');}
 function togCond(x){const i=S.conds.indexOf(x);if(i>=0)S.conds.splice(i,1);else S.conds.push(x);saveS();renderParty();}
 function curPD(){const c=CHARS[cur];let pd=c.pd;c.toggles.forEach(x=>{if(x.pd&&S.t[x.k])pd+=x.pd;});return pd;}
+/* ---- char-pill "Build" menu: long-press (mobile) / right-click (desktop) opens the builder on that character ---- */
+const BUILDER_BASE='https://theonegargoyle.github.io/dc20-companion/builder.html';
+const BUILDER_HANDLE={tan:'tanrielle',min:'minimus',runt:'runt',scale:'scaletrix',bonan:'bonan',xan:'xanwyn'};
+function openBuilder(k){const h=BUILDER_HANDLE[k]||k;window.open(BUILDER_BASE+'?char='+encodeURIComponent(h),'_blank','noopener');hidePillMenu();}
+let _pm=null;
+function hidePillMenu(){if(_pm){_pm.remove();_pm=null;document.removeEventListener('pointerdown',_pmOut,true);document.removeEventListener('scroll',hidePillMenu,true);}}
+function _pmOut(e){if(_pm&&!_pm.contains(e.target))hidePillMenu();}
+function showPillMenu(k,x,y){hidePillMenu();const c=CHARS[k];const m=document.createElement('div');m.className='pmenu';
+  m.innerHTML='<div class="pmenu-hd">'+(c?c.name:k)+'</div>';
+  const btn=document.createElement('button');btn.type='button';btn.textContent='🛠 Build / edit in the builder';
+  btn.onclick=(e)=>{e.stopPropagation();openBuilder(k);};m.appendChild(btn);
+  document.body.appendChild(m);_pm=m;
+  const w=m.offsetWidth,h=m.offsetHeight,pad=8;
+  const px=Math.min(x,window.innerWidth-w-pad),py=Math.min(y,window.innerHeight-h-pad);
+  m.style.left=Math.max(pad,px)+'px';m.style.top=Math.max(pad,py)+'px';
+  setTimeout(()=>{document.addEventListener('pointerdown',_pmOut,true);document.addEventListener('scroll',hidePillMenu,true);},0);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')hidePillMenu();});
+function wirePill(b,k){
+  b.oncontextmenu=(e)=>{e.preventDefault();showPillMenu(k,e.clientX,e.clientY);};
+  let t=null,fired=false;
+  b.addEventListener('touchstart',(e)=>{fired=false;const tc=e.touches[0];t=setTimeout(()=>{fired=true;if(navigator.vibrate)navigator.vibrate(15);showPillMenu(k,tc.clientX,tc.clientY);},500);},{passive:true});
+  const cancel=()=>{if(t){clearTimeout(t);t=null;}};
+  b.addEventListener('touchmove',cancel,{passive:true});
+  b.addEventListener('touchend',(e)=>{cancel();if(fired)e.preventDefault();});
+  b.addEventListener('touchcancel',cancel);
+  b.onclick=()=>{if(fired){fired=false;return;}pickChar(k);};
+}
 function renderParty(){
   const c=CHARS[cur];
   const chips=document.getElementById('charChips');chips.innerHTML='';
   Object.keys(CHARS).sort((a,b)=>CHARS[a].short.localeCompare(CHARS[b].short)).forEach(k=>{const b=document.createElement('button');
     b.textContent=CHARS[k].short;if(k===cur)b.className='on';
-    b.onclick=()=>pickChar(k);chips.appendChild(b);});
+    wirePill(b,k);chips.appendChild(b);});
   document.getElementById('cName').textContent=c.name;
   document.getElementById('cSub').innerHTML=c.sub;
   const pd=curPD();

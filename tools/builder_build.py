@@ -1188,6 +1188,18 @@ a.rm{color:var(--bad);text-decoration:none;font-weight:700;font-size:.95rem;padd
 .foot{font-size:.76rem;color:var(--muted);margin-top:1rem}
 .src{font-size:.72rem;color:var(--muted);margin-top:.4rem}
 pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size:.76rem;white-space:pre-wrap;max-height:260px;overflow:auto;display:none}
+@media (max-width:640px){
+  .wrap{padding:.8rem .8rem 3rem}
+  #charsel{margin-left:0;margin-top:.5rem;width:100%}
+  .loadlbl{display:block;margin-left:0;margin-top:.5rem}
+  .builder{grid-template-columns:1fr;gap:.7rem}
+  .dec{gap:.35rem}
+  .dec .slot{min-width:0;flex-basis:100%}
+  .dec .pick{min-width:0;flex-basis:100%}
+  .select{max-width:100%;width:100%}
+  .alloc,.langs{grid-template-columns:1fr}
+  .card{padding:.75rem}
+}
 </style></head>
 <body><div class="wrap">
 <h1>DC20 Character Builder</h1> <span class="badge">rung 3 - step 5</span>
