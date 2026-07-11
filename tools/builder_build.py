@@ -51,7 +51,7 @@ REPO = os.path.dirname(HERE)  # tools/.. == campaign/repo root
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
-           "talents", "skills_trades"]
+           "talents", "skills_trades", "languages"]
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 
@@ -603,6 +603,20 @@ class BuilderAPI:
             p = self._trait_problem(t['name'], t.get('cost', 0))
             if p:
                 probs.append(p)
+        # ancestry-trait prerequisites (e.g. Superior Darkvision requires Darkvision).
+        # "any ... Trait" category requirements are recorded in the catalog but not
+        # enforced here (no single name to resolve, so no false positives).
+        present = {base_name(t.get('name')) for t in self._traits()
+                   if str(t.get('name')) != UNDECIDED and base_name(t.get('name'))}
+        for t in self._traits():
+            nm = t.get('name')
+            if str(nm) == UNDECIDED:
+                continue
+            row = self._anc_find(nm)[1]
+            req = (row or {}).get('requires')
+            if req and 'any ' not in str(req).lower() and base_name(req) not in present:
+                probs.append('catalog: %s requires %s, which this character has not taken'
+                             % (base_name(nm), req))
         return probs
 
     # ---------- builder-level completeness (undecided slots) ----------
@@ -709,9 +723,13 @@ class BuilderAPI:
         out = []
         for kind in ('skills', 'trades'):
             for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
+                lr = m.get('limit_raise')
+                purchase = 'skill_point_purchase' if kind == 'skills' else 'trade_point_purchase'
                 out.append({'id': '%s:%s' % (kind, name), 'kind': kind, 'name': name,
-                            'mastery': m.get('mastery'), 'limit_raise': m.get('limit_raise'),
+                            'mastery': m.get('mastery'), 'limit_raise': lr,
                             'options': [str(x) for x in MASTERIES],
+                            'purchasable': (not lr) or lr == purchase,
+                            'purchased': lr == purchase,
                             'removable': self.scratch or BUILDER_NOTE in str(m.get('note', ''))})
         return out
 
@@ -727,6 +745,12 @@ class BuilderAPI:
                   'group': 'Knowledge Trades' if n in kn else 'Trades'}
                  for n in (stc.get('trades') or []) if n not in have['trades']]
         return opts
+
+    def _language_options(self):
+        lc = (self.cat.get('languages') or {}).get('languages') or {}
+        have = {str(l.get('name')) for l in (self.ledger.get('languages') or [])}
+        return [{'name': n, 'group': g} for g, lst in lc.items()
+                for n in lst if n not in have]
 
     def _langs(self):
         out = []
@@ -792,6 +816,7 @@ class BuilderAPI:
             'decisions': self._decisions(),
             'alloc': self._alloc(),
             'languages': self._langs(),
+            'language_options': self._language_options(),
             'stats': stats, 'budgets': budgets,
             'advisories': [b for b in budgets if 'UNDER-SPENT' in b],
             'problems': rep.problems,
@@ -856,6 +881,7 @@ class BuilderAPI:
                 else:
                     e.pop('grants', None)
                 self._edited(e)
+                self._sync_talent_rider(int(lvl), e)
             elif slot == 'subclass':
                 e['pick'] = value
                 self.ledger['subclass'] = value
@@ -900,6 +926,22 @@ class BuilderAPI:
             ents.append({'slot': want, 'pick': UNDECIDED,
                          'source': 'path rider (%s)' % path, 'note': BUILDER_NOTE})
 
+    def _sync_talent_rider(self, lvl, e):
+        # the Attribute Increase General Talent grants Attribute Points; spawn that many
+        # attribute pick slots so they can be allocated (mirrors the path rider). Only for
+        # builder-touched talent entries, so canon-recorded picks are never duplicated.
+        ents = self.ledger['levels'][lvl]
+        for r in list(ents):
+            if str(r.get('source', '')).startswith('talent rider') \
+                    and BUILDER_NOTE in str(r.get('note', '')):
+                ents.remove(r)
+        n = int((e.get('grants') or {}).get('attribute_points', 0) or 0)
+        if n and 'in builder' in str(e.get('note', '')):
+            for _ in range(n):
+                ents.append({'slot': 'attribute', 'pick': UNDECIDED,
+                             'source': 'talent rider (%s)' % e.get('pick'),
+                             'note': BUILDER_NOTE})
+
     def set_attr(self, name, value):
         self.ledger['chargen']['attributes'][str(name)] = int(value)
         return self.state()
@@ -908,6 +950,19 @@ class BuilderAPI:
         kind, name = str(did).split(':', 1)
         m = self.ledger[kind]['masteries'][name]
         m['mastery'] = None if value in ('None', '', 'null') else str(value)
+        return self.state()
+
+    def set_limit_raise(self, did, on):
+        # buy a Skill/Trade Mastery Limit raise with 1 point (core-rules.md: spend 1 point
+        # to raise the Mastery Limit of a Skill/Trade by 1). The engine counts the extra
+        # point and stops flagging the mastery as over the normal level cap.
+        kind, name = str(did).split(':', 1)
+        m = self.ledger[kind]['masteries'][name]
+        purchase = 'skill_point_purchase' if kind == 'skills' else 'trade_point_purchase'
+        if str(on) in ('1', 'true', 'True', 'on', 'yes'):
+            m['limit_raise'] = purchase
+        elif m.get('limit_raise') in ('skill_point_purchase', 'trade_point_purchase'):
+            m.pop('limit_raise', None)   # never clobber a non-purchase (Expertise) raise
         return self.state()
 
     def add_mastery(self, kind, name):
@@ -1120,6 +1175,8 @@ details.lvlgrp.plan>summary{color:var(--muted);font-style:italic}
 .alloc{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.4rem}
 .alloc .row,.langs .row{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;font-size:.82rem;display:flex;justify-content:space-between;align-items:center;gap:.4rem;background:var(--paper)}
 .alloc .row .nm{overflow:hidden;text-overflow:ellipsis}
+.capraise{font-size:.66rem;white-space:nowrap}
+.capraise input{vertical-align:middle;margin:0 .1rem 0 0}
 .langs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.4rem;margin-top:.3rem}
 .addrow{margin-top:.55rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
 .exportbtn{margin-top:.7rem;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.5rem .95rem;font-size:.88rem;cursor:pointer}
@@ -1136,8 +1193,6 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 <h1>DC20 Character Builder</h1> <span class="badge">rung 3 - step 5</span>
 <select id="charsel"></select>
 <label class="loadlbl">or load a YAML: <input type="file" id="loadyaml" accept=".yaml,.yml"></label>
-<p class="sub">The real <code>build_engine.py</code> runs in your browser via Pyodide; every edit
-re-validates live against the engine AND the option catalog. Export writes the updated ledger YAML.</p>
 <div id="status">Booting Pyodide (first load pulls a few MB from the CDN)&hellip;</div>
 <div id="resume"></div>
 <div id="canonbar"></div>
@@ -1167,7 +1222,8 @@ re-validates live against the engine AND the option catalog. Export writes the u
         <button class="exportbtn small" id="ska-btn">+ add</button></div>
       <h3 class="sec" style="margin-top:.8rem">Languages</h3>
       <div class="langs" id="langs"></div>
-      <div class="addrow"><input class="select" id="lang-name" placeholder="new language">
+      <div class="addrow"><select class="select" id="lang-pick" style="max-width:200px"></select>
+        <input class="select" id="lang-name" placeholder="custom name" style="display:none">
         <select class="select" id="lang-flu" style="max-width:110px"><option>Limited</option><option selected>Fluent</option></select>
         <button class="exportbtn small" id="lang-btn">+ add</button></div>
     </div>
@@ -1187,14 +1243,8 @@ re-validates live against the engine AND the option catalog. Export writes the u
   </div>
 </div>
 
-<p class="foot">Self-contained: engine, full catalog and all six ledgers are baked in (regenerate with
-<code>tools/builder_build.py</code>). The page tries a live <code>fetch()</code> of the sibling source files first
-and falls back to the bake, so it runs from <code>file://</code> or a server. Pick a character with
-<code>?char=&lt;handle&gt;</code>, start fresh with <code>?new=&lt;class&gt;</code>, or use the dropdown. In-progress
-work is kept in this browser's local storage and offered for resume; you can also re-load your own exported
-YAML (the engine re-validates anything loaded). Export PRESERVES the ledger's own YAML comments (header
-provenance, inline notes, section markers) by re-anchoring them onto the re-serialised file; any comment whose
-anchor was edited away is collected, marked, at the bottom for review. It round-trips cleanly through the engine.</p>
+<p class="foot">Unofficial fan tooling for our home DC20 (v0.10.5) campaign. DC20 is by The Dungeon Coach,
+released under the ORC License.</p>
 
 <script>
 const CHARS = __CHARS_JSON__;
@@ -1234,6 +1284,7 @@ async function boot(){
       NEWC.map(c=>`<option value="new:${c}" ${(mode.newClass===c)?'selected':''}>new ${c}</option>`).join("") +
     '</optgroup>';
   sel.onchange = () => {
+    if(sel.value === "__loaded__") return;   // synthetic entry for a file-loaded character
     const u = new URL(location); u.searchParams.delete('char'); u.searchParams.delete('new');
     if(sel.value.startsWith('new:')) u.searchParams.set('new', sel.value.slice(4));
     else u.searchParams.set('char', sel.value);
@@ -1259,7 +1310,7 @@ async function boot(){
     "    'barbarian':'barbarian.yaml','druid':'druid.yaml','ancestries':'ancestries.yaml',\n" +
     "    'spell_schools':'spell_schools.yaml','spell_sources':'spell_sources.yaml',\n" +
     "    'maneuvers':'maneuvers.yaml','talents':'talents.yaml',\n" +
-    "    'skills_trades':'skills_trades.yaml'}\n" +
+    "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml'}\n" +
     "def make_api(handle):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS)\n" +
     "def make_api_new(cls):\n" +
@@ -1277,7 +1328,7 @@ async function boot(){
   render(JSON.parse(api.state()));
   $('app').style.display = "grid";
   $('status').className = "ready";
-  $('status').textContent = "Ready - engine running in the browser. Edit any highlighted decision.";
+  $('status').textContent = "Ready - the engine is running in your browser. Edit any highlighted decision, adjust skills, trades and languages, or add a level; every change re-validates live.";
   checkWIP();
 }
 
@@ -1419,12 +1470,17 @@ function render(s){
   $('tradd-lvl').innerHTML = s.anc_levels.map(l=>`<option value="${l}">L${l}</option>`).join("");
   $('tradd').onclick = () => refresh(api.add_trait($('tradd-lvl').value));
   // skills / trades allocator
-  $('alloc').innerHTML = s.alloc.map(a =>
-    `<div class="row"><span class="nm" title="${esc(a.name)}">${esc(a.kind==='skills'?'':'[T] ')}${esc(a.name)}${a.limit_raise?' *':''}</span>
-     <span><select class="select" style="max-width:110px" data-mast="${esc(a.id)}">` +
+  $('alloc').innerHTML = s.alloc.map(a => {
+    const capctl = a.purchasable
+      ? `<label class="capraise" title="spend 1 ${a.kind==='skills'?'Skill':'Trade'} Point to raise this Mastery Limit by 1"><input type="checkbox" data-lr="${esc(a.id)}" ${a.purchased?'checked':''}> cap+</label>`
+      : (a.limit_raise?`<span class="capraise" style="color:var(--muted)" title="Mastery Limit already raised (${esc(a.limit_raise)})">cap&uarr;</span>`:'');
+    return `<div class="row"><span class="nm" title="${esc(a.name)}">${esc(a.kind==='skills'?'':'[T] ')}${esc(a.name)}${a.limit_raise?' *':''}</span>
+     <span><select class="select" style="max-width:100px" data-mast="${esc(a.id)}">` +
      a.options.map(o=>`<option value="${esc(o)}" ${String(a.mastery)===o?'selected':''}>${o==='None'?'-':esc(o)}</option>`).join("") +
-     `</select>${a.removable?` <a href="#" class="rm" data-mastrm="${esc(a.id)}">&times;</a>`:''}</span></div>`).join("");
+     `</select> ${capctl}${a.removable?` <a href="#" class="rm" data-mastrm="${esc(a.id)}">&times;</a>`:''}</span></div>`;
+  }).join("");
   document.querySelectorAll('[data-mast]').forEach(el => el.onchange = () => refresh(api.set_mastery(el.dataset.mast, el.value)));
+  document.querySelectorAll('[data-lr]').forEach(el => el.onchange = () => refresh(api.set_limit_raise(el.dataset.lr, el.checked)));
   document.querySelectorAll('[data-mastrm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_mastery(el.dataset.mastrm)); });
   const stg = {};
   for(const o of s.skill_trade_options) (stg[o.group] ||= []).push(o);
@@ -1448,7 +1504,18 @@ function render(s){
      (l.fixed?'':` <a href="#" class="rm" data-langrm="${l.i}">&times;</a>`) + `</span></div>`).join("");
   document.querySelectorAll('[data-lang]').forEach(el => el.onchange = () => refresh(api.set_language(el.dataset.lang, el.value)));
   document.querySelectorAll('[data-langrm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_language(el.dataset.langrm)); });
-  $('lang-btn').onclick = () => { const n = $('lang-name').value.trim(); if(n) refresh(api.add_language(n, $('lang-flu').value)); };
+  const lg = {};
+  for(const o of (s.language_options||[])) (lg[o.group] ||= []).push(o);
+  $('lang-pick').innerHTML = Object.entries(lg).map(([g,os]) =>
+      `<optgroup label="${esc(g)}">${os.map(o=>`<option value="${esc(o.name)}">${esc(o.name)}</option>`).join("")}</optgroup>`
+    ).join("") + `<option value="::custom">custom&hellip;</option>`;
+  const langCustom = () => { $('lang-name').style.display = $('lang-pick').value === "::custom" ? "" : "none"; };
+  $('lang-pick').onchange = langCustom; langCustom();
+  $('lang-btn').onclick = () => {
+    const v = $('lang-pick').value;
+    const n = v === "::custom" ? $('lang-name').value.trim() : v;
+    if(n) refresh(api.add_language(n, $('lang-flu').value));
+  };
   // stats (collapse the Sheet/Check columns when there is no sheet to compare against)
   const noSheet = s.stats.every(r=>r[2]==='-');
   $('statshead').innerHTML = noSheet ? `<tr><th>Stat</th><th>Derived</th></tr>`
@@ -1536,8 +1603,16 @@ $('loadyaml').onchange = async ev => {
     handle = base.split('.')[0];
     api = pyodide.globals.get("make_api_text")(handle, text);
     dirty = true;
-    render(JSON.parse(api.state()));
+    const st = JSON.parse(api.state());
+    render(st);
     $('app').style.display = "grid";  // the blank landing keeps it hidden until now
+    // reflect the loaded character in the picker (a loaded file need not be a party handle)
+    const csel = $('charsel');
+    let lopt = csel.querySelector('option[value="__loaded__"]');
+    if(!lopt){ lopt = document.createElement('option'); lopt.value = "__loaded__";
+      csel.insertBefore(lopt, csel.firstChild); }
+    lopt.textContent = "loaded: " + (st.character || f.name);
+    csel.value = "__loaded__";
     $('status').className = "ready";
     $('status').textContent = `Loaded ${f.name} - the engine has re-validated it (see Review).`;
   }catch(e){

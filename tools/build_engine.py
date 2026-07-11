@@ -197,7 +197,9 @@ def replay(ledger, level):
             attrs[pick] += 1
             if attrs[pick] > attribute_limit(l):
                 rep.problem(f"L{l}: {pick} raised to {attrs[pick]} above limit {attribute_limit(l)}")
-    attr_budget = cumulative(table, level, "attr")
+    # class-table attribute points, plus any granted by talents/features
+    # (e.g. the Attribute Increase General Talent grants 2 Attribute Points)
+    attr_budget = cumulative(table, level, "attr") + sum_grants(ledger, level, "attribute_points")
     if len(attr_picks) != attr_budget:
         rep.problem(f"Attribute points: {len(attr_picks)} spent vs {attr_budget} granted by class table")
     for a, v in attrs.items():

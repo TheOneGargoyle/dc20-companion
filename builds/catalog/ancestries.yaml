@@ -2,8 +2,9 @@
 # Source: rules/ancestries.md (Human l.329-352, Elf l.354-383, Dwarf l.385-417, Halfling
 # l.418-453, Dragonborn l.522-597, Giantborn l.598-634, Angelborn l.635-693, Fiendborn
 # l.694-763, Beastborn l.764-973 incl. the Beast Traits list). Costs are the (N) prefix on
-# each trait line; negative = drawback that refunds points. tools/catalog_verify.py re-parses
-# ancestries.md and asserts every cost below matches the source.
+# each trait line; negative = drawback that refunds points. `requires:` mirrors a trait's
+# "(requires X)" prerequisite from the rules text. tools/catalog_verify.py re-parses
+# ancestries.md and asserts every cost AND prerequisite below matches the source.
 #
 # Scope (validate-don't-enumerate): the ancestries the six walked builds touch.
 #   Tanrielle  Half-elf            -> Human + Elf
@@ -88,7 +89,7 @@ ancestries:
     - {name: Giant's Resolve, cost: 1}
     - {name: Unyielding Movement, cost: 0}
     # Expanded Traits
-    - {name: Giant's Fortitude, cost: 2}
+    - {name: Giant's Fortitude, cost: 2, requires: "Giant's Resolve"}
     - {name: Strong Body, cost: 2}
     - {name: Mighty Hurl, cost: 1}
     - {name: Titanic Toss, cost: 1}
@@ -106,10 +107,10 @@ ancestries:
     # Expanded Traits
     - {name: Mana Increase, cost: 1}
     - {name: Thick-Skinned, cost: 1}
-    - {name: Second Breath, cost: 2}
-    - {name: Concussive Breath, cost: 1}
+    - {name: Second Breath, cost: 2, requires: Draconic Breath Weapon}
+    - {name: Concussive Breath, cost: 1, requires: Draconic Breath Weapon}
     - {name: Draconic Affinity, cost: 1}
-    - {name: Dying Breath, cost: 1}
+    - {name: Dying Breath, cost: 1, requires: Draconic Breath Weapon}
     - {name: Draconic Ward, cost: 1}
     - {name: Draconic Protection, cost: 1}
     - {name: Glide Speed, cost: 2}
@@ -127,7 +128,7 @@ ancestries:
     - {name: Mana Increase, cost: 1}
     - {name: Silver-Tongued, cost: 1}
     - {name: Fiendish Aura, cost: 1}
-    - {name: Superior Darkvision, cost: 1}
+    - {name: Superior Darkvision, cost: 1, requires: Darkvision}
     - {name: Infernal Bravery, cost: 1}
     - {name: Intimidator, cost: 1}
     - {name: Charming Gaze, cost: 1}
@@ -160,7 +161,7 @@ ancestries:
     # Mobility
     - {name: Quick Reactions, cost: 1}
     - {name: Climb Speed, cost: 1}
-    - {name: Spider Climb, cost: 1}
+    - {name: Spider Climb, cost: 1, requires: Climb Speed}
     - {name: Web Walk, cost: 1}
     - {name: Water Breathing, cost: 1}
     - {name: Swim Speed, cost: 1}
@@ -173,11 +174,11 @@ ancestries:
     - {name: Strong Jumper, cost: 1}
     # Flying
     - {name: Glide Speed, cost: 2}
-    - {name: Limited Flight, cost: 2}
-    - {name: Full Flight, cost: 2}
-    - {name: Flyby, cost: 1}
-    - {name: Stealth Feathers, cost: 2}
-    - {name: Winged Arms, cost: -1}
+    - {name: Limited Flight, cost: 2, requires: Glide Speed}
+    - {name: Full Flight, cost: 2, requires: Limited Flight}
+    - {name: Flyby, cost: 1, requires: Limited Flight}
+    - {name: Stealth Feathers, cost: 2, requires: Limited Flight}
+    - {name: Winged Arms, cost: -1, requires: any Flying Beast Trait}
     # Body
     - {name: Tough, cost: 1}
     - {name: Thick-Skinned, cost: 1}
@@ -185,10 +186,10 @@ ancestries:
     - {name: Powerful Build, cost: 2}
     - {name: Long-Limbed, cost: 3}
     - {name: Additional Limb, cost: 1}
-    - {name: Capable Limb, cost: 2}
-    - {name: Natural Armor, cost: 2}
-    - {name: Hard Shell, cost: 1}
-    - {name: Shell Retreat, cost: 1}
+    - {name: Capable Limb, cost: 2, requires: Additional Limb}
+    - {name: Natural Armor, cost: 2, requires: Thick-Skinned}
+    - {name: Hard Shell, cost: 1, requires: Thick-Skinned}
+    - {name: Shell Retreat, cost: 1, requires: Hard Shell}
     - {name: Camouflage, cost: 2}
     - {name: Prowler, cost: 1}
     - {name: Cold Resistance, cost: 2}

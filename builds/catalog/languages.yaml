@@ -1,0 +1,13 @@
+# CURATED — the 0.10.5 Languages list, from rules/core-rules.md ("Languages List"
+# under ### Languages, grouped Mortal / Exotic / Divine / Outer). Drives the builder's
+# language picker; free-text custom entries remain allowed (validate-don't-enumerate —
+# the engine only checks the Language-Point budget). Common is free and Fluent for every PC.
+# Cross-checked against core-rules.md by tools/catalog_verify.py.
+catalog_version: 1
+ruleset: "DC20 0.10.5"
+source: rules/core-rules.md (Languages List)
+languages:
+  Mortal: [Common, Common Sign, Human, Dwarven, Elvish, Gnomish, Halfling, Orcish]
+  Exotic: [Giant, Draconic, Fey, Elemental]
+  Divine: [Celestial, Fiend]
+  Outer: [Deep Speech]

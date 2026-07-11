@@ -394,21 +394,36 @@ def ancestry_region(md, heading):
 
 def parse_ancestry(md, heading):
     body = ancestry_region(md, heading)
-    out = {}
-    for mm in re.finditer(r"^(?:-\s*)?\((-?\d+)\)\s+([^:\n]+):", body, re.MULTILINE):
-        name = base_name(re.sub(r"\s*\(requires[^)]*\)", "", norm(mm.group(2))))
+    out, reqs = {}, {}
+    for mm in re.finditer(r"^(?:-\s*)?\((-?\d+)\)\s+(.+?):", body, re.MULTILINE):
+        raw = mm.group(2)
+        rq = re.search(r"\(requires ([^)]*)\)", raw)              # "(requires X)" inside the name
+        if not rq:
+            after = body[mm.end():mm.end() + 60]                   # or just after the colon
+            rq = re.match(r"\s*\(requires ([^)]*)\)", after)
+        name = base_name(re.sub(r"\s*\(requires[^)]*\)", "", norm(raw)))
         out[name] = int(mm.group(1))
-    return out
+        if rq:
+            reqs[name] = re.sub(r"\s+", " ", norm(rq.group(1))).strip()
+    return out, reqs
 
 
 for a in anc["ancestries"]:
-    src_costs = parse_ancestry(anctext, a)
+    src_costs, src_reqs = parse_ancestry(anctext, a)
+    nreq = 0
     for row in anc["ancestries"][a]:
         expect(row["name"] in src_costs, f"{a}/{row['name']} not in ancestries.md")
         if row["name"] in src_costs:
             expect(src_costs[row["name"]] == row["cost"],
                    f"{a}/{row['name']}: catalog {row['cost']} vs md {src_costs[row['name']]}")
-    print(f"  {a}: all {len(anc['ancestries'][a])} curated costs match ancestries.md")
+        cat_req = norm(row["requires"]) if row.get("requires") else None
+        md_req = src_reqs.get(row["name"])
+        expect(cat_req == md_req,
+               f"{a}/{row['name']}: catalog requires {cat_req!r} vs md {md_req!r}")
+        if cat_req:
+            nreq += 1
+    print(f"  {a}: all {len(anc['ancestries'][a])} curated costs"
+          + (f" + {nreq} prerequisites" if nreq else "") + " match ancestries.md")
 
 # spell-school lists: slice the 'Spells sorted by Schools' block, read each school's bullets
 start = spelltext.index("#### Spells sorted by Schools")
@@ -490,6 +505,16 @@ for k in st_cat["knowledge_trades"]:
            f"{k} not under core-rules.md #### Knowledge")
 print(f"  skills/trades: {n_sk} skills + {len(st_cat['trades'])} trades "
       f"({len(st_cat['knowledge_trades'])} knowledge) match core-rules.md")
+
+# language name list: every curated language appears in core-rules.md's Languages List
+lang_cat = load("builds/catalog/languages.yaml")
+lang_region = core.split("Languages List", 1)[1].split("#### Mortal Languages", 1)[0]
+n_lang = 0
+for grp, lst in lang_cat["languages"].items():
+    for l in lst:
+        expect(("- %s" % l) in lang_region, f"language {l} ({grp}) not in core-rules.md Languages List")
+        n_lang += 1
+print(f"  languages: {n_lang} curated names (Mortal/Exotic/Divine/Outer) match core-rules.md")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

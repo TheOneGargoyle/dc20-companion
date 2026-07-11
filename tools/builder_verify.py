@@ -34,6 +34,11 @@ Checks (formalising the step-4 ad-hoc harness + the step-5 additions):
       blocks re-attach, the expected->expected_at_L<n> rename is followed on
       promote, comments survive a second round trip and an edited export, and a
       scratch export carries a generated header.
+  (8) Bug-fix round 2: an ancestry-trait prerequisite trips when its required trait is
+      dropped (xanwyn Spider Climb/Climb Speed); the languages picker offers grouped
+      options and drops a taken language; a Skill/Trade Mastery-Limit raise bought with a
+      point suppresses the above-limit flag (tanrielle Awareness); the Attribute Increase
+      General Talent grants 2 Attribute Points (spawns 2 attribute riders, budget balanced).
 
 Exit 0 on PASS, 1 on any failure.
 """
@@ -516,6 +521,71 @@ def check_comments():
        napi.export_yaml().startswith("# Build ledger: New Druid"))
 
 
+
+# ---------------------------------------------------------------- (8) round-2 bug fixes
+def check_new_features():
+    print("## (8) Bug-fix round 2: prereqs, languages picker, cap raise, Attribute Increase")
+
+    # (item 1) ancestry-trait prerequisites: dropping xanwyn's Climb Speed makes her
+    # Spider Climb (requires Climb Speed) illegal; restoring it clears the flag.
+    api = builder_api.BuilderAPI("xanwyn", CATPATHS)
+    s = st(api)
+    d = find_dec(s, lambda d: d["slot"] == "ancestry_trait" and str(d.get("current")) == "Climb Speed")
+    s2 = json.loads(api.set_decision(d["id"], "Tough"))
+    ok("prereq: dropping Climb Speed trips 'Spider Climb requires Climb Speed'",
+       any("Spider Climb requires Climb Speed" in p for p in s2["catalog_problems"]), s2["catalog_problems"])
+    s3 = json.loads(api.set_decision(d["id"], "Climb Speed"))
+    ok("prereq: restoring Climb Speed clears the prerequisite flag",
+       not any("requires Climb Speed" in p for p in s3["catalog_problems"]), s3["catalog_problems"])
+
+    # (item 2) languages picker: options are grouped, and a picked language is added
+    # and then drops out of the remaining options.
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    s = st(api)
+    lo = s["language_options"]
+    ok("languages: options present and grouped (Mortal/Exotic/Divine/Outer)",
+       bool(lo) and set(o["group"] for o in lo) <= {"Mortal", "Exotic", "Divine", "Outer"},
+       sorted(set(o["group"] for o in lo)))
+    pick = lo[0]["name"]
+    s2 = json.loads(api.add_language(pick, "Fluent"))
+    ok("languages: a picked language is added to the ledger",
+       any(l["name"] == pick for l in s2["languages"]), pick)
+    ok("languages: a taken language drops out of the picker options",
+       pick not in [o["name"] for o in s2["language_options"]])
+
+    # (item 3) buy a Mastery-Limit raise with a point: tanrielle's Awareness is a Novice
+    # skill raised to Adept via a purchased cap raise (clean baseline). Removing the
+    # purchase flags it above the L4 limit; re-buying clears it.
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    aw = next(a for a in st(api)["alloc"] if a["id"] == "skills:Awareness")
+    ok("cap raise: Awareness starts as a purchased cap raise (purchased=True)", aw["purchased"] is True)
+    s1 = json.loads(api.set_limit_raise("skills:Awareness", False))
+    ok("cap raise: removing the purchase flags Awareness above the L4 limit",
+       any("Awareness at Adept above L4 limit" in p for p in s1["problems"]), s1["problems"])
+    s2 = json.loads(api.set_limit_raise("skills:Awareness", True))
+    ok("cap raise: re-buying the raise clears the above-limit flag",
+       not any("above L4 limit" in p for p in s2["problems"]), s2["problems"])
+
+    # (item 5) Attribute Increase General Talent grants 2 Attribute Points: picking it on
+    # tanrielle's L4 talent spawns two attribute rider slots, the engine's attribute
+    # budget stays balanced (no mismatch), and two undecided attribute picks are flagged.
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    s = st(api)
+    base_attr4 = len([d for d in s["decisions"] if d["slot"] == "attribute" and d["level"] == 4])
+    tal = find_dec(s, lambda d: d["slot"] == "talent" and d["level"] == 4)
+    s2 = json.loads(api.set_decision(tal["id"], "Attribute Increase"))
+    attr4 = [d for d in s2["decisions"] if d["slot"] == "attribute" and d["level"] == 4]
+    ok("Attribute Increase talent spawns 2 attribute rider slots at L4",
+       len(attr4) == base_attr4 + 2, len(attr4))
+    ok("Attribute Increase: engine attribute budget stays balanced (no mismatch)",
+       not any("Attribute points:" in p for p in s2["problems"]), s2["problems"])
+    ok("Attribute Increase: the 2 new attribute picks flag as undecided",
+       sum("attribute undecided" in p for p in s2["builder_problems"]) == 2, s2["builder_problems"])
+    s3 = json.loads(api.set_decision(tal["id"], "Life Tap"))
+    ok("changing the talent away removes the attribute riders",
+       len([d for d in s3["decisions"] if d["slot"] == "attribute" and d["level"] == 4]) == base_attr4)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -534,6 +604,7 @@ def main():
         check_addlevel()
         check_received()
         check_comments()
+        check_new_features()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -545,7 +616,7 @@ def main():
         sys.exit(1)
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
     print("       add-a-level (promote + generate + undo), received-file safety,")
-    print("       comment-preserving export")
+    print("       comment-preserving export, round-2 bug fixes")
     sys.exit(0)
 
 
