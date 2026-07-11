@@ -116,7 +116,7 @@ ancestries:
     - {name: Guardian's Bond, cost: -1}
   Fiendborn:
     # Fiendborn Redemption
-    - {name: Redeemed, cost: 0, note: "may spend Ancestry Points on Angelborn Traits"}
+    - {name: Redeemed, cost: 0, opens: Angelborn, note: "may spend Ancestry Points on Angelborn Traits"}
     # Default Traits
     - {name: Fiendish Resistance, cost: 2}
     - {name: Fiendish Magic, cost: 2, aliases: [Arcane Spell],
@@ -136,7 +136,7 @@ ancestries:
     - {name: Divine Dampening, cost: -1}
   Angelborn:
     # Reachable by Redemption Fiendborn via the Redeemed trait (Scaletrix's Umbral Weakness).
-    - {name: Fallen, cost: 0}
+    - {name: Fallen, cost: 0, opens: Fiendborn, note: "may spend Ancestry Points on Fiendborn Traits"}
     - {name: Radiant Resistance, cost: 1}
     - {name: Celestial Magic, cost: 2}
     - {name: Healing Touch, cost: 2}

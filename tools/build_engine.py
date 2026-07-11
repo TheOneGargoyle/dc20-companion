@@ -286,13 +286,17 @@ def replay(ledger, level):
                   ("UNDER-SPENT" if total_sp < earned_sp else "OVER-SPENT")))
         if total_sp > earned_sp:
             rep.problem(f"Skill points over-spent: {total_sp} vs {earned_sp}")
+        tp_total, tp_avail = spent_tp + conv_tp, earned_tp + conv_sp * 2
         rep.add(f"- Trade points: earned {earned_tp} (+{conv_sp*2} via conversion), spent {spent_tp}"
                 + (f" + {conv_tp} converted to LP" if conv_tp else "")
-                + f" -> " + ("balanced" if total_tp_ok else "OVER-SPENT"))
+                + f" -> " + ("balanced" if tp_total == tp_avail else
+                  ("UNDER-SPENT" if tp_total < tp_avail else "OVER-SPENT")))
         if not total_tp_ok:
             rep.problem("Trade points over-spent")
+        lp_avail = BACKGROUND_LANG + conv_tp * 2
         rep.add(f"- Language points: {BACKGROUND_LANG} free, spent {spent_lp}"
-                + (f" ({conv_tp} TP converted)" if conv_tp else ""))
+                + (f" ({conv_tp} TP converted)" if conv_tp else "")
+                + (" -> UNDER-SPENT" if spent_lp < lp_avail else ""))
         rep.add()
 
     # --- derived table ------------------------------------------------------

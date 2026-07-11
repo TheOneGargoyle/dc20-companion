@@ -472,6 +472,25 @@ print(f"  talents: {len(talents_cat['general'])} general + {len(talents_cat['mul
       f"{sum(len(v) for v in talents_cat['class_talents'].values())} class + "
       f"{len(talents_cat['mc_features'])} MC features all found in rules text")
 
+# skill/trade name lists: every curated name appears in core-rules.md's own lists
+core = read("rules/core-rules.md")
+st_cat = load("builds/catalog/skills_trades.yaml")
+sk_region = core.split("### Skills", 1)[1].split("### Trades", 1)[0]
+tr_region = core.split("### Trades", 1)[1].split("### Languages", 1)[0]
+n_sk = 0
+for attr, lst in st_cat["skills"].items():
+    for s in lst:
+        expect(("- %s" % s) in sk_region, f"skill {s} ({attr}) not in core-rules.md Skill List")
+        n_sk += 1
+for t in st_cat["trades"]:
+    expect(("- %s" % t) in tr_region, f"trade {t} not in core-rules.md Trades List")
+for k in st_cat["knowledge_trades"]:
+    expect(k in st_cat["trades"], f"knowledge trade {k} missing from the trades list")
+    expect(("\n%s\n" % k) in tr_region.split("#### Knowledge", 1)[1].split("####", 1)[0],
+           f"{k} not under core-rules.md #### Knowledge")
+print(f"  skills/trades: {n_sk} skills + {len(st_cat['trades'])} trades "
+      f"({len(st_cat['knowledge_trades'])} knowledge) match core-rules.md")
+
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
 if fails:

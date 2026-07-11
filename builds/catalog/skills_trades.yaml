@@ -1,0 +1,44 @@
+# CURATED — the 0.10.5 skill and trade name lists, from rules/core-rules.md
+# ("Skill List" under ### Skills; "Trades List" under ### Trades; Knowledge grouping
+# under #### Knowledge). Drives the builder's skill/trade picker; free-text custom
+# entries remain allowed (validate-don't-enumerate — the engine only checks budgets).
+# Cross-checked against core-rules.md by tools/catalog_verify.py.
+catalog_version: 1
+ruleset: "DC20 0.10.5"
+source: rules/core-rules.md (Skill List + Trades List)
+skills:
+  Might: [Athletics, Intimidation]
+  Agility: [Acrobatics, Trickery, Stealth]
+  Charisma: [Animal, Insight, Influence]
+  Intelligence: [Investigation, Medicine, Survival]
+  Prime: [Awareness]
+trades:
+- Alchemy
+- Arcana
+- Blacksmithing
+- Brewing
+- Carpentry
+- Cartography
+- Cooking
+- Cryptography
+- Disguise
+- Engineering
+- Gaming
+- Glassblowing
+- Herbalism
+- History
+- Illustration
+- Jeweler
+- Leatherworking
+- Lockpicking
+- Masonry
+- Musician
+- Nature
+- Occultism
+- Religion
+- Sculpting
+- Theatre
+- Tinkering
+- Weaving
+- Vehicles
+knowledge_trades: [Arcana, Engineering, History, Nature, Occultism, Religion]

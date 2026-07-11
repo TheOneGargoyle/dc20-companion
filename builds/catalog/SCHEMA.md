@@ -59,6 +59,14 @@ the day someone walks that path.
   talents for the walked classes, and `mc_features` — the class features the six reach via
   Multiclass talents (Pact Spell, Life Tap, Wild Form, Remarkable Repertoire, Innate Power,
   Meta Magic, Spell School Initiate), with their `grants`.
+- `builds/catalog/skills_trades.yaml` — **CURATED** (added step 5). The 0.10.5 skill list
+  (12, grouped by attribute) and trade list (28, knowledge subset flagged), from
+  `core-rules.md`. Drives the builder's skill/trade picker; free-text custom entries stay
+  allowed (validate-don't-enumerate — the engine only checks budgets).
+- **`opens:` key** (step 5) on cross-list ancestry traits: Redeemed `opens: Angelborn`,
+  Fallen `opens: Fiendborn`. In the builder's scratch mode, trait legality = the DECLARED
+  ancestry lists plus lists opened by taken traits (to a fixpoint); canon ledgers keep the
+  original source-derived resolution.
 - `tools/catalog_build.py` — the spine extractor (all five classes).
 - `tools/catalog_verify.py` — the oracle harness: re-runs every ledger through the engine, and
   validates the catalog against ALL SIX ledgers and `rules/*.md`.

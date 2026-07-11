@@ -66,7 +66,7 @@ levels:
     - {slot: skill, pick: "Awareness Adept->Expert (1 SP; limit purchase from L1-4 carries, core-rules.md l.991-1005)"}
     - {slot: skill, pick: "1 SP -> 2 TP conversion"}
     - {slot: trade, pick: "Herbalism Adept->Expert (1 TP; Trade Expertise cap carries)"}
-    - {slot: trade, pick: "Arcana none->Adept +7... see note", note: "Arcana & Nature Novice->Adept, 1 TP each (Knowledge Trades)"}
+    - {slot: trade, pick: "Arcana & Nature Novice->Adept (+7 each)", note: "1 TP each (Knowledge Trades). Stale 'none->Adept' wording fixed 2026-07-11; both were Novice from L1 per the verified L4 state."}
   6:
     - {slot: talent, pick: "MC Warlock (Expert): +2 any-source spells", grants: {spells: 2},
        note: "Picks = Radiant Imbued + Bless. 2nd Pact Spell = Luminous Burst."}
