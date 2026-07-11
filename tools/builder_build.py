@@ -305,8 +305,8 @@ class BuilderAPI:
         self.cls = self.ledger['class']
         self.ccat = self.cat[self.cls.lower()]
         self.aliases = self.cat['ancestries'].get('source_aliases', {})
-        self._added = None
-        self._undo = None
+        self._undo = []   # a STACK: one snapshot per add_level, so every
+                          # level added this session can be undone in turn
 
     # ---------- ancestry lists ----------
     def _declared_lists(self):
@@ -785,7 +785,7 @@ class BuilderAPI:
             'level': cur, 'planned': planned,
             'scratch': self.scratch,
             'next': self.next_level_info(),
-            'undo_level': self._added,
+            'undo_level': (self._undo[-1]['cur'] + 1) if self._undo else None,
             'anc_levels': anc_levels,
             'anc_lists_all': sorted(self.cat['ancestries']['ancestries'].keys()),
             'skill_trade_options': self._skill_trade_options(),
@@ -984,8 +984,8 @@ class BuilderAPI:
             return self.state()
         new = cur + 1
         levels = self.ledger.setdefault('levels', {})
-        self._undo = {'cur': cur, 'expected': copy.deepcopy(self.ledger.get('expected')),
-                      'had_plan': new in levels, 'plan': copy.deepcopy(levels.get(new))}
+        self._undo.append({'cur': cur, 'expected': copy.deepcopy(self.ledger.get('expected')),
+                           'had_plan': new in levels, 'plan': copy.deepcopy(levels.get(new))})
         if new not in levels:
             # generate the level's decision slots from the class spine
             row = self.ccat['spine'].get(new, {})
@@ -1020,13 +1020,12 @@ class BuilderAPI:
             # the sheet totals documented the OLD level; keep them as history, the new
             # level's numbers now come FROM the builder
             self.ledger['expected_at_L%d' % cur] = self.ledger.pop('expected')
-        self._added = new
         return self.state()
 
     def undo_add_level(self):
         if not self._undo:
             return self.state()
-        u = self._undo
+        u = self._undo.pop()
         new = u['cur'] + 1
         levels = self.ledger.get('levels') or {}
         if u['had_plan']:
@@ -1037,8 +1036,6 @@ class BuilderAPI:
         self.ledger.pop('expected_at_L%d' % u['cur'], None)
         if u['expected'] is not None:
             self.ledger['expected'] = u['expected']
-        self._added = None
-        self._undo = None
         return self.state()
 
     def export_yaml(self):
@@ -1184,6 +1181,7 @@ re-validates live against the engine AND the option catalog. Export writes the u
       <div id="problems"></div>
       <div id="exports"></div>
       <details id="yamlwrap" style="display:none;margin-top:.5rem"><summary class="src" style="cursor:pointer">view / copy the exported YAML</summary>
+      <div style="margin:.35rem 0"><button class="exportbtn" id="yamlcopy" type="button">Copy to clipboard</button></div>
       <pre class="yaml" id="yamlout" style="display:block"></pre></details>
     </div>
   </div>
@@ -1212,23 +1210,25 @@ function modeFromURL(){
   const n = (q.get('new')||'').toLowerCase();
   if(NEWC.includes(n)) return {newClass:n};
   const h = q.get('char');
-  return {char: CHARS.includes(h) ? h : CHARS[0]};
+  if(CHARS.includes(h)) return {char: h};
+  return {blank: true};  // no deep link: land on the chooser, load nobody's ledger
 }
 async function srcText(key){
   if(REL[key]){ try{ const r = await fetch(REL[key]); if(r.ok) return {text:await r.text(), via:"fetch"}; }catch(e){} }
   return {text: dec64(B64[key]), via:"baked"};
 }
 
-let api=null, pyodide=null, viaNote="", dirty=false, ST=null;
+let api=null, pyodide=null, viaNote="", dirty=false, ST=null, renderedLevel=null;
 let mode = modeFromURL();
-let handle = mode.newClass ? "new-"+mode.newClass : mode.char;
+let handle = mode.newClass ? "new-"+mode.newClass : (mode.char || null);
 const storeKey = () => "dc20builder:" + handle;
 const isCanon = () => ST && !ST.scratch && CHARS.includes(ST.handle);
 const slug = s => ((s.character||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || s.handle);
 
 async function boot(){
   const sel = $('charsel');
-  sel.innerHTML = '<optgroup label="party">' +
+  sel.innerHTML = (mode.blank ? '<option value="" selected disabled>&mdash; pick a character &mdash;</option>' : '') +
+    '<optgroup label="party">' +
       CHARS.map(c=>`<option value="${c}" ${(!mode.newClass && c===handle)?'selected':''}>${c}</option>`).join("") +
     '</optgroup><optgroup label="new from scratch">' +
       NEWC.map(c=>`<option value="new:${c}" ${(mode.newClass===c)?'selected':''}>new ${c}</option>`).join("") +
@@ -1266,6 +1266,12 @@ async function boot(){
     "    return builder_api.BuilderAPI(None, CATPATHS, new_class=cls)\n" +
     "def make_api_text(handle, text):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS, ledger_text=text)\n");
+  if(mode.blank){
+    // blank landing: engine is up, nobody's ledger is loaded - wait for a pick
+    $('status').className = "ready";
+    $('status').textContent = "Ready - pick a party character above, start one new from scratch, or load an exported YAML.";
+    return;
+  }
   api = mode.newClass ? pyodide.globals.get("make_api_new")(mode.newClass)
                       : pyodide.globals.get("make_api")(handle);
   render(JSON.parse(api.state()));
@@ -1385,15 +1391,24 @@ function render(s){
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(t.slot)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;
+  // keep whatever the user opened/closed: snapshot the open states before the
+  // re-render wipes them; computed defaults only apply to groups not seen before
+  const prevOpen = {};
+  document.querySelectorAll('#decisions details.lvlgrp[data-lvl]').forEach(el => { prevOpen[el.dataset.lvl] = el.open; });
+  // level-up / undo: the NEW current level always re-opens (a promoted plan group
+  // was collapsed a moment ago; keeping it shut would hide what was just promoted)
+  if(renderedLevel !== s.level) delete prevOpen[String(s.level)];
+  renderedLevel = s.level;
   const byLevel = {};
   for(const t of s.decisions) (byLevel[t.level] ||= []).push(t);
   for(const lvl of Object.keys(byLevel).map(Number).sort((a,b)=>a-b)){
     const rows = byLevel[lvl].map(rowHTML).join("");
     const plan = byLevel[lvl].every(t=>t.plan);
-    const open = (!plan && (lvl===s.level || undecAt[lvl])) || (lvl===1 && s.level===1);
+    const defOpen = (!plan && (lvl===s.level || undecAt[lvl])) || (lvl===1 && s.level===1);
+    const open = (String(lvl) in prevOpen) ? prevOpen[String(lvl)] : defOpen;
     const label = lvl===1 ? "Level 1 &mdash; character creation" : `Level ${lvl}` + (plan?" (plan)":"") +
       (lvl===s.level?" &larr; current":"") + (undecAt[lvl]?` &mdash; ${undecAt[lvl]} undecided`:"");
-    d += `<details class="lvlgrp${plan?' plan':''}" ${open?'open':''}><summary>${label}</summary>${rows}</details>`;
+    d += `<details class="lvlgrp${plan?' plan':''}" data-lvl="${lvl}" ${open?'open':''}><summary>${label}</summary>${rows}</details>`;
   }
   $('decisions').innerHTML = d;
   $('srcinfo').textContent = viaNote;
@@ -1498,6 +1513,21 @@ function doExport(fname){
   URL.revokeObjectURL(a.href);
 }
 
+$('yamlcopy').onclick = async () => {
+  const t = $('yamlout').textContent;
+  let done = false;
+  try{ await navigator.clipboard.writeText(t); done = true; }catch(e){}
+  if(!done){  // fallback for file:// / older browsers: select + execCommand
+    try{
+      const r = document.createRange(); r.selectNodeContents($('yamlout'));
+      const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r);
+      done = document.execCommand('copy'); sl.removeAllRanges();
+    }catch(e){}
+  }
+  $('yamlcopy').textContent = done ? "Copied \u2713" : "Copy failed - select the text manually";
+  setTimeout(() => { $('yamlcopy').textContent = "Copy to clipboard"; }, 2000);
+};
+
 $('loadyaml').onchange = async ev => {
   const f = ev.target.files[0]; if(!f || !pyodide) return;
   try{
@@ -1507,6 +1537,7 @@ $('loadyaml').onchange = async ev => {
     api = pyodide.globals.get("make_api_text")(handle, text);
     dirty = true;
     render(JSON.parse(api.state()));
+    $('app').style.display = "grid";  // the blank landing keeps it hidden until now
     $('status').className = "ready";
     $('status').textContent = `Loaded ${f.name} - the engine has re-validated it (see Review).`;
   }catch(e){

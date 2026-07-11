@@ -47,6 +47,8 @@ import subprocess
 import sys
 import tempfile
 
+import yaml
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
@@ -91,6 +93,12 @@ def check_page():
     for c in builder_build.CATALOG:
         ok("catalog blob %s" % c,
            sha(blob(c)) == sha(open(os.path.join(REPO, "builds", "catalog", c + ".yaml"), "rb").read()))
+    ok("page has the copy-to-clipboard button (yamlcopy)",
+       'id="yamlcopy"' in html and "navigator.clipboard.writeText" in html)
+    ok("level collapsers carry data-lvl + open-state snapshot (no auto-collapse)",
+       "data-lvl=" in html and "prevOpen[el.dataset.lvl] = el.open" in html)
+    ok("no-deep-link URL lands blank (no CHARS[0] default)",
+       "{blank: true}" in html and "CHARS.includes(h) ? h : CHARS[0]" not in html)
     scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
     ok("exactly one inline <script>", len(scripts) == 1, len(scripts))
     node = shutil.which("node")
@@ -394,6 +402,36 @@ def check_addlevel():
     s = json.loads(api.undo_add_level())
     ok("tanrielle undo restores L5 as plan", s["level"] == 4 and s["planned"] == [5, 6],
        (s["level"], s["planned"]))
+    # multi-level undo: the stack lets EVERY level added this session be removed in turn
+    api = builder_api.BuilderAPI("minimus", CATPATHS)
+    base_data = yaml.safe_load(api.export_yaml())
+    ok("minimus baseline shows no undo link", st(api)["undo_level"] is None)
+    s = json.loads(api.add_level())
+    ok("after add L5 the undo link says L5", s["undo_level"] == 5, s["undo_level"])
+    s = json.loads(api.add_level())
+    ok("after add L6 the undo link says L6 (stacked)", s["undo_level"] == 6, s["undo_level"])
+    s = json.loads(api.undo_add_level())
+    ok("first undo -> L5, undo link now L5 (not gone)",
+       s["level"] == 5 and s["undo_level"] == 5, (s["level"], s["undo_level"]))
+    s = json.loads(api.undo_add_level())
+    ok("second undo -> L4, undo link gone",
+       s["level"] == 4 and s["undo_level"] is None, (s["level"], s["undo_level"]))
+    ok("two adds + two undos restore the exact ledger data",
+       yaml.safe_load(api.export_yaml()) == base_data)
+    # same through a PROMOTE chain: tanrielle promote L5, generate L6, unwind both
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    base_data = yaml.safe_load(api.export_yaml())
+    api.add_level()
+    s = json.loads(api.add_level())
+    ok("tanrielle promote L5 then add L6 stacks the undo to L6",
+       s["level"] == 6 and s["undo_level"] == 6, (s["level"], s["undo_level"]))
+    api.undo_add_level()
+    s = json.loads(api.undo_add_level())
+    ok("unwinding both restores L4 with L5 back as plan",
+       s["level"] == 4 and s["planned"] == [5, 6] and s["undo_level"] is None,
+       (s["level"], s["planned"], s["undo_level"]))
+    ok("tanrielle promote+add+unwind restores the exact ledger data",
+       yaml.safe_load(api.export_yaml()) == base_data)
 
 
 # ---------------------------------------------------------------- (6) received-file safety
