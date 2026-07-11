@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the DC20 Companion single-file HTML app."""
-import base64, io, json, re, sys, tempfile
+import base64, io, json, os, re, sys, tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 import markdown
 try:
@@ -388,8 +389,21 @@ def js_embed(obj) -> str:
 
 GM_NAV_BUTTON = """  <button data-tab="gm" onclick="go('gm')"><span class="ic">🛡️</span>GM</button>\n"""
 
+# ---------- build stamp (About tab) ----------
+# Answers "did the page actually rebuild?" at a glance. Sydney wall-clock time
+# (falls back to UTC if tzdata is missing) + the short commit SHA when built by
+# the Action (GITHUB_SHA); local builds say "local".
+try:
+    from zoneinfo import ZoneInfo
+    _now = datetime.now(ZoneInfo("Australia/Sydney"))
+except Exception:
+    _now = datetime.now(timezone.utc)
+BUILD_STAMP = _now.strftime("%Y-%m-%d %H:%M %Z") + " · " + (os.environ.get("GITHUB_SHA", "local")[:7])
+print(f"build stamp: {BUILD_STAMP}")
+
 def assemble(gm: bool) -> str:
     tpl = TEMPLATE.read_text(encoding="utf-8")
+    tpl = tpl.replace("__BUILD_STAMP__", BUILD_STAMP)
     tpl = tpl.replace("__RULES_DATA__", js_embed(rules_data))
     tpl = tpl.replace("__PARTY_DERIVED__", js_embed(party_derived))
     # Player edition: GM data is NEVER embedded (an in-file gate would be
