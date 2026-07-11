@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DC20 Builder: Player How-To</title>
+<style>
+:root{--ink:#1f2430;--muted:#6b7280;--line:#c9ced8;--paper:#f7f8fa;--accent:#3d5a80;
+ --ok:#2e7d32;--bad:#b23;--warn:#b7791f}
+*{box-sizing:border-box}
+body{font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--ink);margin:0;background:#eef0f4;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding:1.3rem 1.3rem 3rem}
+h1{font-size:1.35rem;margin:.1rem 0 .2rem}
+.badge{display:inline-block;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;
+ background:var(--accent);color:#fff;border-radius:4px;padding:.12rem .45rem;vertical-align:middle;margin-left:.4rem}
+.sub{color:var(--muted);font-size:.92rem;margin:.15rem 0 1.1rem}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:.9rem}
+.card h2{font-size:.95rem;margin:.05rem 0 .5rem}
+.step{display:inline-block;background:var(--accent);color:#fff;border-radius:50%;width:1.45rem;height:1.45rem;
+ text-align:center;line-height:1.45rem;font-size:.85rem;font-weight:700;margin-right:.45rem}
+code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:.86em;background:var(--paper);
+ border:1px solid var(--line);border-radius:4px;padding:.05rem .3rem}
+a{color:var(--accent)}
+ul{margin:.3rem 0 .2rem;padding-left:1.2rem}
+li{margin-bottom:.3rem}
+.chip{display:inline-block;border-radius:5px;padding:.1rem .5rem;font-size:.8rem;font-weight:600;margin:.05rem .15rem}
+.chip.ok{background:#e9f6ea;border:1px solid #a9d6ab;color:var(--ok)}
+.chip.bad{background:#fdecec;border:1px solid #f3b6b6;color:var(--bad)}
+.chip.adv{background:#fff8e6;border:1px solid #e4c86a;color:#8a6d1a}
+.note{font-size:.85rem;color:var(--muted);margin-top:.5rem}
+.big{font-size:1.02rem;font-weight:600;word-break:break-all}
+</style></head><body><div class="wrap">
+
+<h1>Build or level your character, yourself<span class="badge">player how-to</span></h1>
+<p class="sub">The party's character builder is a web page. It runs the campaign's full rules engine
+in your browser, checks every pick live, and nothing you do can break the party sheet.
+No install, no account, no git.</p>
+
+<div class="card">
+<h2><span class="step">1</span>Open the builder</h2>
+<p class="big"><a href="https://theonegargoyle.github.io/dc20-companion/builder.html">theonegargoyle.github.io/dc20-companion/builder.html</a></p>
+<p>Bookmark it. The first load takes a little while (it pulls the rules engine, a few MB); after that it's quick.
+Jump straight to your character with <code>?char=runt</code> on the end
+(handles: <code>tanrielle</code>, <code>runt</code>, <code>minimus</code>, <code>bonan</code>,
+<code>scaletrix</code>, <code>xanwyn</code>), or start a brand-new character with
+<code>?new=druid</code> (<code>spellblade</code>, <code>warlock</code>, <code>commander</code>,
+<code>barbarian</code>, <code>druid</code>). The dropdown at the top does the same thing.</p>
+</div>
+
+<div class="card">
+<h2><span class="step">2</span>Make your changes</h2>
+<p>Pick options from the dropdowns, use <b>Add level</b> on level-up night, or respec anything.
+Every edit is re-checked instantly against the real rules:</p>
+<ul>
+<li><span class="chip ok">green</span> all checks passed: the build is legal.</li>
+<li><span class="chip bad">red</span> something's illegal (over-spent points, off-list pick). Fix it before you send.</li>
+<li><span class="chip adv">amber</span> advisory only: you have unspent points left. Legal, but check you didn't forget a pick.</li>
+</ul>
+<p class="note">Close the tab mid-build? Fine. Your work-in-progress is kept in your browser, and the
+page offers to resume it next visit.</p>
+</div>
+
+<div class="card">
+<h2><span class="step">3</span>Export and send it to Darryl</h2>
+<p>Two export buttons at the bottom:</p>
+<ul>
+<li><b>Respec export</b> (<span class="mono">yourname.respec.yaml</span>): what-ifs and experiments. Never touches the real party.</li>
+<li><b>CANON export</b> (<span class="mono">yourname.yaml</span>): the real deal, for a change we've agreed at the table (like a level-up).</li>
+</ul>
+<p>Then send Darryl the downloaded file, or open "view / copy the exported YAML" and paste the text
+into Discord. That's it, you're done.</p>
+</div>
+
+<div class="card">
+<h2><span class="step">4</span>Darryl commits, the party page updates</h2>
+<p>Darryl re-validates whatever you send (a bad file gets caught, not committed) and lands it in the
+campaign repo. The <a href="https://theonegargoyle.github.io/dc20-companion/">Companion</a> rebuilds
+itself automatically: within a couple of minutes your new numbers are live on the party tab, and the
+About tab's build stamp shows when it last rebuilt.</p>
+<p class="note">Want to keep tinkering later, or on another device? Keep your downloaded YAML and load
+it back in with the "load a YAML" control. The engine re-checks anything you load.</p>
+</div>
+
+<p class="note">Unofficial fan tooling for our home DC20 (v0.10.5) campaign. DC20 is by The Dungeon Coach,
+released under the ORC License.</p>
+
+</div></body></html>
