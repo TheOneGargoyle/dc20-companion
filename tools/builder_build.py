@@ -824,6 +824,72 @@ class BuilderAPI:
             'builder_problems': self.builder_problems(),
         })
 
+    def sheet(self):
+        import math
+        s = json.loads(self.state())
+        st = {r[0]: r[1] for r in s['stats']}
+        def num(x):
+            try:
+                return int(str(x))
+            except Exception:
+                return 0
+        attrs = {}
+        for part in str(st.get('Attributes', '')).split(' / '):
+            part = part.strip()
+            if not part:
+                continue
+            ab, val = part.rsplit(' ', 1)
+            key = {'Mig': 'Might', 'Agi': 'Agility', 'Cha': 'Charisma', 'Int': 'Intelligence'}.get(ab, ab)
+            attrs[key] = num(val)
+        prime = num(st.get('Prime'))
+        cmv = num(st.get('Combat Mastery'))
+        hp = num(st.get('HP'))
+        MB = {'Novice': 2, 'Adept': 4, 'Expert': 6, 'Master': 8, 'Grandmaster': 10}
+        skmap = (self.cat.get('skills_trades') or {}).get('skills') or {}
+        attr_of = {}
+        for a, lst in skmap.items():
+            for nm in lst:
+                attr_of[nm] = a
+        skills, trades = [], []
+        for a in s['alloc']:
+            tier = a.get('mastery')
+            mb = MB.get(tier, 0)
+            if a['kind'] == 'skills':
+                gov = attr_of.get(a['name'], 'Prime')
+                amod = prime if gov == 'Prime' else attrs.get(gov, 0)
+                skills.append({'name': a['name'], 'attr': gov, 'tier': tier, 'bonus': amod + mb})
+            else:
+                trades.append({'name': a['name'], 'tier': tier})
+        cur = s['level']
+        groups = {}
+        for d in s['decisions']:
+            lv = d.get('level')
+            if lv and lv > cur:
+                continue
+            pick = d.get('pick')
+            if not pick or str(pick) == 'None':
+                continue
+            lst = groups.setdefault(d.get('slot'), [])
+            if not any(x['pick'] == pick for x in lst):
+                lst.append({'level': lv, 'pick': pick})
+        spells = []
+        for e in groups.get('spell', []):
+            m = self.meta.get(e['pick']) or {}
+            spells.append({'name': e['pick'], 'school': m.get('school'), 'tags': m.get('tags') or []})
+        equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods')}
+                     for it in (self.ledger.get('equipment') or [])]
+        return json.dumps({
+            'character': s['character'], 'player': s['player'], 'klass': s['klass'],
+            'subclass': s['subclass'], 'ancestry': s['ancestry'], 'background': s['background'],
+            'level': cur, 'cm': cmv, 'prime': prime, 'attrs': attrs,
+            'core': {k: st.get(k) for k in ('Attack/Spell Check', 'Save DC', 'Initiative', 'Grit',
+                                            'HP', 'SP', 'MP', 'Spells known', 'Maneuvers known', 'PD', 'AD')},
+            'derived': {'bloodied': math.ceil(hp / 2), 'well_bloodied': math.ceil(hp / 4),
+                        'death_threshold': prime + cmv, 'rest_points': hp},
+            'skills': skills, 'trades': trades, 'languages': s['languages'],
+            'abilities': groups, 'spells': spells, 'equipment': equipment,
+        })
+
     # ---------- edits ----------
     def set_decision(self, did, value):
         did = str(did)
@@ -1200,11 +1266,60 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
   .alloc,.langs{grid-template-columns:1fr}
   .card{padding:.75rem}
 }
+/* ---- character sheet (feature 3) ---- */
+.sheetbtn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;padding:.32rem .7rem;font-size:.85rem;cursor:pointer;margin-left:.6rem;vertical-align:middle}
+.sheetbtn:disabled{opacity:.45;cursor:default}
+#sheetOverlay{display:none;position:fixed;inset:0;background:rgba(15,20,28,.55);z-index:6000;overflow:auto;padding:18px}
+#sheetOverlay .sheetbar{width:794px;max-width:100%;margin:0 auto 10px;display:flex;justify-content:space-between;align-items:center;color:#fff;font-size:.85rem}
+#sheetOverlay .sheetbar button{border:1px solid #fff;background:transparent;color:#fff;border-radius:6px;padding:.4rem .8rem;font-size:.85rem;cursor:pointer;margin-left:.5rem}
+#sheetOverlay .sheetbar .prbtn{background:#fff;color:#25405f;font-weight:600}
+.sh-paper{width:794px;max-width:100%;margin:0 auto;background:#fff;color:#1b1f27;padding:16px 18px;border-radius:4px;font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:12px;line-height:1.3;box-shadow:0 4px 20px rgba(0,0,0,.35)}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--accent);padding-bottom:8px;margin-bottom:10px}
+.sh-head h2{margin:0;font-size:22px}
+.sh-who{margin:2px 0 0;color:#5b6472;font-size:12px}
+.sh-chips{display:flex;gap:6px}
+.sh-chip{border:1px solid #c7ccd6;border-radius:8px;padding:3px 9px;text-align:center;min-width:48px;background:#f6f7f9}
+.sh-chip .k{font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:#5b6472}
+.sh-chip .v{font-size:16px;font-weight:700;color:#25405f}
+.sh-cols{display:grid;grid-template-columns:196px 214px 1fr;gap:10px}
+.sh-sec{border:1px solid #c7ccd6;border-radius:8px;padding:6px 8px;margin-bottom:9px;break-inside:avoid}
+.sh-sec>h3{margin:0 0 5px;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border-bottom:1px solid #e2e5ec;padding-bottom:3px}
+.sh-attr{display:flex;align-items:center;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #e2e5ec}
+.sh-attr:last-child{border-bottom:none}
+.sh-attr .nm{font-weight:700;font-size:12px}
+.sh-attr .nm .pr{display:block;font-size:7.5px;font-weight:700;letter-spacing:.05em;color:#fff;background:var(--accent);border-radius:3px;padding:0 4px;width:max-content;margin-top:2px}
+.sh-attr .mod{font-size:18px;font-weight:700;min-width:34px;text-align:right}
+.sh-big{display:flex;gap:6px;margin-bottom:6px}
+.sh-box{flex:1;border:1px solid #c7ccd6;border-radius:7px;text-align:center;padding:5px 2px;background:#f6f7f9}
+.sh-box .k{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#5b6472}
+.sh-box .v{font-size:19px;font-weight:700;color:#25405f}
+.sh-box .sub{font-size:8px;color:#5b6472}
+.sh-kv{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #e2e5ec;font-size:11.5px}
+.sh-kv:last-child{border-bottom:none}
+.sh-kv .lbl{color:#5b6472}
+.sh-kv .val{font-weight:700}
+.sh-gh{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#8a6d1a;margin:4px 0 1px}
+.sh-row{display:flex;justify-content:space-between;padding:1.5px 0;font-size:11px}
+.sh-row .v{font-weight:700}
+.sh-feat{margin:0;padding:0;list-style:none;font-size:11px}
+.sh-feat li{padding:3px 0;border-bottom:1px solid #e2e5ec}
+.sh-feat li:last-child{border-bottom:none}
+.sh-feat .cat{font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#5b6472;background:#f1f2f5;border-radius:3px;padding:0 4px;margin-right:4px}
+.sh-tag{display:inline-block;font-size:8px;color:#5b6472;background:#f6f7f9;border:1px solid #e2e5ec;border-radius:3px;padding:0 4px;margin:1px 2px 0 0}
+.sh-note{font-size:8.5px;color:#5b6472;margin-top:3px}
+@media print{
+  body.sheeting .wrap{display:none!important}
+  body.sheeting #sheetOverlay{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
+  body.sheeting #sheetOverlay .sheetbar{display:none!important}
+  body.sheeting .sh-paper{box-shadow:none!important;width:auto!important;max-width:none!important;padding:0!important;border-radius:0!important}
+  @page{size:A4;margin:10mm}
+}
 </style></head>
 <body><div class="wrap">
 <h1>DC20 Character Builder</h1> <span class="badge">rung 3 - step 5</span>
 <select id="charsel"></select>
 <label class="loadlbl">or load a YAML: <input type="file" id="loadyaml" accept=".yaml,.yml"></label>
+<button id="sheetbtn" class="sheetbtn" type="button">Character sheet</button>
 <div id="status">Booting Pyodide (first load pulls a few MB from the CDN)&hellip;</div>
 <div id="resume"></div>
 <div id="canonbar"></div>
@@ -1266,6 +1381,118 @@ const REL = __REL_JSON__;
 const dec64 = b => new TextDecoder().decode(Uint8Array.from(atob(b), c=>c.charCodeAt(0)));
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ---- character sheet (feature 3): print/PDF view rendered from api.sheet() ---- */
+function shEsc(x){return esc(x==null?'':x);}
+function shBuild(d){
+  const A=['Might','Agility','Charisma','Intelligence'];
+  const attrRows=A.map(a=>{
+    const v=(d.attrs[a]||0);
+    const pr=(v===d.prime)?'<span class="pr">Prime</span>':'';
+    const sign=v>=0?'+':'';
+    return `<div class="sh-attr"><div class="nm">${a}${pr}</div><div class="mod">${sign}${v}</div></div>`;
+  }).join('');
+  const c=d.core||{}, der=d.derived||{};
+  const order=['Prime','Might','Agility','Charisma','Intelligence'];
+  const byAttr={};
+  d.skills.forEach(s=>{(byAttr[s.attr]=byAttr[s.attr]||[]).push(s);});
+  let skillHtml='';
+  order.forEach(a=>{ if(!byAttr[a])return;
+    skillHtml+=`<div class="sh-gh">${a}</div>`+byAttr[a].map(s=>{
+      const sign=s.bonus>=0?'+':'';
+      return `<div class="sh-row"><span>${shEsc(s.name)} <span class="sh-tag">${shEsc(s.tier||'')}</span></span><span class="v">${sign}${s.bonus}</span></div>`;
+    }).join('');
+  });
+  const tradeHtml=(d.trades||[]).length?d.trades.map(t=>`<div class="sh-row"><span>${shEsc(t.name)}</span><span class="v">${shEsc(t.tier||'')}</span></div>`).join(''):'<div class="sh-note">None</div>';
+  const langHtml=(d.languages||[]).map(l=>`<div class="sh-row"><span>${shEsc(l.name)}</span><span class="v">${shEsc(l.fluency)}</span></div>`).join('')||'<div class="sh-note">None</div>';
+  const catLabels=[['subclass','Subclass'],['class_feature','Class features'],['discipline','Disciplines'],['path','Path'],['bound_weapon_options','Bound weapon'],['maneuver','Maneuvers'],['talent','Talents'],['ancestry_trait','Ancestry'],['spell_school','Spell schools']];
+  let featHtml='';
+  catLabels.forEach(([slot,label])=>{
+    const items=(d.abilities[slot]||[]);
+    if(!items.length)return;
+    featHtml+=`<li><span class="cat">${label}</span>${items.map(x=>shEsc(x.pick)).join(' &middot; ')}</li>`;
+  });
+  if(!featHtml)featHtml='<li class="sh-note">None recorded</li>';
+  const spellHtml=(d.spells||[]).length?d.spells.map(s=>{
+    const tags=(s.tags||[]).slice(0,4).map(t=>`<span class="sh-tag">${shEsc(t)}</span>`).join('');
+    return `<li><b>${shEsc(s.name)}</b>${s.school?` <span class="cat">${shEsc(s.school)}</span>`:''}${tags?' '+tags:''}</li>`;
+  }).join(''):'<li class="sh-note">None</li>';
+  const eqHtml=(d.equipment||[]).length?d.equipment.map(it=>{
+    const bonus=[]; if(it.pd)bonus.push(`+${it.pd} PD`); if(it.ad)bonus.push(`+${it.ad} AD`);
+    const b=bonus.length?` <span class="sh-tag">${bonus.join(' ')}</span>`:'';
+    const mods=it.mods?`<div class="sh-note">${shEsc(it.mods)}</div>`:'';
+    return `<li><b>${shEsc(it.name)}</b>${b}${mods}</li>`;
+  }).join(''):'<li class="sh-note">None recorded</li>';
+  const pdN=(+c['PD'])||0, adN=(+c['AD'])||0;
+  const sub=[d.ancestry, `${d.klass}${d.subclass?' ('+d.subclass+')':''}`, d.background?('Background: '+d.background):'', d.player?('Player: '+d.player):''].filter(Boolean).map(shEsc).join(' &middot; ');
+  return `<div class="sh-paper">
+    <div class="sh-head">
+      <div><h2>${shEsc(d.character||'Unnamed')}</h2><p class="sh-who">${sub}</p></div>
+      <div class="sh-chips">
+        <div class="sh-chip"><div class="k">Level</div><div class="v">${d.level}</div></div>
+        <div class="sh-chip"><div class="k">Combat Mastery</div><div class="v">${d.cm}</div></div>
+        <div class="sh-chip"><div class="k">Prime</div><div class="v">+${d.prime}</div></div>
+      </div>
+    </div>
+    <div class="sh-cols">
+      <div>
+        <div class="sh-sec"><h3>Attributes</h3>${attrRows}</div>
+        <div class="sh-sec"><h3>Defenses</h3>
+          <div class="sh-big">
+            <div class="sh-box"><div class="k">Precision</div><div class="v">${c['PD']}</div><div class="sub">Hvy ${pdN+5} &middot; Brutal ${pdN+10}</div></div>
+            <div class="sh-box"><div class="k">Area</div><div class="v">${c['AD']}</div><div class="sub">Hvy ${adN+5} &middot; Brutal ${adN+10}</div></div>
+          </div>
+        </div>
+        <div class="sh-sec"><h3>Vitals</h3>
+          <div class="sh-big">
+            <div class="sh-box"><div class="k">Health</div><div class="v">${c['HP']}</div><div class="sub">Blood ${der.bloodied} &middot; W-Blood ${der.well_bloodied}</div></div>
+            <div class="sh-box"><div class="k">Death</div><div class="v">-${der.death_threshold}</div><div class="sub">Prime + CM</div></div>
+          </div>
+          <div class="sh-kv"><span class="lbl">Stamina (SP)</span><span class="val">${c['SP']}</span></div>
+          <div class="sh-kv"><span class="lbl">Mana (MP)</span><span class="val">${c['MP']}</span></div>
+          <div class="sh-kv"><span class="lbl">Grit</span><span class="val">${c['Grit']}</span></div>
+          <div class="sh-kv"><span class="lbl">Rest points</span><span class="val">${der.rest_points}</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="sh-sec"><h3>Combat</h3>
+          <div class="sh-big">
+            <div class="sh-box"><div class="k">Attack / Spell</div><div class="v">+${c['Attack/Spell Check']}</div></div>
+            <div class="sh-box"><div class="k">Save DC</div><div class="v">${c['Save DC']}</div></div>
+          </div>
+          <div class="sh-kv"><span class="lbl">Initiative</span><span class="val">+${c['Initiative']}</span></div>
+          <div class="sh-kv"><span class="lbl">Spells / Maneuvers known</span><span class="val">${c['Spells known']} / ${c['Maneuvers known']}</span></div>
+        </div>
+        <div class="sh-sec"><h3>Skills</h3>${skillHtml||'<div class="sh-note">None</div>'}</div>
+        <div class="sh-sec"><h3>Trades</h3>${tradeHtml}</div>
+        <div class="sh-sec"><h3>Languages</h3>${langHtml}</div>
+      </div>
+      <div>
+        <div class="sh-sec"><h3>Features &amp; abilities</h3><ul class="sh-feat">${featHtml}</ul></div>
+        <div class="sh-sec"><h3>Spells</h3><ul class="sh-feat">${spellHtml}</ul></div>
+        <div class="sh-sec"><h3>Equipment &amp; attunements</h3><ul class="sh-feat">${eqHtml}</ul></div>
+      </div>
+    </div>
+    <div class="sh-note" style="text-align:center;margin-top:6px">Unofficial fan-made sheet &middot; DC20 &copy; The Dungeon Coach, ORC License &middot; values above are the deferred round&rsquo;s work (saves, move, jump, spend limits, DR) are not yet shown</div>
+  </div>`;
+}
+function renderSheet(){
+  if(!api){ $('status').className='err'; $('status').textContent='Pick or load a character first, then open the character sheet.'; return; }
+  let d;
+  try{ d = JSON.parse(api.sheet()); }
+  catch(e){ $('status').className='err'; $('status').textContent='Sheet error: '+e; return; }
+  let ov=$('sheetOverlay');
+  if(!ov){ ov=document.createElement('div'); ov.id='sheetOverlay'; document.body.appendChild(ov); }
+  const close=()=>{ ov.style.display='none'; document.body.classList.remove('sheeting'); };
+  ov.innerHTML='<div class="sheetbar"><div>One page &mdash; print or Save as PDF</div>'
+    +'<div><button type="button" class="prbtn" id="shPrint">Print / Save as PDF</button>'
+    +'<button type="button" id="shClose">Close</button></div></div>'+shBuild(d);
+  ov.style.display='block'; document.body.classList.add('sheeting');
+  $('shPrint').onclick=()=>window.print();
+  $('shClose').onclick=close;
+  ov.onclick=(e)=>{ if(e.target===ov) close(); };
+  document.addEventListener('keydown', function esc1(e){ if(e.key==='Escape'){ close(); document.removeEventListener('keydown', esc1); } });
+}
+if($('sheetbtn')) $('sheetbtn').onclick=renderSheet;
 
 function modeFromURL(){
   const q = new URLSearchParams(location.search);

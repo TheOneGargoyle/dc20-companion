@@ -586,6 +586,38 @@ def check_new_features():
        len([d for d in s3["decisions"] if d["slot"] == "attribute" and d["level"] == 4]) == base_attr4)
 
 
+# ---------------------------------------------------------------- (9) character sheet
+def check_sheet():
+    import math
+    print("## (9) Character sheet: api.sheet() well-formed for six ledgers")
+    MB = {"Novice": 2, "Adept": 4, "Expert": 6, "Master": 8, "Grandmaster": 10}
+    NEED = {"character", "level", "cm", "prime", "attrs", "core", "derived",
+            "skills", "trades", "languages", "abilities", "spells", "equipment"}
+    for c in builder_build.CHARS:
+        d = json.loads(builder_api.BuilderAPI(c, CATPATHS).sheet())
+        ok("%-10s sheet has all sections" % c, NEED <= set(d), NEED - set(d))
+        hp = int(d["core"]["HP"])
+        der = d["derived"]
+        ok("%-10s bloodied/well/death/rest derived correctly" % c,
+           der["bloodied"] == math.ceil(hp / 2) and der["well_bloodied"] == math.ceil(hp / 4)
+           and der["death_threshold"] == d["prime"] + d["cm"] and der["rest_points"] == hp, der)
+        bad = [s for s in d["skills"]
+               if s["bonus"] != ((d["prime"] if s["attr"] == "Prime" else d["attrs"].get(s["attr"], 0)) + MB.get(s["tier"], 0))]
+        ok("%-10s skill bonuses = governing attr + mastery bonus" % c, not bad, bad)
+        picks = [x for v2 in d["abilities"].values() for x in v2]
+        ok("%-10s abilities within current level, no blanks" % c,
+           all(x.get("pick") and (not x.get("level") or x["level"] <= d["level"]) for x in picks), None)
+    d = json.loads(builder_api.BuilderAPI("tanrielle", CATPATHS).sheet())
+    aw = next((s["bonus"] for s in d["skills"] if s["name"] == "Awareness"), None)
+    ok("tanrielle Awareness = +7 (Prime 3 + Adept 4)", aw == 7, aw)
+    ok("tanrielle PD 17 and 6 equipment items", d["core"]["PD"] == "17" and len(d["equipment"]) == 6,
+       (d["core"]["PD"], len(d["equipment"])))
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("page has sheet button + renderer + print CSS",
+       'id="sheetbtn"' in html and "function renderSheet(" in html and "api.sheet()" in html
+       and "body.sheeting .wrap" in html and ".sh-paper" in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -605,6 +637,7 @@ def main():
         check_received()
         check_comments()
         check_new_features()
+        check_sheet()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -616,7 +649,7 @@ def main():
         sys.exit(1)
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
     print("       add-a-level (promote + generate + undo), received-file safety,")
-    print("       comment-preserving export, round-2 bug fixes")
+    print("       comment-preserving export, round-2 bug fixes, character sheet")
     sys.exit(0)
 
 
