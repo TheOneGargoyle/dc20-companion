@@ -118,11 +118,13 @@ def cm(level: int) -> int:
 class Report:
     def __init__(self):
         self.lines, self.problems = [], []
+        self.derived = {}  # label -> derived value (machine-readable mirror of the check table)
 
     def add(self, s=""):
         self.lines.append(s)
 
     def check(self, label, derived, expected=None):
+        self.derived[label] = derived
         if expected is None:
             self.add(f"| {label} | {derived} | - | |")
             return

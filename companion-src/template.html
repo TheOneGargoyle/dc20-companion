@@ -473,6 +473,25 @@ xan:{short:'Xanwyn',name:'Xanwyn',
  audit:'📋 Audit: HP 13 ✓ (class 12 + Mig −1 + Amulet of Health +2). MP 6 ✓ (class 5 + Magus). SP 3 ✓ (class 1 + Martial path ×2). Spells 5 ✓ (2 class + Magus + Spell School Initiate ×2; all legal in Null/Invoc/Transmutation). Maneuvers 4 ✓. Attribute pts 13 ✓ (12 + L3). Ancestry 7 pts ✓ (5 + L4’s 2: Elf 3 + Beast 4). Defenses ✓ (Darryl’s catch): PD 17 = 8 + CM 2 + Agi 3 + Int 3 + <b>Guard short sword +1</b>; AD 13 = 9 base + Fortified armour +2 + Light Shield +2 (matches the sheet’s misc note). Note: the Shield Table (restored 2026-07-04) has no PD 0 / AD +2 Light Shield — Light Shields cap at +1 AD (double AD Increase is Heavy-only) — so the +2 AD shield is a GM item or house call. Jesse’s call.',
  acc:''}
 };
+/* Engine-derived party numbers, baked by build.py from builds/<handle>.yaml.
+   Overwrites ONLY derived numbers; hand-authored prose/toggles/skills/saves stay. */
+const PARTY_DERIVED=__PARTY_DERIVED__;
+(function(){const sgn=v=>(v>=0?'+':'')+v;
+Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c)return;
+  ['hp','mp','sp','grit','pd','ad'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});
+  c.sub=c.sub.replace(/<b>L\d+<\/b>/,'<b>L'+d.level+'<\/b>').replace(/CM \d+/,'CM '+d.cm);
+  c.stats=c.stats.map(p=>{const v=p[0],l=p[1];
+    if(l==='Attack')return[sgn(d.attack),l];
+    if(l==='Save DC')return[String(d.save_dc),l];
+    if(l==='Initiative')return[sgn(d.initiative),l];
+    if(l==='MSL / SSL')return[String(d.cm),l];
+    return p;});
+  c.rolls=c.rolls.map(r=>{
+    if(r[1]==='Attack')return[d.attack,r[1],'⚔ Attack '+sgn(d.attack)];
+    if(r[1]==='Spell Check')return[d.attack,r[1],'✨ Spell '+sgn(d.attack)];
+    if(r[1]==='Initiative')return[d.initiative,r[1],'⚡ Init '+sgn(d.initiative)];
+    return r;});
+});})();
 let cur=sget('curchar','tan');
 if(!(cur in CHARS))cur='tan';
 let S=null;

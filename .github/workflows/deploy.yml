@@ -53,7 +53,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install build dependency
-        run: pip install markdown
+        run: pip install markdown pyyaml
 
       - name: Build the player Companion
         run: python3 companion-src/build.py dist/index.html

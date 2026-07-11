@@ -244,6 +244,56 @@ for name in gm_files:
     gm_data.append({"f": gm_labels[name], "secs": secs})
 print(f"gm files: {len(gm_data)}")
 
+# ---------- party derived stats (baked from the build ledgers) ----------
+# Runs the true build engine (tools/build_engine.py) over builds/<handle>.yaml and
+# bakes the derived numbers into the page as PARTY_DERIVED; template.html merges them
+# over CHARS at load. This closes the rung-3 loop: commit an updated ledger -> the
+# Action (which already watches builds/**) rebuilds -> the Companion shows the new
+# numbers. Hand-authored CHARS prose (toggles, notes, audits, skills, saves) is
+# untouched; only engine-derived numbers are overwritten.
+import importlib.util as _ilu
+try:
+    import yaml
+except ImportError:
+    sys.exit("build.py now needs PyYAML for the party-stats stage (pip install pyyaml)")
+_spec = _ilu.spec_from_file_location("build_engine", CAMP / "tools" / "build_engine.py")
+_be = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_be)
+
+PARTY_LEDGERS = {  # CHARS key -> ledger file (the curated include set, by id — see RUNG3_PLAN section 8)
+    "tan": "tanrielle.yaml", "min": "minimus.yaml", "runt": "runt.yaml",
+    "scale": "scaletrix.yaml", "bonan": "bonan.yaml", "xan": "xanwyn.yaml",
+}
+# Companion-display deltas ON TOP of engine-derived values — each documented in the
+# ledger itself. These preserve the table-facing numbers the party plays with:
+#  - xan hp +2: Amulet of Health (worn item; the ledger's expected block deliberately
+#    excludes it as an "equipment overlay" — xanwyn.yaml).
+#  - runt pd +2: the Companion has always shown 17 (Phil's worked note) vs the ledger's
+#    unbuffed base 15; runt.yaml carries the CONFIRM-WITH-PHIL note. Preserved pending
+#    that confirmation - remove this delta if the ledger's reading wins.
+DISPLAY_DELTAS = {("xan", "hp"): 2, ("runt", "pd"): 2}
+
+party_derived = {}
+for _k, _fn in PARTY_LEDGERS.items():
+    _led = yaml.safe_load((CAMP / "builds" / _fn).read_text(encoding="utf-8"))
+    _lvl = _led["current_level"]
+    _rep = _be.replay(_led, _lvl)
+    _d = _rep.derived
+    party_derived[_k] = {
+        "level": _d["Level"], "cm": _d["Combat Mastery"],
+        "attack": _d["Attack/Spell Check"], "save_dc": _d["Save DC"],
+        "initiative": _d["Initiative"], "grit": _d["Grit"],
+        "hp": _d["HP"], "sp": _d["SP"], "mp": _d["MP"],
+        "pd": _d["PD"], "ad": _d["AD"],
+    }
+    for (_dk, _f), _delta in DISPLAY_DELTAS.items():
+        if _dk == _k:
+            party_derived[_k][_f] += _delta
+    for _p in _rep.problems:
+        print(f"  ledger flag ({_fn}): {_p}")  # known audit items surface here; the oracle is catalog_verify.py
+print("party derived: " + ", ".join(
+    f"{k} L{v['level']} hp{v['hp']} pd{v['pd']}" for k, v in party_derived.items()))
+
 # ---------- geography & maps ----------
 # REMOVED 2026-07-05 (IP hygiene): the Maps tab was retired and replaced by an
 # About tab (template.html). The map images (World/Region unaltered Games Workshop
@@ -341,6 +391,7 @@ GM_NAV_BUTTON = """  <button data-tab="gm" onclick="go('gm')"><span class="ic">�
 def assemble(gm: bool) -> str:
     tpl = TEMPLATE.read_text(encoding="utf-8")
     tpl = tpl.replace("__RULES_DATA__", js_embed(rules_data))
+    tpl = tpl.replace("__PARTY_DERIVED__", js_embed(party_derived))
     # Player edition: GM data is NEVER embedded (an in-file gate would be
     # cosmetic — the HTML source is readable), and the GM nav button is removed.
     tpl = tpl.replace("__GM_DATA__", js_embed(gm_data if gm else []))
