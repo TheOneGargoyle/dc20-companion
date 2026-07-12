@@ -11,7 +11,7 @@ Three checks, in order:
       spells.md and is legal for that character's spell-access model (Spellblade: chosen schools
       + Weapon/Ward tags + Spell School Initiate school; Warlock: 3 chosen schools + Eldritch
       Psychic-tag grant; Druid: Primal source + Arcane grant slots; Commander/Barbarian:
-      existence + path-rider note); every maneuver is a real 0.10.5 maneuver (Bonan's "Recovery"
+      existence + path-rider note); every maneuver is a real 0.10.5 maneuver (Bonan's "Recovery" was a typo for Recover,
       placeholder whitelisted); every talent resolves to a catalog talent or multiclass feature;
       disciplines / pact boons / subclasses exist and their grants match the ledgers.
   (3) Curated lists vs rules/*.md - the hand-curated ancestry costs, spell-school lists,
@@ -94,9 +94,8 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     print(f"  {os.path.basename(path):16} L{lvl}  {ok:2} stat-checks OK, {mm} mismatch  {tag}{known}")
     expect(not unexpected, f"{os.path.basename(path)} unexpected problems: {unexpected}")
 print(f"  => TOTAL {total_ok}/{total_ok + total_mismatch} derived-stat checks passed\n")
-expect(total_mismatch == 2,
-       f"expected 2 known-delta mismatches (bonan Move/Jump), got {total_mismatch}")
-expect(total_ok == 88, f"expected 88 passing checks (66 + 24 new stat rows - 2 known-delta mismatches), got {total_ok}")
+expect(total_mismatch == 0, f"expected 0 mismatches (all item/feature effects modelled), got {total_mismatch}")
+expect(total_ok == 90, f"expected 90 passing checks (66 + 24 new stat rows, all clean), got {total_ok}")
 
 # ---- load the catalog -----------------------------------------------------
 CLASS_CAT = {c: load(f"builds/catalog/{c.lower()}.yaml")
@@ -528,4 +527,4 @@ if fails:
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print("PASS - engine oracle holds (88/90 checks; 2 by-design sheet-vs-RAW deltas:\n       bonan Move/Jump); catalog reconciles with all six ledgers and rules/*.md")
+print("PASS - engine oracle holds (90/90 checks; all item/feature effects modelled);\n       catalog reconciles with all six ledgers and rules/*.md")

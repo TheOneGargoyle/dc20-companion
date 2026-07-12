@@ -136,7 +136,7 @@ def stage():
 KNOWN = {"runt": ["Trade points over-spent"]}  # scaletrix over-spend was the wrong Draconic fluency (fixed 2026-07-12)
 # by-design table mismatch: the sheet reference carries an overlay the RAW engine
 # does not model - bonan paper Move 6 / Jump 6 (no speed trait; Mighty Leap re-keys jump).
-KNOWN_MISMATCH = {"bonan": {"Move Speed", "Jump Distance"}}  # scaletrix amulet now modelled
+KNOWN_MISMATCH = {}  # all deltas now modelled (scaletrix amulet; bonan Fast Movement/Mighty Leap/Jumper/Titanic Leap)
 MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance"}
 CATPATHS = None
 builder_api = None
@@ -640,9 +640,9 @@ ORACLE = {
 }
 # Documented RAW-vs-companion deltas (engine reports the RAW base; the companion
 # carries an item/feature overlay), parallel to the runt-PD / xanwyn-HP overlays:
-SAVE_OVERLAY = {}   # scaletrix amulet (+1 all Saves) is now modelled in the engine
-MOVE_DELTA = {"bonan": 5}         # companion 6; no speed trait in the ledger -> engine 5
-JUMP_DELTA = {"bonan": 1}         # Mighty Leap re-keys off Might + Titanic Leap; open 09 audit
+SAVE_OVERLAY = {}   # no overlays: every item/feature effect is modelled in the engine
+MOVE_DELTA = {}                  # bonan Fast Movement now modelled -> engine derives 6
+JUMP_DELTA = {}                  # bonan Mighty Leap + Jumper + Titanic Leap now modelled -> engine derives 6
 
 
 def check_newstats():
@@ -681,6 +681,36 @@ def check_newstats():
        and "Move Speed" in html and "Spend Limit" in html)
 
 
+# ---------------------------------------------------------------- (11) composite re-pick escape hatch
+def check_replace_hatch():
+    print()
+    print("## (11) Composite re-pick escape hatch")
+    def find(st_, slot, lvl):
+        return next((d for d in st_["decisions"] if d.get("slot") == slot and d.get("level") == lvl), None)
+    api = builder_api.BuilderAPI("runt", CATPATHS)
+    s0 = st(api)
+    man = find(s0, "maneuver", 2)   # runt's 4-maneuver composite row
+    ok("composite maneuver row is replaceable + carries options, still shown as text",
+       man["widget"] == "fixed" and man.get("replaceable") is True and len(man.get("options") or []) > 0,
+       (man["widget"], man.get("replaceable")))
+    anc = find(s0, "ancestry_trait", 1)  # 'remainder not itemised' placeholder
+    ok("ancestry-trait placeholder is NOT replaceable (excluded slot)",
+       not anc.get("replaceable"), anc.get("replaceable"))
+    did = man["id"]
+    s1 = json.loads(api.set_decision(did, "Slam"))
+    e = api.ledger["levels"][2][int(did.split(":")[1])]
+    ok("replacing a composite sets the single pick and preserves the original in a note",
+       e["pick"] == "Slam" and str(e.get("note", "")).startswith("Replaced composite"), (e["pick"], e.get("note")))
+    man2 = find(s1, "maneuver", 2)
+    ok("the replaced row is now a normal editable picker (current = the new pick)",
+       man2["widget"] == "picker" and man2.get("editable") and man2.get("current") == "Slam", man2)
+    ok("no new problems introduced by the replace (runt keeps only his known trade over-spend)",
+       s1["problems"] == ["Trade points over-spent"], s1["problems"])
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("page JS carries the replace-picker furniture",
+       "t.replaceable" in html and "&mdash; replace &mdash;" in html and 'class="select repl"' in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -702,6 +732,7 @@ def main():
         check_new_features()
         check_sheet()
         check_newstats()
+        check_replace_hatch()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -714,7 +745,8 @@ def main():
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
     print("       add-a-level (promote + generate + undo), received-file safety,")
     print("       comment-preserving export, round-2 bug fixes, character sheet,")
-    print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle")
+    print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle,")
+    print("       composite re-pick escape hatch")
     sys.exit(0)
 
 

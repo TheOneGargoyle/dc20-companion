@@ -79,6 +79,10 @@ import build_engine as eng
 
 EDITABLE_SLOTS = {'talent', 'path', 'subclass', 'discipline', 'spell', 'maneuver',
                   'attribute', 'ancestry_trait'}
+# Slots whose composite/invalid entry can be re-picked via an escape-hatch dropdown
+# (single clean-value slots; ancestry_trait/attribute excluded - they have cost/budget
+# machinery and 'remainder not itemised' placeholders that a single pick can't replace).
+REPLACEABLE_SLOTS = {'talent', 'subclass', 'discipline', 'spell', 'maneuver'}
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -698,6 +702,12 @@ class BuilderAPI:
              'removable': removable}
         if note:
             d['note'] = note
+        # escape hatch: a composite/invalid entry at/below current level in a clean
+        # single-value slot keeps its text but gets a "replace" picker (see the page JS)
+        if (not plan) and not (editable and not plan) and slot in REPLACEABLE_SLOTS \
+                and str(pick) != UNDECIDED and is_composite(pick):
+            d['replaceable'] = True
+            d['options'] = self._options_for(slot)
         if d['widget'] == 'picker':
             d['options'] = self._options_for(slot)
             if str(pick) == UNDECIDED:
@@ -929,6 +939,8 @@ class BuilderAPI:
             lvl, idx = did[1:].split(':')
             e = self.ledger['levels'][int(lvl)][int(idx)]
             slot = e.get('slot')
+            _old_pick = e.get('pick')
+            _was_composite = is_composite(_old_pick) and str(_old_pick) != value
             if slot == 'ancestry_trait':
                 self._set_trait(e, value, entry=True)
             elif slot == 'discipline':
@@ -961,6 +973,8 @@ class BuilderAPI:
                 self._edited(e)
                 if slot == 'path' and BUILDER_NOTE in str(e.get('note', '')):
                     self._sync_path_rider(int(lvl), value)
+            if _was_composite:
+                e['note'] = 'Replaced composite/placeholder entry in builder (was: %s).' % _old_pick
         return self.state()
 
     def _set_trait(self, t, value, entry=False):
@@ -1617,7 +1631,7 @@ function optHTML(options, current, curGroup){
     curGroup = undefined;
     for(const o of options) if(o.name===current) found=true;
   }
-  let h = found ? "" : `<option value="${esc(current)}" selected>${current==='(undecided)'?'&mdash; choose &mdash;':esc(current)+' (off-catalog)'}</option>`;
+  let h = (found || current==null || current==="") ? "" : `<option value="${esc(current)}" selected>${current==='(undecided)'?'&mdash; choose &mdash;':esc(current)+' (off-catalog)'}</option>`;
   for(const [g, os] of Object.entries(groups)){
     const inner = os.map(o=>`<option value="${esc(o.name)}" ${isCur(o)?'selected':''}>${esc(o.label||o.name)}</option>`).join("");
     h += g ? `<optgroup label="${esc(g)}">${inner}</optgroup>` : inner;
@@ -1694,7 +1708,10 @@ function render(s){
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
       const allocHint = (!t.plan && (t.slot==='skill'||t.slot==='trade'))
         ? ' <span style="font-size:.7rem;color:var(--accent)">&rarr; apply mastery changes in the allocator below</span>' : '';
-      body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}</span>`;
+      const replHTML = (t.replaceable && t.options)
+        ? ` <select class="select repl" data-dec="${esc(t.id)}" title="replace this with a single valid ${esc(t.slot)}"><option value="" selected>&mdash; replace &mdash;</option>${optHTML(t.options, null, null)}</select>`
+        : '';
+      body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(t.slot)}</span>${body}</div>`;
   };
@@ -1720,7 +1737,7 @@ function render(s){
   }
   $('decisions').innerHTML = d;
   $('srcinfo').textContent = viaNote;
-  document.querySelectorAll('[data-dec]').forEach(el => el.onchange = () => refresh(api.set_decision(el.dataset.dec, el.value)));
+  document.querySelectorAll('[data-dec]').forEach(el => el.onchange = () => { if(el.value!=="") refresh(api.set_decision(el.dataset.dec, el.value)); });
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));
   document.querySelectorAll('[data-rm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_decision(el.dataset.rm)); });
   // + ancestry trait control

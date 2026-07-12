@@ -164,6 +164,19 @@ def sum_grants(ledger, level, key):
     return total
 
 
+def grant_flag(ledger, level, key, default=None):
+    """Last non-None value of a NON-numeric grant flag (e.g. jump_from: might)."""
+    val = default
+    cg = ledger.get("chargen", {})
+    for c in (cg.get("class_choices") or []):
+        val = (c.get("grants") or {}).get(key, val)
+    for t in (cg.get("ancestry_traits") or []):
+        val = (t.get("grants") or {}).get(key, val)
+    for _, e in all_entries(ledger, level):
+        val = (e.get("grants") or {}).get(key, val)
+    return val
+
+
 def replay(ledger, level):
     rep = Report()
     cls = ledger["class"]
@@ -271,9 +284,10 @@ def replay(ledger, level):
         elif n.startswith("Short-Legged"):
             speed -= 1
     # Jump Distance = Agility (minimum 1) (character-creation.md l.159), plus any
-    # numeric `jump` grant. Feature re-keys (e.g. Barbarian Mighty Leap off
-    # Might) are NOT modelled - those characters are documented deltas.
-    jump = max(1, agi) + sum_grants(ledger, level, "jump")
+    # numeric `jump` grant. A feature may re-key the base attribute via a
+    # `jump_from: <attr>` grant (e.g. Barbarian Mighty Leap uses Might).
+    jump_from = grant_flag(ledger, level, "jump_from", "agility")
+    jump = max(1, attrs.get(str(jump_from).lower(), 0)) + sum_grants(ledger, level, "jump")
     # Mana / Stamina Spend Limit = half level, rounded up = Combat Mastery
     # (spells.md l.5907-5920: "spending MP up to half their level, rounded up").
     spend_limit = cm(level)

@@ -6,9 +6,9 @@
 # picker offers. tools/catalog_verify.py asserts every name below appears as a Maneuver
 # heading in combat.md (transcription-drift check).
 #
-# KNOWN INVALID, deliberately absent: "Recovery" (Bonan's sheet) does not exist in 0.10.5 —
-# the standing 09/12 audit item; his ledger carries it as an inferred placeholder and the
-# verifier whitelists that entry rather than blessing the name.
+# NOTE: "Recovery" is not a 0.10.5 maneuver and is deliberately absent. Bonan's sheet showed
+# "Recovery" which turned out to be a typo for the real Utility maneuver "Recover" (below);
+# his ledger was corrected 2026-07-12. Any stray "Recovery" is still an error, not a name.
 
 catalog_version: 1
 maneuvers:
