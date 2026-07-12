@@ -693,7 +693,7 @@ class BuilderAPI:
                                     removable=((e.get('slot') == 'ancestry_trait'
                                                 and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))
                                                or (e.get('slot') in ('maneuver', 'spell')
-                                                   and 'expanded from composite' in str(e.get('note', ''))))))
+                                                   and BUILDER_NOTE in str(e.get('note', ''))))))
         return ds
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
@@ -704,7 +704,7 @@ class BuilderAPI:
              'removable': removable}
         if note:
             d['note'] = note
-            if str(note).startswith('Replaced composite') or 'Overflow from the composite' in str(note):
+            if str(note).startswith('Replaced composite') or 'Overflow' in str(note):
                 d['was_note'] = note   # provenance shown even on the (now editable) picker row
         # escape hatch: a composite/invalid entry at/below current level in a clean
         # single-value slot keeps its text but gets a "replace" picker (see the page JS)
@@ -718,7 +718,7 @@ class BuilderAPI:
                 known = {o['name'] for o in d['options']}
                 if sum(1 for x in nms if x in known) >= 2:
                     d['expandable'] = True
-                    d['expand_n'] = self._granted_at_level(lvl, 'maneuvers' if slot == 'maneuver' else 'spells')
+                    d['expand_n'] = self._total_granted('maneuvers' if slot == 'maneuver' else 'spells')
         if d['widget'] == 'picker':
             d['options'] = self._options_for(slot)
             if str(pick) == UNDECIDED:
@@ -1053,31 +1053,66 @@ class BuilderAPI:
             n += int((e.get('grants') or {}).get(resource, 0) or 0)
         return n
 
+    def _parse_picks(self, pk):
+        # names from a composite / single pick (before any parenthetical), minus (undecided)
+        head = str(pk).split('(')[0]
+        return [x.strip() for x in re.split(r',|\s\+\s', head)
+                if x.strip() and x.strip() != UNDECIDED]
+
+    def _total_granted(self, resource):
+        # every slot of a resource the character is granted: L1 (spine + chargen boon/choice
+        # grants) + each later level's grant.
+        n = int(self.ccat['spine'].get(1, {}).get(resource, 0) or 0)
+        for c in (self.ledger['chargen'].get('class_choices') or []):
+            n += int((c.get('grants') or {}).get(resource, 0) or 0)
+        for L in (self.ledger.get('levels') or {}):
+            n += self._granted_at_level(L, resource)
+        return n
+
     def expand_composite(self, did):
-        # split a multi-item composite maneuver/spell row into individual editable slots,
-        # sized to what the level actually grants; pre-fill from the recorded names, pad
-        # with (undecided), and stash any overflow (a mis-attributed name) in a note.
+        # one-click RECONCILE (triggered from a composite row): rebuild the whole character's
+        # maneuver/spell enumeration so every granting level - L1 chargen included - shows
+        # exactly the slots it grants. Each level keeps its own recorded names (up to its
+        # grant); surplus cascades forward to the next granting level; gaps become (undecided).
         did = str(did)
         if not did.startswith('L'):
             return self.state()
         lvl, idx = (int(x) for x in did[1:].split(':'))
-        ents = self.ledger['levels'][lvl]
-        e = ents[idx]
-        slot = e.get('slot')
+        slot = self.ledger['levels'][lvl][idx].get('slot')
         if slot not in ('maneuver', 'spell'):
             return self.state()
         resource = 'maneuvers' if slot == 'maneuver' else 'spells'
-        head = str(e.get('pick', '')).split('(')[0]
-        names = [x.strip() for x in re.split(r',|\s\+\s', head) if x.strip()]
-        n_slots = self._granted_at_level(lvl, resource) or (len(names) or 1)
-        base = '%s (expanded from composite).' % BUILDER_NOTE
-        new = [{'slot': slot, 'pick': (names[i] if i < len(names) else UNDECIDED),
-                'source': 'expanded from composite', 'note': base} for i in range(n_slots)]
-        overflow = names[n_slots:]
-        if overflow and new:
-            new[-1]['note'] = ('%s Overflow from the composite, may belong to another '
-                               'level (confirm): %s' % (base, ', '.join(overflow)))
-        ents[idx:idx + 1] = new
+        # L1 grant (class spine + chargen boon/choice grants, e.g. Pact Weapon)
+        l1g = int(self.ccat['spine'].get(1, {}).get(resource, 0) or 0)
+        for c in (self.ledger['chargen'].get('class_choices') or []):
+            l1g += int((c.get('grants') or {}).get(resource, 0) or 0)
+        # ordered plan of (level_key, granted, recorded_names); key 1 == chargen/L1
+        plan = [(1, l1g, [n for m in (self.ledger['chargen'].get(resource) or [])
+                          for n in self._parse_picks(m)])]
+        for L in sorted(self.ledger.get('levels') or {}):
+            names = [n for e in self.ledger['levels'][L] if e.get('slot') == slot
+                     for n in self._parse_picks(e.get('pick'))]
+            plan.append((L, self._granted_at_level(L, resource), names))
+        # distribute names into per-level slots, cascading surplus forward
+        carry, result = [], {}
+        for (L, g, names) in plan:
+            pool = carry + names
+            result[L] = (pool[:g] + [UNDECIDED] * (g - len(pool)))[:g] if g > 0 else []
+            carry = pool[g:]
+        # write back: L1 -> chargen list; each level -> regenerated maneuver/spell entries
+        self.ledger['chargen'][resource] = list(result.get(1, []))
+        base = '%s (reconciled per-level slots).' % BUILDER_NOTE
+        last = None
+        for L in sorted(self.ledger.get('levels') or {}):
+            ents = self.ledger['levels'][L]
+            ents[:] = [e for e in ents if e.get('slot') != slot]
+            for pk in result.get(L, []):
+                ents.append({'slot': slot, 'pick': pk, 'source': 'reconciled slots', 'note': base})
+                last = L
+        if carry and last is not None and self.ledger['levels'][last]:
+            self.ledger['levels'][last][-1]['note'] = (
+                '%s Overflow - more recorded than any level grants (confirm): %s'
+                % (base, ', '.join(carry)))
         return self.state()
 
     def set_attr(self, name, value):
@@ -1167,7 +1202,7 @@ class BuilderAPI:
             note = str(e.get('note', ''))
             if note.startswith('Replaced composite'):
                 e['note'] = 'Edited in builder (%s).' % self.handle
-            elif 'Overflow from the composite' in note:
+            elif 'Overflow' in note:
                 e['note'] = '%s (expanded from composite).' % BUILDER_NOTE
         return self.state()
 
@@ -1777,11 +1812,11 @@ function render(s){
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
       const allocHint = (!t.plan && (t.slot==='skill'||t.slot==='trade'))
         ? ' <span style="font-size:.7rem;color:var(--accent)">&rarr; apply mastery changes in the allocator below</span>' : '';
-      const replHTML = (t.replaceable && t.options)
+      const replHTML = (t.replaceable && t.options && !t.expandable)
         ? ` <select class="select repl" data-dec="${esc(t.id)}" title="replace this with a single valid ${esc(t.slot)}"><option value="" selected>&mdash; replace &mdash;</option>${optHTML(t.options, null, null)}</select>`
         : '';
       const expandHTML = t.expandable
-        ? ` <a href="#" data-expand="${esc(t.id)}" style="font-size:.7rem;color:var(--accent)" title="split into ${t.expand_n} individually-editable slots">[expand into ${t.expand_n} slots]</a>`
+        ? ` <a href="#" data-expand="${esc(t.id)}" style="font-size:.7rem;color:var(--accent)" title="rebuild all maneuver/spell slots across every level (${t.expand_n} total) so each granted pick has its own slot">[expand into per-level slots]</a>`
         : '';
       body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
     }

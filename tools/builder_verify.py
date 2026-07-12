@@ -683,6 +683,7 @@ def check_newstats():
 
 # ---------------------------------------------------------------- (11) composite re-pick escape hatch
 def check_replace_hatch():
+    UND = '(undecided)'
     print()
     print("## (11) Composite re-pick escape hatch")
     def find(st_, slot, lvl):
@@ -716,28 +717,33 @@ def check_replace_hatch():
     man4 = find(s1c, "maneuver", 2)
     ok("dismiss_note clears the 'was:' note but keeps a normal editable picker",
        not man4.get("was_note") and man4.get("widget") == "picker" and man4.get("current") == "Body Block", man4)
-    # expand a genuine multi-item composite into per-level slots (sized to the grant)
+    # expand = character-wide reconcile: every granting level (incl. L1 chargen) gets its slots
     api2 = builder_api.BuilderAPI("runt", CATPATHS)
     comp = find(st(api2), "maneuver", 2)
-    ok("multi-item composite is expandable, sized to the level's grant (expand_n = 3)",
-       comp.get("expandable") is True and comp.get("expand_n") == 3, (comp.get("expandable"), comp.get("expand_n")))
-    s2 = json.loads(api2.expand_composite(comp["id"]))
-    mrows = [d for d in s2["decisions"] if d.get("slot") == "maneuver" and d.get("level") == 2]
-    ok("expand creates 3 individual editable+removable maneuver pickers",
-       len(mrows) == 3 and all(d["widget"] == "picker" and d.get("editable") and d.get("removable") for d in mrows),
-       [(d.get("current"), d["widget"]) for d in mrows])
-    ments = [e for e in api2.ledger["levels"][2] if e.get("slot") == "maneuver"]
-    ok("expanded picks are the first 3 names; the over-count (Heroic Intimidate) is kept as a visible overflow note",
-       [e["pick"] for e in ments] == ["Slam", "Body Block", "Throw Creature"]
-       and any(d.get("was_note") and "Heroic Intimidate" in d["was_note"] for d in mrows),
-       [e["pick"] for e in ments])
+    ok("multi-item composite is expandable; expand_n = total maneuvers granted (8)",
+       comp.get("expandable") is True and comp.get("expand_n") == 8, (comp.get("expandable"), comp.get("expand_n")))
+    api2.expand_composite(comp["id"])
+    L1 = api2.ledger["chargen"]["maneuvers"]
+    L2 = [e["pick"] for e in api2.ledger["levels"][2] if e.get("slot") == "maneuver"]
+    L4 = [e["pick"] for e in api2.ledger["levels"][4] if e.get("slot") == "maneuver"]
+    ok("reconcile sizes each level to its grant (L1=2, L2=3, L4=3)",
+       len(L1) == 2 and len(L2) == 3 and len(L4) == 3, (L1, L2, L4))
+    ok("each level keeps its own names; surplus cascades forward (Heroic Intimidate -> L4), gaps (undecided)",
+       L2 == ["Slam", "Body Block", "Throw Creature"] and L4[0] == "Heroic Intimidate"
+       and L4[1:] == [UND, UND] and L1 == [UND, UND], (L1, L2, L4))
+    mrows = [d for d in st(api2)["decisions"] if d.get("slot") == "maneuver"]
+    ok("all generated maneuver rows are editable pickers (level slots removable)",
+       all(d["widget"] == "picker" and d.get("editable") for d in mrows)
+       and all(d.get("removable") for d in mrows if (d.get("level") or 1) > 1),
+       [(d.get("level"), d.get("current")) for d in mrows])
     ok("no new problems introduced by the replace (runt keeps only his known trade over-spend)",
        s1["problems"] == ["Trade points over-spent"], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page JS carries the replace-picker furniture",
        "t.replaceable" in html and "&mdash; replace &mdash;" in html
        and 'class="select repl"' in html and "t.was_note" in html
-       and "data-dismiss" in html and "data-expand" in html and "t.expandable" in html)
+       and "data-dismiss" in html and "data-expand" in html and "t.expandable" in html
+       and "!t.expandable" in html)   # replace dropdown suppressed on expandable rows
 
 
 def main():
