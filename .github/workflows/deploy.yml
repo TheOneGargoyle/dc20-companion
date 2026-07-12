@@ -15,12 +15,14 @@
 #
 # The published output is companion-src/build.py's player edition
 # (assemble(gm=False)) written to dist/index.html, PLUS the character builder
-# (builds/builder.html, copied verbatim) at the static URL <site>/builder.html,
-# PLUS the one-page player how-to (builds/howto.html) at <site>/howto.html.
-# The builder is fully self-contained (engine + catalog + ledgers baked in);
-# its fetch()-first source loading simply falls back to the bake on Pages,
-# and tools/builder_build.py regenerates it whenever its sources change (the
-# harness sha-checks the bake against the sources, so it cannot drift).
+# (regenerated FROM SOURCE at deploy by tools/builder_build.py) at the static URL
+# <site>/builder.html, PLUS the one-page player how-to (builds/howto.html) at
+# <site>/howto.html. The builder bakes the engine + catalog + ledgers in at build
+# time; regenerating it here (rather than copying the committed copy) means editing
+# any builds/<char>.yaml and pushing makes the builder go live automatically - the
+# same "commit a ledger, it deploys" loop that already rebuilds the Companion. The
+# committed builds/builder.html is now just a dev/harness convenience (the harness
+# still sha-checks it), never the source of truth for the live page.
 
 name: Deploy Companion
 
@@ -64,10 +66,11 @@ jobs:
       - name: Build the player Companion
         run: python3 companion-src/build.py dist/index.html
 
-      - name: Publish the character builder alongside it
-        run: |
-          cp builds/builder.html dist/builder.html
-          cp builds/howto.html dist/howto.html
+      - name: Build the character builder from source (auto-rebuilds on any ledger change)
+        run: python3 tools/builder_build.py --out dist/builder.html
+
+      - name: Publish the player how-to alongside it
+        run: cp builds/howto.html dist/howto.html
 
       - name: Guard - output is complete and player-safe
         run: |
