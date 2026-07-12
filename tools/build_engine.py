@@ -248,11 +248,15 @@ def replay(ledger, level):
     ad = 8 + cm(level) + might + cha + ad_items + sum_grants(ledger, level, "ad")
 
     # --- per-attribute saves / move / jump / spend limit / DR ---------------
-    # Attribute Save bonus = Attribute + Combat Mastery (core-rules.md l.1553).
-    # Item/feature overlays (e.g. an Amulet of General Resilience +1 all saves)
-    # are NOT modelled here - the engine reports the RAW base, same policy as
-    # the PD/HP item overlays documented in the companion.
-    saves = {a.title(): attrs.get(a, 0) + cm(level)
+    # Attribute Save bonus = Attribute + Combat Mastery (core-rules.md l.1553),
+    # plus flat all-Save bonuses from equipment (an item's `saves:` field, e.g. an
+    # Amulet of General Resilience +1) and any numeric `saves` grant - modelled the
+    # same way as the PD/AD item bonuses. Per-attribute item bonuses aren't modelled
+    # yet (no ledger needs them).
+    save_bonus = (sum(it.get("saves", 0) for it in (ledger.get("equipment") or [])
+                      if isinstance(it.get("saves"), (int, float)))
+                  + sum_grants(ledger, level, "saves"))
+    saves = {a.title(): attrs.get(a, 0) + cm(level) + save_bonus
              for a in ("might", "agility", "charisma", "intelligence")}
     # Move Speed: base 5 Spaces (ancestries.md l.154), +1 per Speed Increase
     # trait, -1 per Short-Legged, plus any numeric `speed` grant.

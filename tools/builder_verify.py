@@ -134,9 +134,9 @@ def stage():
 
 
 KNOWN = {"runt": ["Trade points over-spent"], "scaletrix": ["Trade points over-spent"]}
-# by-design table mismatches: the sheet reference carries an overlay the RAW engine
-# does not model (scaletrix +1-save amulet; bonan paper Move 6 / Jump 6 - Mighty Leap).
-KNOWN_MISMATCH = {"scaletrix": {"Saves"}, "bonan": {"Move Speed", "Jump Distance"}}
+# by-design table mismatch: the sheet reference carries an overlay the RAW engine
+# does not model - bonan paper Move 6 / Jump 6 (no speed trait; Mighty Leap re-keys jump).
+KNOWN_MISMATCH = {"bonan": {"Move Speed", "Jump Distance"}}  # scaletrix amulet now modelled
 MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance"}
 CATPATHS = None
 builder_api = None
@@ -640,7 +640,7 @@ ORACLE = {
 }
 # Documented RAW-vs-companion deltas (engine reports the RAW base; the companion
 # carries an item/feature overlay), parallel to the runt-PD / xanwyn-HP overlays:
-SAVE_OVERLAY = {"scaletrix": 1}   # Amulet of Minor General Resilience (+1 all Saves)
+SAVE_OVERLAY = {}   # scaletrix amulet (+1 all Saves) is now modelled in the engine
 MOVE_DELTA = {"bonan": 5}         # companion 6; no speed trait in the ledger -> engine 5
 JUMP_DELTA = {"bonan": 1}         # Mighty Leap re-keys off Might + Titanic Leap; open 09 audit
 

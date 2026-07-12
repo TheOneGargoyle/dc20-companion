@@ -94,9 +94,9 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     print(f"  {os.path.basename(path):16} L{lvl}  {ok:2} stat-checks OK, {mm} mismatch  {tag}{known}")
     expect(not unexpected, f"{os.path.basename(path)} unexpected problems: {unexpected}")
 print(f"  => TOTAL {total_ok}/{total_ok + total_mismatch} derived-stat checks passed\n")
-expect(total_mismatch == 3,
-       f"expected 3 known-delta mismatches (scaletrix Saves, bonan Move/Jump), got {total_mismatch}")
-expect(total_ok == 87, f"expected 87 passing checks (66 + 24 new stat rows - 3 known-delta mismatches), got {total_ok}")
+expect(total_mismatch == 2,
+       f"expected 2 known-delta mismatches (bonan Move/Jump), got {total_mismatch}")
+expect(total_ok == 88, f"expected 88 passing checks (66 + 24 new stat rows - 2 known-delta mismatches), got {total_ok}")
 
 # ---- load the catalog -----------------------------------------------------
 CLASS_CAT = {c: load(f"builds/catalog/{c.lower()}.yaml")
@@ -528,4 +528,4 @@ if fails:
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print("PASS - engine oracle holds (87/90 checks; 3 by-design sheet-vs-RAW deltas:\n       scaletrix Saves +1 amulet, bonan Move/Jump); catalog reconciles with\n       all six ledgers and rules/*.md")
+print("PASS - engine oracle holds (88/90 checks; 2 by-design sheet-vs-RAW deltas:\n       bonan Move/Jump); catalog reconciles with all six ledgers and rules/*.md")
