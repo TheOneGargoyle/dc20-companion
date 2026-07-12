@@ -247,6 +247,42 @@ def replay(ledger, level):
           + pd_items + sum_grants(ledger, level, "pd"))
     ad = 8 + cm(level) + might + cha + ad_items + sum_grants(ledger, level, "ad")
 
+    # --- per-attribute saves / move / jump / spend limit / DR ---------------
+    # Attribute Save bonus = Attribute + Combat Mastery (core-rules.md l.1553).
+    # Item/feature overlays (e.g. an Amulet of General Resilience +1 all saves)
+    # are NOT modelled here - the engine reports the RAW base, same policy as
+    # the PD/HP item overlays documented in the companion.
+    saves = {a.title(): attrs.get(a, 0) + cm(level)
+             for a in ("might", "agility", "charisma", "intelligence")}
+    # Move Speed: base 5 Spaces (ancestries.md l.154), +1 per Speed Increase
+    # trait, -1 per Short-Legged, plus any numeric `speed` grant.
+    speed = 5 + sum_grants(ledger, level, "speed")
+    trait_names = [t.get("name", "") for t in cg.get("ancestry_traits", [])]
+    trait_names += [e.get("pick", "") for _, e in all_entries(ledger, level)
+                    if e.get("slot") == "ancestry_trait"]
+    for nm in trait_names:
+        n = str(nm)
+        if n.startswith("Speed Increase"):
+            speed += 1
+        elif n.startswith("Short-Legged"):
+            speed -= 1
+    # Jump Distance = Agility (minimum 1) (character-creation.md l.159), plus any
+    # numeric `jump` grant. Feature re-keys (e.g. Barbarian Mighty Leap off
+    # Might) are NOT modelled - those characters are documented deltas.
+    jump = max(1, agi) + sum_grants(ledger, level, "jump")
+    # Mana / Stamina Spend Limit = half level, rounded up = Combat Mastery
+    # (spells.md l.5907-5920: "spending MP up to half their level, rounded up").
+    spend_limit = cm(level)
+    # Damage Reduction plumbing: collect structured PDR/EDR/MDR declared on
+    # equipment items (value may be an int or "half"). The current ledgers
+    # don't declare these yet, so this is empty for the party - populate later.
+    dr = {}
+    for it in (ledger.get("equipment") or []):
+        for k in ("pdr", "edr", "mdr"):
+            v = it.get(k)
+            if v not in (None, 0, "", False):
+                dr.setdefault(k.upper(), []).append(v)
+
     # --- skills / trades / languages (validated at current_level only) -----
     if not plan:
         sk = ledger.get("skills", {})
@@ -324,6 +360,20 @@ def replay(ledger, level):
     rep.check("Maneuvers known", maneuvers, exp.get("maneuvers"))
     rep.check("PD", pd, exp.get("pd"))
     rep.check("AD", ad, exp.get("ad"))
+    sgn = lambda v: ("+" if v >= 0 else "") + str(v)
+    rep.check("Saves", " / ".join(f"{k[:3]} {sgn(v)}" for k, v in saves.items()))
+    rep.check("Move Speed", speed)
+    rep.check("Jump Distance", jump)
+    rep.check("Spend Limit (MSL/SSL)", spend_limit)
+    rep.check("Damage Reduction",
+              "; ".join(f"{k} {', '.join(str(x) for x in v)}" for k, v in dr.items())
+              or "none")
+    # structured mirrors for consumers (the character sheet reads these)
+    rep.derived["saves"] = saves
+    rep.derived["move"] = speed
+    rep.derived["jump"] = jump
+    rep.derived["spend_limit"] = spend_limit
+    rep.derived["dr"] = dr
     rep.add()
 
     # --- choices timeline ----------------------------------------------------

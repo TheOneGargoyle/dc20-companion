@@ -618,6 +618,60 @@ def check_sheet():
        and "body.sheeting .wrap" in html and ".sh-paper" in html)
 
 
+# ---------------------------------------------------------------- (10) new derived stats
+# Oracle = the companion CHARS hand-entered values (companion-src/template.html):
+# per-attribute Saves, Move Speed, Jump Distance, Mana/Stamina Spend Limit.
+ORACLE = {
+    "tanrielle": dict(saves=dict(Might=4, Agility=5, Charisma=0, Intelligence=5), move=6, jump=3, spend=2),
+    "minimus":   dict(saves=dict(Might=2, Agility=4, Charisma=5, Intelligence=2), move=5, jump=2, spend=2),
+    "runt":      dict(saves=dict(Might=5, Agility=2, Charisma=1, Intelligence=5), move=5, jump=1, spend=2),
+    "scaletrix": dict(saves=dict(Might=6, Agility=4, Charisma=5, Intelligence=2), move=5, jump=1, spend=2),
+    "bonan":     dict(saves=dict(Might=5, Agility=2, Charisma=5, Intelligence=1), move=6, jump=6, spend=2),
+    "xanwyn":    dict(saves=dict(Might=1, Agility=5, Charisma=2, Intelligence=5), move=5, jump=3, spend=2),
+}
+# Documented RAW-vs-companion deltas (engine reports the RAW base; the companion
+# carries an item/feature overlay), parallel to the runt-PD / xanwyn-HP overlays:
+SAVE_OVERLAY = {"scaletrix": 1}   # Amulet of Minor General Resilience (+1 all Saves)
+MOVE_DELTA = {"bonan": 5}         # companion 6; no speed trait in the ledger -> engine 5
+JUMP_DELTA = {"bonan": 1}         # Mighty Leap re-keys off Might + Titanic Leap; open 09 audit
+
+
+def check_newstats():
+    print()
+    print("## (10) New derived stats: saves / move / jump / spend-limit / DR vs companion oracle")
+    for c, o in ORACLE.items():
+        der = json.loads(builder_api.BuilderAPI(c, CATPATHS).sheet())["derived"]
+        adj = SAVE_OVERLAY.get(c, 0)
+        exp_saves = {k: v - adj for k, v in o["saves"].items()}
+        ok("%-10s saves = attribute + CM%s" % (c, " (-%d amulet overlay)" % adj if adj else ""),
+           der["saves"] == exp_saves, (der["saves"], exp_saves))
+        ok("%-10s spend limit (MSL/SSL) = CM = %d" % (c, o["spend"]),
+           der["spend_limit"] == o["spend"], der["spend_limit"])
+        if c in MOVE_DELTA:
+            ok("%-10s move = %d (RAW) vs companion %d (documented delta)" % (c, MOVE_DELTA[c], o["move"]),
+               der["move"] == MOVE_DELTA[c], der["move"])
+        else:
+            ok("%-10s move speed = %d (matches oracle)" % (c, o["move"]), der["move"] == o["move"], der["move"])
+        if c in JUMP_DELTA:
+            ok("%-10s jump = %d (RAW=Agi min 1) vs companion %d (open Mighty-Leap audit)" % (c, JUMP_DELTA[c], o["jump"]),
+               der["jump"] == JUMP_DELTA[c], der["jump"])
+        else:
+            ok("%-10s jump distance = %d (matches oracle)" % (c, o["jump"]), der["jump"] == o["jump"], der["jump"])
+        ok("%-10s DR empty (plumbing; no structured DR declared yet)" % c, der["dr"] == {}, der["dr"])
+    # DR plumbing end-to-end: inject a structured PDR/MDR onto an equipment item
+    api = builder_api.BuilderAPI("runt", CATPATHS)
+    api.ledger["equipment"][0]["pdr"] = "half"
+    api.ledger["equipment"][0]["mdr"] = 1
+    dd = json.loads(api.sheet())["derived"]["dr"]
+    ok("DR plumbing: injected PDR/MDR surface through the engine onto the sheet",
+       dd.get("PDR") == ["half"] and dd.get("MDR") == [1], dd)
+    # page carries the new sheet furniture
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("page sheet has Saves section, DR row and the move/jump footer",
+       ">Saves</h3>" in html and "Damage reduction" in html and "sh-foot" in html
+       and "Move Speed" in html and "Spend Limit" in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -638,6 +692,7 @@ def main():
         check_comments()
         check_new_features()
         check_sheet()
+        check_newstats()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -649,7 +704,8 @@ def main():
         sys.exit(1)
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
     print("       add-a-level (promote + generate + undo), received-file safety,")
-    print("       comment-preserving export, round-2 bug fixes, character sheet")
+    print("       comment-preserving export, round-2 bug fixes, character sheet,")
+    print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle")
     sys.exit(0)
 
 

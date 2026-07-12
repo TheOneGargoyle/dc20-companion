@@ -861,6 +861,7 @@ class BuilderAPI:
             else:
                 trades.append({'name': a['name'], 'tier': tier})
         cur = s['level']
+        eder = eng.replay(self.ledger, cur).derived
         groups = {}
         for d in s['decisions']:
             lv = d.get('level')
@@ -885,7 +886,10 @@ class BuilderAPI:
             'core': {k: st.get(k) for k in ('Attack/Spell Check', 'Save DC', 'Initiative', 'Grit',
                                             'HP', 'SP', 'MP', 'Spells known', 'Maneuvers known', 'PD', 'AD')},
             'derived': {'bloodied': math.ceil(hp / 2), 'well_bloodied': math.ceil(hp / 4),
-                        'death_threshold': prime + cmv, 'rest_points': hp},
+                        'death_threshold': prime + cmv, 'rest_points': hp,
+                        'saves': eder.get('saves', {}), 'move': eder.get('move'),
+                        'jump': eder.get('jump'), 'spend_limit': eder.get('spend_limit'),
+                        'dr': eder.get('dr', {})},
             'skills': skills, 'trades': trades, 'languages': s['languages'],
             'abilities': groups, 'spells': spells, 'equipment': equipment,
         })
@@ -1307,6 +1311,8 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 .sh-feat .cat{font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#5b6472;background:#f1f2f5;border-radius:3px;padding:0 4px;margin-right:4px}
 .sh-tag{display:inline-block;font-size:8px;color:#5b6472;background:#f6f7f9;border:1px solid #e2e5ec;border-radius:3px;padding:0 4px;margin:1px 2px 0 0}
 .sh-note{font-size:8.5px;color:#5b6472;margin-top:3px}
+.sh-foot{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:8px;padding-top:6px;border-top:1px solid #e2e5ec;font-size:11.5px}
+.sh-foot b{color:#5b6472;font-weight:600}
 @media print{
   body.sheeting .wrap{display:none!important}
   body.sheeting #sheetOverlay{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}
@@ -1392,6 +1398,11 @@ function shBuild(d){
     return `<div class="sh-attr"><div class="nm">${a}${pr}</div><div class="mod">${sign}${v}</div></div>`;
   }).join('');
   const c=d.core||{}, der=d.derived||{};
+  const saves=der.saves||{};
+  const saveHtml=A.map(a=>{const v=saves[a]; const sign=(v>=0?'+':'');
+    return `<div class="sh-kv"><span class="lbl">${a}</span><span class="val">${v===undefined?'\u2014':sign+v}</span></div>`;}).join('');
+  const dr=der.dr||{}; const drKeys=Object.keys(dr);
+  const drStr=drKeys.length?drKeys.map(k=>`${k} ${dr[k].join(', ')}`).join(' &middot; '):'\u2014';
   const order=['Prime','Might','Agility','Charisma','Intelligence'];
   const byAttr={};
   d.skills.forEach(s=>{(byAttr[s.attr]=byAttr[s.attr]||[]).push(s);});
@@ -1436,11 +1447,13 @@ function shBuild(d){
     <div class="sh-cols">
       <div>
         <div class="sh-sec"><h3>Attributes</h3>${attrRows}</div>
+        <div class="sh-sec"><h3>Saves</h3>${saveHtml}</div>
         <div class="sh-sec"><h3>Defenses</h3>
           <div class="sh-big">
             <div class="sh-box"><div class="k">Precision</div><div class="v">${c['PD']}</div><div class="sub">Hvy ${pdN+5} &middot; Brutal ${pdN+10}</div></div>
             <div class="sh-box"><div class="k">Area</div><div class="v">${c['AD']}</div><div class="sub">Hvy ${adN+5} &middot; Brutal ${adN+10}</div></div>
           </div>
+          <div class="sh-kv"><span class="lbl">Damage reduction</span><span class="val">${drStr}</span></div>
         </div>
         <div class="sh-sec"><h3>Vitals</h3>
           <div class="sh-big">
@@ -1472,7 +1485,12 @@ function shBuild(d){
         <div class="sh-sec"><h3>Equipment &amp; attunements</h3><ul class="sh-feat">${eqHtml}</ul></div>
       </div>
     </div>
-    <div class="sh-note" style="text-align:center;margin-top:6px">Unofficial fan-made sheet &middot; DC20 &copy; The Dungeon Coach, ORC License &middot; saves, move, jump, spend limits and DR are not yet shown (a later update)</div>
+    <div class="sh-foot">
+      <span><b>Move Speed</b> ${der.move} Spaces</span>
+      <span><b>Jump Distance</b> ${der.jump} Spaces</span>
+      <span><b>Mana / Stamina Spend Limit</b> ${der.spend_limit}</span>
+    </div>
+    <div class="sh-note" style="text-align:center;margin-top:6px">Unofficial fan-made sheet &middot; DC20 &copy; The Dungeon Coach, ORC License</div>
   </div>`;
 }
 function renderSheet(){
