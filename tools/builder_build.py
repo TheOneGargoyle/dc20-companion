@@ -690,8 +690,10 @@ class BuilderAPI:
                 ds.append(self._dec('L%d:%d' % (lvl, i), lvl, e.get('slot'), e.get('pick'),
                                     e.get('cost'), bool(e.get('inferred')), editable,
                                     note=e.get('note'), plan=lvl > cur,
-                                    removable=(e.get('slot') == 'ancestry_trait'
-                                               and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))))
+                                    removable=((e.get('slot') == 'ancestry_trait'
+                                                and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))
+                                               or (e.get('slot') in ('maneuver', 'spell')
+                                                   and 'expanded from composite' in str(e.get('note', ''))))))
         return ds
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
@@ -702,14 +704,21 @@ class BuilderAPI:
              'removable': removable}
         if note:
             d['note'] = note
-            if str(note).startswith('Replaced composite'):
-                d['was_note'] = note   # shown even on the (now editable) picker row
+            if str(note).startswith('Replaced composite') or 'Overflow from the composite' in str(note):
+                d['was_note'] = note   # provenance shown even on the (now editable) picker row
         # escape hatch: a composite/invalid entry at/below current level in a clean
         # single-value slot keeps its text but gets a "replace" picker (see the page JS)
         if (not plan) and not (editable and not plan) and slot in REPLACEABLE_SLOTS \
                 and str(pick) != UNDECIDED and is_composite(pick):
             d['replaceable'] = True
             d['options'] = self._options_for(slot)
+            if slot in ('maneuver', 'spell') and str(did).startswith('L'):
+                head = str(pick).split('(')[0]
+                nms = [x.strip() for x in re.split(r',|\s\+\s', head) if x.strip()]
+                known = {o['name'] for o in d['options']}
+                if sum(1 for x in nms if x in known) >= 2:
+                    d['expandable'] = True
+                    d['expand_n'] = self._granted_at_level(lvl, 'maneuvers' if slot == 'maneuver' else 'spells')
         if d['widget'] == 'picker':
             d['options'] = self._options_for(slot)
             if str(pick) == UNDECIDED:
@@ -1029,6 +1038,48 @@ class BuilderAPI:
                              'source': 'talent rider (%s)' % e.get('pick'),
                              'note': BUILDER_NOTE})
 
+    def _granted_at_level(self, lvl, resource):
+        # how many of a resource ('maneuvers'/'spells') this level grants: class-spine
+        # count + a Martial/Spellcaster path picked here + any maneuvers/spells grant on
+        # this level's talents/boons/choices. Sizes composite expansion.
+        n = int(self.ccat['spine'].get(lvl, {}).get(resource, 0) or 0)
+        for e in self.ledger['levels'].get(lvl, []) or []:
+            p = str(e.get('pick', ''))
+            if e.get('slot') == 'path':
+                if resource == 'maneuvers' and p.startswith('Martial'):
+                    n += 1
+                elif resource == 'spells' and p.startswith('Spellcaster'):
+                    n += 1
+            n += int((e.get('grants') or {}).get(resource, 0) or 0)
+        return n
+
+    def expand_composite(self, did):
+        # split a multi-item composite maneuver/spell row into individual editable slots,
+        # sized to what the level actually grants; pre-fill from the recorded names, pad
+        # with (undecided), and stash any overflow (a mis-attributed name) in a note.
+        did = str(did)
+        if not did.startswith('L'):
+            return self.state()
+        lvl, idx = (int(x) for x in did[1:].split(':'))
+        ents = self.ledger['levels'][lvl]
+        e = ents[idx]
+        slot = e.get('slot')
+        if slot not in ('maneuver', 'spell'):
+            return self.state()
+        resource = 'maneuvers' if slot == 'maneuver' else 'spells'
+        head = str(e.get('pick', '')).split('(')[0]
+        names = [x.strip() for x in re.split(r',|\s\+\s', head) if x.strip()]
+        n_slots = self._granted_at_level(lvl, resource) or (len(names) or 1)
+        base = '%s (expanded from composite).' % BUILDER_NOTE
+        new = [{'slot': slot, 'pick': (names[i] if i < len(names) else UNDECIDED),
+                'source': 'expanded from composite', 'note': base} for i in range(n_slots)]
+        overflow = names[n_slots:]
+        if overflow and new:
+            new[-1]['note'] = ('%s Overflow from the composite, may belong to another '
+                               'level (confirm): %s' % (base, ', '.join(overflow)))
+        ents[idx:idx + 1] = new
+        return self.state()
+
     def set_attr(self, name, value):
         self.ledger['chargen']['attributes'][str(name)] = int(value)
         return self.state()
@@ -1113,8 +1164,11 @@ class BuilderAPI:
         if did.startswith('L'):
             lvl, idx = did[1:].split(':')
             e = self.ledger['levels'][int(lvl)][int(idx)]
-            if str(e.get('note', '')).startswith('Replaced composite'):
+            note = str(e.get('note', ''))
+            if note.startswith('Replaced composite'):
                 e['note'] = 'Edited in builder (%s).' % self.handle
+            elif 'Overflow from the composite' in note:
+                e['note'] = '%s (expanded from composite).' % BUILDER_NOTE
         return self.state()
 
     def set_meta(self, field, value):
@@ -1726,7 +1780,10 @@ function render(s){
       const replHTML = (t.replaceable && t.options)
         ? ` <select class="select repl" data-dec="${esc(t.id)}" title="replace this with a single valid ${esc(t.slot)}"><option value="" selected>&mdash; replace &mdash;</option>${optHTML(t.options, null, null)}</select>`
         : '';
-      body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
+      const expandHTML = t.expandable
+        ? ` <a href="#" data-expand="${esc(t.id)}" style="font-size:.7rem;color:var(--accent)" title="split into ${t.expand_n} individually-editable slots">[expand into ${t.expand_n} slots]</a>`
+        : '';
+      body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
     }
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(t.slot)}</span>${body}</div>`;
   };
@@ -1756,6 +1813,7 @@ function render(s){
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));
   document.querySelectorAll('[data-rm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_decision(el.dataset.rm)); });
   document.querySelectorAll('[data-dismiss]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.dismiss_note(el.dataset.dismiss)); });
+  document.querySelectorAll('[data-expand]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.expand_composite(el.dataset.expand)); });
   // + ancestry trait control
   $('tradd-lvl').innerHTML = s.anc_levels.map(l=>`<option value="${l}">L${l}</option>`).join("");
   $('tradd').onclick = () => refresh(api.add_trait($('tradd-lvl').value));
