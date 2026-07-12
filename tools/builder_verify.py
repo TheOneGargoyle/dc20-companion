@@ -688,9 +688,20 @@ def check_replace_hatch():
     print("## (11) Composite re-pick escape hatch")
     def find(st_, slot, lvl):
         return next((d for d in st_["decisions"] if d.get("slot") == slot and d.get("level") == lvl), None)
-    api = builder_api.BuilderAPI("runt", CATPATHS)
+    def precon():
+        # runt.yaml is now reconciled in canon; rebuild the historical L2 composite so the
+        # composite/expand tests stay deterministic. Boon granted_maneuvers stay intact so
+        # reconcile can re-harvest Cleave/Pathcarver (L1) and Brace/Side Step (L4).
+        _a = builder_api.BuilderAPI("runt", CATPATHS)
+        _a.ledger["chargen"]["maneuvers"] = []
+        for _L in list(_a.ledger["levels"]):
+            _a.ledger["levels"][_L] = [x for x in _a.ledger["levels"][_L] if x.get("slot") != "maneuver"]
+        _a.ledger["levels"][2].append({"slot": "maneuver", "inferred": True,
+            "pick": "Slam, Body Block, Throw Creature, Heroic Intimidate (4 General, order across L2 sources unknown)"})
+        return _a
+    api = precon()
     s0 = st(api)
-    man = find(s0, "maneuver", 2)   # runt's 4-maneuver composite row
+    man = find(s0, "maneuver", 2)   # (historical) 4-maneuver composite row
     ok("composite maneuver row is replaceable + carries options, still shown as text",
        man["widget"] == "fixed" and man.get("replaceable") is True and len(man.get("options") or []) > 0,
        (man["widget"], man.get("replaceable")))
@@ -718,7 +729,7 @@ def check_replace_hatch():
     ok("dismiss_note clears the 'was:' note but keeps a normal editable picker",
        not man4.get("was_note") and man4.get("widget") == "picker" and man4.get("current") == "Body Block", man4)
     # expand = character-wide reconcile: every granting level (incl. L1 chargen) gets its slots
-    api2 = builder_api.BuilderAPI("runt", CATPATHS)
+    api2 = precon()
     comp = find(st(api2), "maneuver", 2)
     ok("multi-item composite is expandable; expand_n = total maneuvers granted (8)",
        comp.get("expandable") is True and comp.get("expand_n") == 8, (comp.get("expandable"), comp.get("expand_n")))
