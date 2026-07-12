@@ -1,88 +1,215 @@
 # Build ledger: Runt Muckle. Sources: builds/sources/Runt_Muckle_LevelUp_Summary.txt
 # (Phil's planning log + sheet), 10_runt_build.md, canon rulings (MP 9, two regen triggers).
 schema: 1
-ruleset: "DC20 0.10.5"
-character: "Runt Muckle"
+ruleset: DC20 0.10.5
+character: Runt Muckle
 player: Phil
 class: Warlock
 subclass: Eldritch
-ancestry: "Giantborn / Dwarf"
-background: "(not recorded)"
+ancestry: Giantborn / Dwarf
+background: (not recorded)
 current_level: 4
 
 chargen:
   attribute_method: point_buy
-  attributes: {might: 3, agility: 0, charisma: -1, intelligence: 2}
+  attributes:
+    might: 3
+    agility: 0
+    charisma: -1
+    intelligence: 2
   # Point buy: M3=5, A0=2, C-1=1, I2=4 = 12. L3 point assumed Int 2->3 (ask Phil; Phil's
   # summary says "no increases yet" but the budget proves one was spent, same trap as Tan's).
   ancestry_traits:
-    - {name: Tough, source: Giantborn, cost: 1, grants: {hp: 1}, inferred: true,
-       note: "Inferred: explains sheet HP 16 vs 15 derived without it. Verify with Phil."}
-    - {name: "L1 traits not itemised (remainder)", cost: 4, inferred: true,
-       note: "Phil's summary lists no L1 Giantborn/Dwarf traits. 4 points unaccounted. ASK PHIL."}
-  spell_schools: [Elemental, Invocation, Nullification]
+  - name: Tough
+    source: Giantborn
+    cost: 1
+    grants:
+      hp: 1
+    inferred: true
+    note: 'Inferred: explains sheet HP 16 vs 15 derived without it. Verify with Phil.'
+  - name: L1 traits not itemised (remainder)
+    cost: 4
+    inferred: true
+    note: Phil's summary lists no L1 Giantborn/Dwarf traits. 4 points unaccounted. ASK PHIL.
+  spell_schools:
+  - Elemental
+  - Invocation
+  - Nullification
   class_choices:
-    - {slot: pact_boon, picks: ["Pact Weapon: Staff (Powerful focus; 1B, 2H, Guard, Reach, Impact)"],
-       grants: {maneuvers: 2}, granted_maneuvers: [Cleave, Pathcarver],
-       note: "Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12"}
-  spells: [Lightning Torrent, Heal, Vampiric Touch, Wild Guard]
-  maneuvers: []
-  combat_training: [Heavy Armor]
+  - slot: pact_boon
+    picks:
+    - 'Pact Weapon: Staff (Powerful focus; 1B, 2H, Guard, Reach, Impact)'
+    grants:
+      maneuvers: 2
+    granted_maneuvers:
+    - Cleave
+    - Pathcarver
+    note: Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12
+  spells:
+  - Lightning Torrent
+  - Heal
+  - Vampiric Touch
+  - Wild Guard
+  maneuvers:
+  - Cleave
+  - Pathcarver
+  combat_training:
+  - Heavy Armor
 
 levels:
   2:
-    - {slot: path, pick: Martial, note: "First-time rider: Spellcaster Stamina Regen"}
-    - {slot: talent, pick: Martial Expansion, grants: {maneuvers: 2},
-       note: "+2 maneuvers, weapon training; Stamina-regen trigger = Monk option (Ath/Acro/Martial hit). Runt runs two regen triggers, 1 benefit/round (ruling 2026-07-04)."}
-    - {slot: maneuver, pick: "Slam, Body Block, Throw Creature, Heroic Intimidate (4 General, order across L2 sources unknown)", inferred: true}
+  - slot: path
+    pick: Martial
+    note: 'First-time rider: Spellcaster Stamina Regen'
+  - slot: talent
+    pick: Martial Expansion
+    grants:
+      maneuvers: 2
+    note: +2 maneuvers, weapon training; Stamina-regen trigger = Monk option (Ath/Acro/Martial hit). Runt runs two regen triggers, 1 benefit/round (ruling 2026-07-04).
+  - slot: maneuver
+    pick: Slam
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
+  - slot: maneuver
+    pick: Body Block
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
+  - slot: maneuver
+    pick: Throw Creature
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
   3:
-    - {slot: subclass, pick: Eldritch, grants: {spells: 1},
-       note: "Otherworldly Gift: Psychic Spellcasting = +1 Psychic-tag spell (= Tendrils from Beyond), classes.md l.3417. Forbidden Knowledge = daily temp spell (Primal Hide routine), not a known spell."}
-    - {slot: attribute, pick: intelligence, inferred: true, note: "Destination unconfirmed. ASK PHIL (Int vs Might)."}
-    - {slot: spell, pick: Lightning Bolt, source: "class table +1"}
+  - slot: subclass
+    pick: Eldritch
+    grants:
+      spells: 1
+    note: 'Otherworldly Gift: Psychic Spellcasting = +1 Psychic-tag spell (= Tendrils from Beyond), classes.md l.3417. Forbidden Knowledge = daily temp spell (Primal Hide routine), not a known spell.'
+  - slot: attribute
+    pick: intelligence
+    inferred: true
+    note: Destination unconfirmed. ASK PHIL (Int vs Might).
+  - slot: spell
+    pick: Lightning Bolt
+    source: class table +1
   4:
-    - {slot: talent, pick: Expanded Boon,
-       note: "Grants a 2nd Pact Boon; its grants live on the pact_boon pick below (catalog model). L2 talent accounting closed 2026-07-05."}
-    - {slot: pact_boon, pick: Pact Armor, grants: {maneuvers: 2}, granted_maneuvers: [Brace, Side Step],
-       source: "Expanded Boon talent", note: "Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step); +1 AD & MDR while worn (contextual). Phil to confirm."}
-    - {slot: path, pick: Martial}
-    - {slot: ancestry_trait, pick: Strong Body, cost: 2, note: "1/combat reduce Attack damage by Might or Agility"}
+  - slot: talent
+    pick: Expanded Boon
+    note: Grants a 2nd Pact Boon; its grants live on the pact_boon pick below (catalog model). L2 talent accounting closed 2026-07-05.
+  - slot: pact_boon
+    pick: Pact Armor
+    grants:
+      maneuvers: 2
+    granted_maneuvers:
+    - Brace
+    - Side Step
+    source: Expanded Boon talent
+    note: 'Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step); +1 AD & MDR while worn (contextual). Phil to confirm.'
+  - slot: path
+    pick: Martial
+  - slot: ancestry_trait
+    pick: Strong Body
+    cost: 2
+    note: 1/combat reduce Attack damage by Might or Agility
+  - slot: maneuver
+    pick: Heroic Intimidate
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
+  - slot: maneuver
+    pick: Brace
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
+  - slot: maneuver
+    pick: Side Step
+    source: reconciled slots
+    note: Added in builder (reconciled per-level slots).
 
 skills:
   allocation_confidence: inferred
   masteries:
-    Awareness: {mastery: Novice}
-    Athletics: {mastery: Adept, limit_raise: skill_point_purchase}
-    Intimidation: {mastery: Novice}
-    Acrobatics: {mastery: Novice}
-    Survival: {mastery: Novice}
+    Awareness:
+      mastery: Novice
+    Athletics:
+      mastery: Adept
+      limit_raise: skill_point_purchase
+    Intimidation:
+      mastery: Novice
+    Acrobatics:
+      mastery: Novice
+    Survival:
+      mastery: Novice
 trades:
   masteries:
-    Arcana: {mastery: Novice}
-    History: {mastery: Novice}
-    Nature: {mastery: Novice}
-    Occultism: {mastery: Novice}
-    Religion: {mastery: Novice}
-    Leatherwork: {mastery: Novice}
-    Masonry: {mastery: Novice}
-    Cooking: {mastery: Novice}
-  knowledge_trades: [Arcana, History, Nature, Occultism, Religion]
+    Arcana:
+      mastery: Novice
+    History:
+      mastery: Novice
+    Nature:
+      mastery: Novice
+    Occultism:
+      mastery: Novice
+    Religion:
+      mastery: Novice
+    Leatherwork:
+      mastery: Novice
+    Masonry:
+      mastery: Novice
+    Cooking:
+      mastery: Novice
+  knowledge_trades:
+  - Arcana
+  - History
+  - Nature
+  - Occultism
+  - Religion
 languages:
-  - {name: Common, fluency: Fluent, cost: 0}
-  - {name: Dwarf, fluency: Fluent, cost: 2}
-  - {name: Deep Speech, fluency: Limited, cost: 1}
+- name: Common
+  fluency: Fluent
+  cost: 0
+- name: Dwarf
+  fluency: Fluent
+  cost: 2
+- name: Deep Speech
+  fluency: Limited
+  cost: 1
 
 equipment:
-  - {name: Ancestral Dwarven Heavy Armor, pd: 2, ad: 0, mods: "Pact Armor; Deflecting Heavy (+2 PD, PDR Half, Speed -1, DisADV Agility — confirm on sheet). Sheet PD 17 = 15 base + Primal Hide 2 (his all-day Forbidden Knowledge routine), Darryl hypothesis 2026-07-10 — CONFIRM WITH PHIL via his handwritten breakdown"}
-  - {name: Steadfast Boots}
-  - {name: Staff of Lightning, mods: "bonded Pact Weapon (pass 2.1)"}
-  - {name: Brass Knuckles, mods: "the +1-vs-grappled rider is retired (previous-version)"}
-  - {name: Light Shield (Buckler), pd: 0, ad: 0, mods: "carried, not wielded (2H staff), so no defense contribution; sheet AD 12 confirms"}
+- name: Ancestral Dwarven Heavy Armor
+  pd: 2
+  ad: 0
+  mods: Pact Armor; Deflecting Heavy (+2 PD, PDR Half, Speed -1, DisADV Agility — confirm on sheet). Sheet PD 17 = 15 base + Primal Hide 2 (his all-day Forbidden Knowledge routine), Darryl hypothesis 2026-07-10 — CONFIRM WITH PHIL via his handwritten breakdown
+- name: Steadfast Boots
+- name: Staff of Lightning
+  mods: bonded Pact Weapon (pass 2.1)
+- name: Brass Knuckles
+  mods: the +1-vs-grappled rider is retired (previous-version)
+- name: Light Shield (Buckler)
+  pd: 0
+  ad: 0
+  mods: carried, not wielded (2H staff), so no defense contribution; sheet AD 12 confirms
+expected:
+  hp: 16
+  sp: 2
+  mp: 9
+  spells: 6
+  maneuvers: 8
+  grit: 1
+  attack: 5
+  save_dc: 15
+  initiative: 2
+  pd: 15
+  ad: 12
+  saves:
+    might: 5
+    agility: 2
+    charisma: 1
+    intelligence: 5
+  move: 5
+  jump: 1
 
-expected: {hp: 16, sp: 2, mp: 9, spells: 6, maneuvers: 8, grit: 1, attack: 5, save_dc: 15, initiative: 2, pd: 15, ad: 12, saves: {might: 5, agility: 2, charisma: 1, intelligence: 5}, move: 5, jump: 1, spend_limit: 2}
+  spend_limit: 2
 # pd 15 = unbuffed base; sheet prints 17 = 15 + Primal Hide (+2 PD), per the daily FK routine.
 
 notes:
-  - "MP 9 is the ruled value (sheet's 8 was previous-version; fixed 2026-07-04)."
-  - "L1 Giantborn/Dwarf trait itemisation missing (5 pts: Tough inferred + 4 unknown). ASK PHIL."
-  - "Second Talent slot contents were resolved 2026-07-05: L2 Martial Expansion + L4 Expanded Boon."
+- MP 9 is the ruled value (sheet's 8 was previous-version; fixed 2026-07-04).
+- 'L1 Giantborn/Dwarf trait itemisation missing (5 pts: Tough inferred + 4 unknown). ASK PHIL.'
+- 'Second Talent slot contents were resolved 2026-07-05: L2 Martial Expansion + L4 Expanded Boon.'
