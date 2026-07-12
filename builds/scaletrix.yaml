@@ -69,7 +69,8 @@ equipment:
   - {name: Magestaff of Impact, mods: "Powerful, Impact"}
   - {name: Amulet of Minor General Resilience, mods: "+1 all Saves"}
 
-expected: {hp: 13, sp: 0, mp: 17, spells: 10, maneuvers: 0, grit: 4, attack: 5, save_dc: 15, initiative: 3, pd: 13, ad: 15}
+expected: {hp: 13, sp: 0, mp: 17, spells: 10, maneuvers: 0, grit: 4, attack: 5, save_dc: 15, initiative: 3, pd: 13, ad: 15, saves: {might: 6, agility: 4, charisma: 5, intelligence: 2}, move: 5, jump: 1, spend_limit: 2}
+  # saves include the +1 Amulet of Minor General Resilience the engine does not model -> Saves reads MISMATCH by design (documented overlay, cf runt PD)
 
 notes:
   - "Sheet header says Spells(8) but 10 are listed; 10 is the budget-correct count (5 table + 2 paths + 2 Intuitive + 1 Arcane trait). Header is wrong."

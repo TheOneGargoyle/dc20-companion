@@ -76,7 +76,7 @@ equipment:
   - {name: Brass Knuckles, mods: "the +1-vs-grappled rider is retired (previous-version)"}
   - {name: Light Shield (Buckler), pd: 0, ad: 0, mods: "carried, not wielded (2H staff), so no defense contribution; sheet AD 12 confirms"}
 
-expected: {hp: 16, sp: 2, mp: 9, spells: 6, maneuvers: 8, grit: 1, attack: 5, save_dc: 15, initiative: 2, pd: 15, ad: 12}
+expected: {hp: 16, sp: 2, mp: 9, spells: 6, maneuvers: 8, grit: 1, attack: 5, save_dc: 15, initiative: 2, pd: 15, ad: 12, saves: {might: 5, agility: 2, charisma: 1, intelligence: 5}, move: 5, jump: 1, spend_limit: 2}
 # pd 15 = unbuffed base; sheet prints 17 = 15 + Primal Hide (+2 PD), per the daily FK routine.
 
 notes:

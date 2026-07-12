@@ -361,10 +361,14 @@ def replay(ledger, level):
     rep.check("PD", pd, exp.get("pd"))
     rep.check("AD", ad, exp.get("ad"))
     sgn = lambda v: ("+" if v >= 0 else "") + str(v)
-    rep.check("Saves", " / ".join(f"{k[:3]} {sgn(v)}" for k, v in saves.items()))
-    rep.check("Move Speed", speed)
-    rep.check("Jump Distance", jump)
-    rep.check("Spend Limit (MSL/SSL)", spend_limit)
+    fmt_saves = lambda m: " / ".join(f"{k[:3]} {sgn(m[k.lower()] if k.lower() in m else m.get(k))}"
+                                     for k in saves)
+    exp_saves = exp.get("saves")
+    rep.check("Saves", " / ".join(f"{k[:3]} {sgn(v)}" for k, v in saves.items()),
+              fmt_saves(exp_saves) if exp_saves else None)
+    rep.check("Move Speed", speed, exp.get("move"))
+    rep.check("Jump Distance", jump, exp.get("jump"))
+    rep.check("Spend Limit (MSL/SSL)", spend_limit, exp.get("spend_limit"))
     rep.check("Damage Reduction",
               "; ".join(f"{k} {', '.join(str(x) for x in v)}" for k, v in dr.items())
               or "none")

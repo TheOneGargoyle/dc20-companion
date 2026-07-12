@@ -82,7 +82,7 @@ equipment:
   - {name: Fire Resist trinket, mods: "Resist 1 (worn)"}
   - {name: "Lockpicks, tinker tools, alchemical tools"}
 
-expected: {hp: 11, sp: 3, mp: 6, spells: 5, maneuvers: 4, grit: 2, attack: 5, save_dc: 15, initiative: 5, pd: 17, ad: 13}
+expected: {hp: 11, sp: 3, mp: 6, spells: 5, maneuvers: 4, grit: 2, attack: 5, save_dc: 15, initiative: 5, pd: 17, ad: 13, saves: {might: 1, agility: 5, charisma: 2, intelligence: 5}, move: 5, jump: 3, spend_limit: 2}
 # hp 11 = base; sheet shows 11+2 with the Amulet of Health (equipment overlay).
 
 notes:

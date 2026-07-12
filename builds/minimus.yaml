@@ -68,7 +68,7 @@ equipment:
   - {name: Commander's Helm of Telepathy, mods: "Commander's Call range 10, no see/hear needed; the party comms channel"}
   - {name: Arcane Crossbow, mods: "Light Crossbow, Arcane Ammo, no Reload"}
 
-expected: {hp: 14, sp: 3, mp: 6, spells: 2, maneuvers: 3, grit: 5, attack: 5, save_dc: 15, initiative: 4, pd: 13, ad: 14}
+expected: {hp: 14, sp: 3, mp: 6, spells: 2, maneuvers: 3, grit: 5, attack: 5, save_dc: 15, initiative: 4, pd: 13, ad: 14, saves: {might: 2, agility: 4, charisma: 5, intelligence: 2}, move: 5, jump: 2, spend_limit: 2}
 
 notes:
   - "Class = Commander per tables.md; Phil's summary calls it Warlord (Commander). Subclass = Warlord."

@@ -118,6 +118,10 @@ expected:   # from the L4 sheet / 08 live block
              # NOT a sheet error (Darryl clarified 2026-07-10) — but conditional on Jesse ruling
              # that Guard carried over to the Keepers' sword; if it didn't, base drops to 16 / 18 buffed.
   ad: 12
+  saves: {might: 4, agility: 5, charisma: 0, intelligence: 5}
+  move: 6
+  jump: 3
+  spend_limit: 2
 
 notes:
   - "Maneuver/spell acquisition ORDER at L2-L4 is inferred (sheet lists totals only); the sets are confirmed."

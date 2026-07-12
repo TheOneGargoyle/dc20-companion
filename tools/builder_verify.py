@@ -134,6 +134,10 @@ def stage():
 
 
 KNOWN = {"runt": ["Trade points over-spent"], "scaletrix": ["Trade points over-spent"]}
+# by-design table mismatches: the sheet reference carries an overlay the RAW engine
+# does not model (scaletrix +1-save amulet; bonan paper Move 6 / Jump 6 - Mighty Leap).
+KNOWN_MISMATCH = {"scaletrix": {"Saves"}, "bonan": {"Move Speed", "Jump Distance"}}
+MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance"}
 CATPATHS = None
 builder_api = None
 
@@ -158,11 +162,16 @@ def check_baseline():
         api = builder_api.BuilderAPI(c, CATPATHS)
         s = st(api)
         marks = [r[3] for r in s["stats"] if r[3]]
+        mism = {r[0] for r in s["stats"] if r[3] == "MISMATCH"}
         e, cat, b = probs(s)
-        ok("%-10s stats %d OK / 0 MISMATCH" % (c, marks.count("OK")),
-           marks and all(m == "OK" for m in marks), marks)
+        ok("%-10s stats %d OK; mismatches == whitelist" % (c, marks.count("OK")),
+           marks and all(m in ("OK", "MISMATCH") for m in marks)
+           and mism == KNOWN_MISMATCH.get(c, set()), mism)
+        # the whitelisted table mismatches also appear as problems; strip them, then the
+        # remainder must equal the known non-table problem whitelist (trade over-spends)
+        nonmism = [p for p in e if p.split(":")[0] not in MISMATCH_LABELS]
         ok("%-10s engine problems == known whitelist" % c,
-           e == KNOWN.get(c, []), e)
+           nonmism == KNOWN.get(c, []), e)
         ok("%-10s catalog+builder problems empty" % c, not cat and not b, (cat, b))
 
 

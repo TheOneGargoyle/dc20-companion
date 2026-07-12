@@ -73,7 +73,8 @@ equipment:
   - {name: Heavy Glaive}
   - {name: Hand Axe}
 
-expected: {hp: 17, sp: 4, mp: 3, spells: 3, maneuvers: 4, grit: 5, attack: 5, save_dc: 15, initiative: 2, pd: 9, ad: 18}
+expected: {hp: 17, sp: 4, mp: 3, spells: 3, maneuvers: 4, grit: 5, attack: 5, save_dc: 15, initiative: 2, pd: 9, ad: 18, saves: {might: 5, agility: 2, charisma: 5, intelligence: 1}, move: 6, jump: 6, spend_limit: 2}
+  # move 6 / jump 6 are the paper-sheet values (no speed trait in ledger; Mighty Leap re-keys jump off Might + Titanic Leap) -> Move/Jump read MISMATCH by design; jump is the open 'ask Ed' 09 audit
 
 notes:
   - "PD 9 RESOLVED: no armor + no bonuses = 8+CM+Agi+Int = 9 exactly; AD 18 = 16 + Berserker Defense. Not a sheet error."
