@@ -61,7 +61,7 @@ trades:
   knowledge_trades: [Nature]
 languages:
   - {name: Common, fluency: Fluent, cost: 0}
-  - {name: Draconic, fluency: Fluent, cost: 2}
+  - {name: Draconic, fluency: Limited, cost: 1}  # corrected from Fluent to match Damo's paper sheet (2026-07-12); clears the old LP->TP over-spend
   - {name: Infernal, fluency: Limited, cost: 1}
 
 equipment:

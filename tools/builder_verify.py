@@ -133,7 +133,7 @@ def stage():
     return tmp
 
 
-KNOWN = {"runt": ["Trade points over-spent"], "scaletrix": ["Trade points over-spent"]}
+KNOWN = {"runt": ["Trade points over-spent"]}  # scaletrix over-spend was the wrong Draconic fluency (fixed 2026-07-12)
 # by-design table mismatch: the sheet reference carries an overlay the RAW engine
 # does not model - bonan paper Move 6 / Jump 6 (no speed trait; Mighty Leap re-keys jump).
 KNOWN_MISMATCH = {"bonan": {"Move Speed", "Jump Distance"}}  # scaletrix amulet now modelled
