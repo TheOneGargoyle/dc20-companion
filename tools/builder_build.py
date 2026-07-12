@@ -78,7 +78,7 @@ import yaml
 import build_engine as eng
 
 EDITABLE_SLOTS = {'talent', 'path', 'subclass', 'discipline', 'spell', 'maneuver',
-                  'attribute', 'ancestry_trait'}
+                  'attribute', 'ancestry_trait', 'pact_boon'}
 # Slots whose composite/invalid entry can be re-picked via an escape-hatch dropdown
 # (single clean-value slots; ancestry_trait/attribute excluded - they have cost/budget
 # machinery and 'remainder not itemised' placeholders that a single pick can't replace).
@@ -979,6 +979,18 @@ class BuilderAPI:
                 e['pick'] = value
                 self.ledger['subclass'] = value
                 self._edited(e)
+            elif slot == 'pact_boon':
+                changed = base_name(e.get('pick')) != value
+                row = next((b for b in (self.ccat.get('pact_boons') or []) if b['name'] == value), {})
+                e['pick'] = value
+                if row.get('grants'):
+                    e['grants'] = dict(row['grants'])
+                else:
+                    e.pop('grants', None)
+                if changed:
+                    e.pop('granted_maneuvers', None)   # old boon's named picks no longer apply
+                    e.pop('granted_spells', None)
+                self._edited(e)
             else:
                 e['pick'] = value
                 self._edited(e)
@@ -1037,6 +1049,13 @@ class BuilderAPI:
                 ents.append({'slot': 'attribute', 'pick': UNDECIDED,
                              'source': 'talent rider (%s)' % e.get('pick'),
                              'note': BUILDER_NOTE})
+        # Expanded Boon grants an extra Pact Boon - model it as a first-class boon pick
+        # (grants flow from the chosen boon's catalog row), not a conflated talent grant.
+        has_boon = any(x.get('slot') == 'pact_boon' for x in ents)
+        if base_name(e.get('pick')) == 'Expanded Boon' and not has_boon \
+                and 'in builder' in str(e.get('note', '')):
+            ents.append({'slot': 'pact_boon', 'pick': UNDECIDED,
+                         'source': 'talent rider (Expanded Boon)', 'note': BUILDER_NOTE})
 
     def _granted_at_level(self, lvl, resource):
         # how many of a resource ('maneuvers'/'spells') this level grants: class-spine
@@ -1087,11 +1106,17 @@ class BuilderAPI:
         for c in (self.ledger['chargen'].get('class_choices') or []):
             l1g += int((c.get('grants') or {}).get(resource, 0) or 0)
         # ordered plan of (level_key, granted, recorded_names); key 1 == chargen/L1
-        plan = [(1, l1g, [n for m in (self.ledger['chargen'].get(resource) or [])
-                          for n in self._parse_picks(m)])]
+        gkey = 'granted_maneuvers' if resource == 'maneuvers' else 'granted_spells'
+        l1_names = [n for m in (self.ledger['chargen'].get(resource) or [])
+                    for n in self._parse_picks(m)]
+        for c in (self.ledger['chargen'].get('class_choices') or []):
+            l1_names += list(c.get(gkey) or [])
+        plan = [(1, l1g, l1_names)]
         for L in sorted(self.ledger.get('levels') or {}):
             names = [n for e in self.ledger['levels'][L] if e.get('slot') == slot
                      for n in self._parse_picks(e.get('pick'))]
+            for e in self.ledger['levels'][L]:
+                names += list(e.get(gkey) or [])
             plan.append((L, self._granted_at_level(L, resource), names))
         # distribute names into per-level slots, cascading surplus forward
         carry, result = [], {}

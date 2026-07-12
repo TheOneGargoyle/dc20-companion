@@ -728,9 +728,21 @@ def check_replace_hatch():
     L4 = [e["pick"] for e in api2.ledger["levels"][4] if e.get("slot") == "maneuver"]
     ok("reconcile sizes each level to its grant (L1=2, L2=3, L4=3)",
        len(L1) == 2 and len(L2) == 3 and len(L4) == 3, (L1, L2, L4))
-    ok("each level keeps its own names; surplus cascades forward (Heroic Intimidate -> L4), gaps (undecided)",
-       L2 == ["Slam", "Body Block", "Throw Creature"] and L4[0] == "Heroic Intimidate"
-       and L4[1:] == [UND, UND] and L1 == [UND, UND], (L1, L2, L4))
+    ok("captured boon names pre-fill the slots (L1 Cleave/Pathcarver, L4 has Brace/Side Step) - no blanks",
+       L1 == ["Cleave", "Pathcarver"] and L2 == ["Slam", "Body Block", "Throw Creature"]
+       and set(L4) == {"Heroic Intimidate", "Brace", "Side Step"} and UND not in (L1 + L2 + L4),
+       (L1, L2, L4))
+    # Expanded Boon's Pact Boon is now a first-class, catalog-driven pick (de-conflated from the talent)
+    api3 = builder_api.BuilderAPI("runt", CATPATHS)
+    boon = next((d for d in st(api3)["decisions"] if d.get("slot") == "pact_boon" and d.get("level") == 4), None)
+    ok("Expanded Boon's Pact Boon is a first-class editable pick (current Pact Armor, 4 catalog options)",
+       bool(boon) and boon["widget"] == "picker" and boon.get("editable")
+       and boon.get("current") == "Pact Armor" and len(boon.get("options") or []) == 4, boon)
+    api3.set_decision(boon["id"], "Pact Spell")
+    e4 = next(e for e in api3.ledger["levels"][4] if e.get("slot") == "pact_boon")
+    ok("changing the boon flows grants from the catalog and drops the old boon's captured maneuvers",
+       e4["pick"] == "Pact Spell" and not e4.get("grants") and not e4.get("granted_maneuvers"),
+       (e4.get("grants"), e4.get("granted_maneuvers")))
     mrows = [d for d in st(api2)["decisions"] if d.get("slot") == "maneuver"]
     ok("all generated maneuver rows are editable pickers (level slots removable)",
        all(d["widget"] == "picker" and d.get("editable") for d in mrows)

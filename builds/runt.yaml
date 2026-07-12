@@ -23,7 +23,8 @@ chargen:
   spell_schools: [Elemental, Invocation, Nullification]
   class_choices:
     - {slot: pact_boon, picks: ["Pact Weapon: Staff (Powerful focus; 1B, 2H, Guard, Reach, Impact)"],
-       grants: {maneuvers: 2}, note: "Grants attack maneuvers Cleave + Pathcarver"}
+       grants: {maneuvers: 2}, granted_maneuvers: [Cleave, Pathcarver],
+       note: "Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12"}
   spells: [Lightning Torrent, Heal, Vampiric Touch, Wild Guard]
   maneuvers: []
   combat_training: [Heavy Armor]
@@ -40,8 +41,10 @@ levels:
     - {slot: attribute, pick: intelligence, inferred: true, note: "Destination unconfirmed. ASK PHIL (Int vs Might)."}
     - {slot: spell, pick: Lightning Bolt, source: "class table +1"}
   4:
-    - {slot: talent, pick: Expanded Boon, grants: {maneuvers: 2},
-       note: "2nd Pact Boon = Pact Armor (Ancestral Dwarven Heavy Armor): defensive maneuvers Brace + Side Step. Also confirmed L2 talent accounting closed 2026-07-05."}
+    - {slot: talent, pick: Expanded Boon,
+       note: "Grants a 2nd Pact Boon; its grants live on the pact_boon pick below (catalog model). L2 talent accounting closed 2026-07-05."}
+    - {slot: pact_boon, pick: Pact Armor, grants: {maneuvers: 2}, granted_maneuvers: [Brace, Side Step],
+       source: "Expanded Boon talent", note: "Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step); +1 AD & MDR while worn (contextual). Phil to confirm."}
     - {slot: path, pick: Martial}
     - {slot: ancestry_trait, pick: Strong Body, cost: 2, note: "1/combat reduce Attack damage by Might or Agility"}
 

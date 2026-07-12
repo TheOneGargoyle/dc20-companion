@@ -183,8 +183,11 @@ def maneuver_picks(led):
     names = []
     for m in led["chargen"].get("maneuvers") or []:
         names += split_names(m)
+    for c in led["chargen"].get("class_choices") or []:
+        names += list(c.get("granted_maneuvers") or [])
     for lvl, entries in (led.get("levels") or {}).items():
         for e in entries or []:
+            names += list(e.get("granted_maneuvers") or [])
             if e.get("slot") == "maneuver":
                 if any(mk in str(e.get("pick")) for mk in PLACEHOLDER_MARKERS):
                     print(f"    maneuver placeholder whitelisted (known audit item): {e['pick']!r}")
@@ -288,6 +291,15 @@ def check_ledger(fname, led):
                         expect(c["grants"] == cat_boon[b].get("grants"),
                                f"{who}: pact boon {b} grants {c['grants']} vs catalog {cat_boon[b].get('grants')}")
                     print(f"    pact boon {b} OK" + (f" (grants {c['grants']} match)" if c.get('grants') else ""))
+        for lvl, es in (led.get("levels") or {}).items():
+            for e in es or []:
+                if e.get("slot") == "pact_boon":
+                    b = norm(e["pick"]).split(":")[0].strip()
+                    expect(b in cat_boon, f"{who}: pact boon {b} (L{lvl}) not in catalog")
+                    if e.get("grants"):
+                        expect(e["grants"] == cat_boon[b].get("grants"),
+                               f"{who}: pact boon {b} (L{lvl}) grants {e['grants']} vs catalog {cat_boon[b].get('grants')}")
+                    print(f"    pact boon L{lvl} {b} OK" + (f" (grants match)" if e.get('grants') else ""))
 
     # talents
     for lvl, e in talent_picks(led):
