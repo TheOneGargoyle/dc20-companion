@@ -704,11 +704,25 @@ def check_replace_hatch():
     man2 = find(s1, "maneuver", 2)
     ok("the replaced row is now a normal editable picker (current = the new pick)",
        man2["widget"] == "picker" and man2.get("editable") and man2.get("current") == "Slam", man2)
+    ok("the original is surfaced on the picker row as a 'was:' note",
+       man2.get("was_note", "").startswith("Replaced composite") and "Body Block" in man2.get("was_note", ""),
+       man2.get("was_note"))
+    s1b = json.loads(api.set_decision(did, "Body Block"))   # re-pick again
+    man3 = find(s1b, "maneuver", 2)
+    ok("the 'was:' provenance is sticky across a further re-pick (not clobbered by the edit note)",
+       man3.get("current") == "Body Block" and man3.get("was_note", "").startswith("Replaced composite"),
+       (man3.get("current"), man3.get("was_note")))
+    s1c = json.loads(api.dismiss_note(did))   # dismiss the provenance note once done
+    man4 = find(s1c, "maneuver", 2)
+    ok("dismiss_note clears the 'was:' note but keeps a normal editable picker",
+       not man4.get("was_note") and man4.get("widget") == "picker" and man4.get("current") == "Body Block", man4)
     ok("no new problems introduced by the replace (runt keeps only his known trade over-spend)",
        s1["problems"] == ["Trade points over-spent"], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page JS carries the replace-picker furniture",
-       "t.replaceable" in html and "&mdash; replace &mdash;" in html and 'class="select repl"' in html)
+       "t.replaceable" in html and "&mdash; replace &mdash;" in html
+       and 'class="select repl"' in html and "t.was_note" in html
+       and "data-dismiss" in html)
 
 
 def main():

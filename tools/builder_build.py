@@ -702,6 +702,8 @@ class BuilderAPI:
              'removable': removable}
         if note:
             d['note'] = note
+            if str(note).startswith('Replaced composite'):
+                d['was_note'] = note   # shown even on the (now editable) picker row
         # escape hatch: a composite/invalid entry at/below current level in a clean
         # single-value slot keeps its text but gets a "replace" picker (see the page JS)
         if (not plan) and not (editable and not plan) and slot in REPLACEABLE_SLOTS \
@@ -991,7 +993,8 @@ class BuilderAPI:
         t.pop('inferred', None)
 
     def _edited(self, e):
-        if BUILDER_NOTE not in str(e.get('note', '')):
+        note = str(e.get('note', ''))
+        if BUILDER_NOTE not in note and not note.startswith('Replaced composite'):
             e['note'] = 'Edited in builder (%s).' % self.handle
         e.pop('inferred', None)
 
@@ -1101,6 +1104,17 @@ class BuilderAPI:
         elif did.startswith('L'):
             lvl, idx = did[1:].split(':')
             del self.ledger['levels'][int(lvl)][int(idx)]
+        return self.state()
+
+    def dismiss_note(self, did):
+        # clear the verbose "Replaced composite ... (was: ...)" provenance once the
+        # user has finished re-picking; keep the generic edited marker (hidden on pickers)
+        did = str(did)
+        if did.startswith('L'):
+            lvl, idx = did[1:].split(':')
+            e = self.ledger['levels'][int(lvl)][int(idx)]
+            if str(e.get('note', '')).startswith('Replaced composite'):
+                e['note'] = 'Edited in builder (%s).' % self.handle
         return self.state()
 
     def set_meta(self, field, value):
@@ -1703,6 +1717,7 @@ function render(s){
     if(t.editable && t.options){
       body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` +
         ((t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"") +
+        (t.was_note ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.was_note)} <a href="#" class="rm" data-dismiss="${esc(t.id)}" title="dismiss this note">&times;</a></span>`:"") +
         (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + `</span>`;
     } else {
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
@@ -1740,6 +1755,7 @@ function render(s){
   document.querySelectorAll('[data-dec]').forEach(el => el.onchange = () => { if(el.value!=="") refresh(api.set_decision(el.dataset.dec, el.value)); });
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));
   document.querySelectorAll('[data-rm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_decision(el.dataset.rm)); });
+  document.querySelectorAll('[data-dismiss]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.dismiss_note(el.dataset.dismiss)); });
   // + ancestry trait control
   $('tradd-lvl').innerHTML = s.anc_levels.map(l=>`<option value="${l}">L${l}</option>`).join("");
   $('tradd').onclick = () => refresh(api.add_trait($('tradd-lvl').value));
