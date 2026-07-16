@@ -1446,6 +1446,7 @@ details.lvlgrp>summary{cursor:pointer;font-size:.8rem;font-weight:600;color:var(
 details.lvlgrp[open]>summary{border-bottom:1px solid var(--line)}
 details.lvlgrp>.dec{margin:.45rem .45rem}
 details.lvlgrp.plan>summary{color:var(--muted);font-style:italic}
+details.lvlgrp>summary .lvlprev{font-weight:400;font-style:normal;color:var(--muted);font-size:.72rem}
 .prob ul{margin:.3rem 0 0;padding-left:1.1rem}
 .alloc{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.4rem}
 .alloc .row,.langs .row{border:1px solid var(--line);border-radius:6px;padding:.3rem .5rem;font-size:.82rem;display:flex;justify-content:space-between;align-items:center;gap:.4rem;background:var(--paper)}
@@ -1980,7 +1981,11 @@ function render(s){
     const open = (String(lvl) in prevOpen) ? prevOpen[String(lvl)] : defOpen;
     const label = lvl===1 ? "Level 1 &mdash; character creation" : `Level ${lvl}` + (plan?" (plan)":"") +
       (lvl===s.level?" &larr; current":"") + (undecAt[lvl]?` &mdash; ${undecAt[lvl]} undecided`:"");
-    d += `<details class="lvlgrp${plan?' plan':''}" data-lvl="${lvl}" ${open?'open':''}><summary>${label}</summary>${rows}</details>`;
+    // FR-10: echo the sidebar next-level preview into that level's section header
+    // (fires on the planned cur+1 group, so a collapsed plan shows what it grants).
+    const lvlPrev = (s.next && s.next.level===lvl && s.next.summary)
+      ? ` <span class="lvlprev">grants: ${esc(s.next.summary)}${s.next.features.length? ' &middot; '+esc(s.next.features.join(', ')):''}</span>` : '';
+    d += `<details class="lvlgrp${plan?' plan':''}" data-lvl="${lvl}" ${open?'open':''}><summary>${label}${lvlPrev}</summary>${rows}</details>`;
   }
   $('decisions').innerHTML = d;
   $('srcinfo').textContent = viaNote;

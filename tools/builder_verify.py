@@ -894,6 +894,17 @@ def check_wave2():
        any("maneuver" in l for l in blabels) and any("MP" in l for l in dlabels),
        dlabels + blabels)
 
+    # ---- FR-10: echo the next-level preview into that level's section header ----
+    ok("FR-10 builder bakes the lvlprev echo (CSS + summary injection)",
+       ".lvlprev{" in html and "s.next && s.next.level===lvl && s.next.summary" in html
+       and "grants: ${esc(s.next.summary)}" in html)
+    ts = st(builder_api.BuilderAPI("tanrielle", CATPATHS))
+    planned = {t["level"] for t in ts["decisions"] if t.get("plan")}
+    ok("FR-10 tanrielle next-level (L%s) is a planned group, so the echo fires in its header"
+       % (ts["next"] and ts["next"]["level"]),
+       ts["next"] and ts["next"]["level"] in planned and bool(ts["next"]["summary"]),
+       (ts["next"], sorted(planned)))
+
 
 def main():
     global CATPATHS, builder_api
