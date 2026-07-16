@@ -3,9 +3,10 @@
 
 Three checks, in order:
   (1) The engine oracle - re-run every builds/*.yaml ledger through the engine; derived-stat
-      checks must pass. One documented delta remains: runt AD 12 vs 14 (BUG-7) - after the
-      armour fix RAW AD = 14 but the sheet records 12, pending Phil / CH-1, shown red. The old
-      "Trade points over-spent" whitelist is retired (BUG-2: Deep Speech is a free Eldritch grant).
+      checks must pass. All 90 rows now check OK - BUG-7 (runt AD 12 vs 14) was CLOSED
+      2026-07-16: confirmed with Phil the armour is Deflecting Heavy (+2 PD / +0 AD) and Pact
+      Armor's +1 is AD not PD, so RAW AD = 13 = the sheet. The old "Trade points over-spent"
+      whitelist is also retired (BUG-2: Deep Speech is a free Eldritch grant).
   (2) Catalog vs ALL SIX ledgers - every walked pick must be legal and priced by the catalog:
       each class spine == CLASS_TABLES; every ancestry-trait cost matches (with source aliases,
       trait aliases, and the Redeemed Fiendborn->Angelborn fallback); every named spell exists in
@@ -86,9 +87,8 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     mm = sum(1 for ln in rep.lines if ln.endswith("| MISMATCH |"))
     total_ok += ok
     total_mismatch += mm
-    # Documented deltas shown red BY DESIGN. "AD" is runt's BUG-7: after the armour fix
-    # RAW AD = 14 but the sheet records 12 (pending Phil / CH-1). Saves/Move/Jump remain
-    # here as the historical overlay slots (all currently modelled, none tripping).
+    # Historical overlay slots (Saves/Move/Jump/AD): all currently modelled, none tripping.
+    # BUG-7 (runt AD) closed 2026-07-16, so there are no documented deltas left.
     _MM = ("Saves", "Move Speed", "Jump Distance", "AD")
     unexpected = [p for p in rep.problems
                   if p not in KNOWN_OPEN and p.split(":")[0] not in _MM]
@@ -97,8 +97,8 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     print(f"  {os.path.basename(path):16} L{lvl}  {ok:2} stat-checks OK, {mm} mismatch  {tag}{known}")
     expect(not unexpected, f"{os.path.basename(path)} unexpected problems: {unexpected}")
 print(f"  => TOTAL {total_ok}/{total_ok + total_mismatch} derived-stat checks passed\n")
-expect(total_mismatch == 1, f"expected 1 documented delta (runt AD 12 vs 14, BUG-7, pending Phil), got {total_mismatch}")
-expect(total_ok == 89, f"expected 89 passing checks (90 rows - 1 documented AD delta), got {total_ok}")
+expect(total_mismatch == 0, f"expected 0 documented deltas (BUG-7 runt AD closed 2026-07-16), got {total_mismatch}")
+expect(total_ok == 90, f"expected 90 passing checks (all rows OK; BUG-7 closed), got {total_ok}")
 
 # ---- load the catalog -----------------------------------------------------
 CLASS_CAT = {c: load(f"builds/catalog/{c.lower()}.yaml")
@@ -554,4 +554,4 @@ if fails:
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print("PASS - engine oracle holds (89/90 checks; 1 documented delta: runt AD 12 vs 14, BUG-7);\n       catalog reconciles with all six ledgers and rules/*.md")
+print("PASS - engine oracle holds (90/90 checks; all item/feature effects modelled, BUG-7 runt AD closed);\n       catalog reconciles with all six ledgers and rules/*.md")

@@ -118,7 +118,7 @@ levels:
     - Brace
     - Side Step
     source: Expanded Boon talent
-    note: 'Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step) - confirmed by Darryl 2026-07-16; +1 AD & MDR while worn (contextual, AD still to confirm with Phil - BUG-7).'
+    note: 'Pact Armor grants 2 defensive maneuvers (Brace, Side Step - confirmed by Darryl 2026-07-16) plus +1 AD and MDR Half while worn (BUG-7 closed 2026-07-16: confirmed with Phil, the +1 is AD not PD). The AD/MDR are contextual (while worn), so per the catalog they are carried on the armour equipment item, not as class grants - derived AD = 13.'
   - slot: path
     pick: Martial
   - slot: ancestry_trait
@@ -191,15 +191,15 @@ languages:
 
 equipment:
 - name: Ancestral Dwarven Heavy Armor
-  pd: 1
-  ad: 2
+  pd: 2
+  ad: 1
   pdr: half
   mdr: half
-  mods: 'BUG-6 fix 2026-07-16 (magic-item audit): Defensive Heavy (+1 PD, +1 AD, PDR Half) with Rigid and Bulky stripped for the 2 Magical Power cost, so NO Speed -1 and NO DisADV Agility. Pact Armor while worn adds +1 AD and MDR Half (RAW; catalog notes it contextual). ad 2 = Defensive Heavy 1 + Pact Armor 1. DR = PDR Half (armour) + MDR Half (Pact Armor), EDR none. Sheet PD 17 = 15 base + Primal Hide 2 (daily Forbidden Knowledge routine).'
+  mods: 'BUG-6 / BUG-7 fix 2026-07-16 (magic-item audit, confirmed with Phil): this is Deflecting Heavy (+2 PD, +0 AD, PDR Half), NOT Defensive Heavy - the earlier Defensive reading was Darryl''s mistake. The magic enchantment (2 Magical Power) removes the Rigid/Bulky penalties, so NO Speed -1 and NO DisADV Agility. ad 1 here = Pact Armor''s +1 AD while worn (contextual, carried on the worn item not as a class grant per the catalog note; the sheet had this +1 in the PD box by mistake - it is AD). DR = PDR Half (armour) + MDR Half (Pact Armor), EDR none. PD 16 unbuffed = 13 base + armour 2 + staff Guard 1; AD 13 = 12 base + Pact Armor 1; sheet PD 18 = 16 + Primal Hide 2 (daily Forbidden Knowledge routine).'
 - name: Steadfast Boots
 - name: Staff of Lightning
   pd: 1
-  mods: 'bonded Pact Weapon (pass 2.1); Quarterstaff Guard property = +1 PD while wielded (BUG-6). PD stays 15: old armour +2/staff +0 = correct armour +1/staff +1.'
+  mods: 'bonded Pact Weapon (pass 2.1); Quarterstaff Guard property = +1 PD while wielded. Contributes +1 to PD 16 (13 base + Deflecting Heavy armour +2 + staff Guard +1).'
 - name: Brass Knuckles
   mods: the +1-vs-grappled rider is retired (previous-version)
 - name: Light Shield (Buckler)
@@ -216,8 +216,8 @@ expected:
   attack: 5
   save_dc: 15
   initiative: 2
-  pd: 15
-  ad: 12
+  pd: 16
+  ad: 13
   saves:
     might: 5
     agility: 2
@@ -227,7 +227,7 @@ expected:
   jump: 1
 
   spend_limit: 2
-# pd 15 = unbuffed base; sheet prints 17 = 15 + Primal Hide (+2 PD), per the daily FK routine.
+# pd 16 = unbuffed base; sheet prints 18 = 16 + Primal Hide (+2 PD), per the daily FK routine. ad 13 confirmed with Phil (BUG-7 closed 2026-07-16).
 
 notes:
 - MP 9 is the ruled value (sheet's 8 was previous-version; fixed 2026-07-04).

@@ -269,10 +269,10 @@ PARTY_LEDGERS = {  # CHARS key -> ledger file (the curated include set, by id â€
 # ledger itself. These preserve the table-facing numbers the party plays with:
 #  - xan hp +2: Amulet of Health (worn item; the ledger's expected block deliberately
 #    excludes it as an "equipment overlay" â€” xanwyn.yaml).
-#  - runt pd +2: the Companion has always shown 17 (Phil's worked note) vs the ledger's
-#    unbuffed base 15; runt.yaml carries the CONFIRM-WITH-PHIL note. Preserved pending
-#    that confirmation - remove this delta if the ledger's reading wins.
-DISPLAY_DELTAS = {("xan", "hp"): 2, ("runt", "pd"): 2}
+#  - (runt pd +2 delta RETIRED 2026-07-16: BUG-7 closed. The armour is Deflecting Heavy
+#    (+2 PD) and Pact Armor's +1 is AD not PD, so the engine now derives PD 16 / AD 13
+#    directly = Phil's confirmed reading. The Primal Hide +2 toggle brings PD to 18 in play.)
+DISPLAY_DELTAS = {("xan", "hp"): 2}
 
 party_derived = {}
 for _k, _fn in PARTY_LEDGERS.items():

@@ -134,10 +134,10 @@ def stage():
 
 
 KNOWN = {}  # runt trade over-spend retired 2026-07-16 (BUG-2: Deep Speech is a free Eldritch grant)
-# by-design table mismatch: the sheet reference carries an overlay the RAW engine
-# does not model. runt AD 12 vs 14 is BUG-7 (after the armour fix RAW AD = 14; sheet says 12,
-# pending Phil / CH-1) - shown red as a live reminder.
-KNOWN_MISMATCH = {"runt": {"AD"}}
+# no by-design table mismatches remain. BUG-7 (runt AD 12 vs 14) was CLOSED 2026-07-16:
+# confirmed with Phil the armour is Deflecting Heavy (+2 PD / +0 AD) and Pact Armor's +1 is
+# AD not PD, so RAW AD = 13 = the sheet (see runt.yaml).
+KNOWN_MISMATCH = {}
 MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance", "AD"}
 CATPATHS = None
 builder_api = None
@@ -770,8 +770,8 @@ def check_replace_hatch():
        all(d["widget"] == "picker" and d.get("editable") for d in mrows)
        and all(d.get("removable") for d in mrows if (d.get("level") or 1) > 1),
        [(d.get("level"), d.get("current")) for d in mrows])
-    ok("no new problems introduced by the replace (runt shows only the known AD 12-vs-14 delta, BUG-7)",
-       s1["problems"] == ["AD: derived 14 vs sheet 12"], s1["problems"])
+    ok("no new problems introduced by the replace (runt is now fully clean; BUG-7 AD closed)",
+       s1["problems"] == [], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page JS carries the replace-picker furniture",
        "t.replaceable" in html and "&mdash; replace &mdash;" in html

@@ -24,7 +24,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-4 | Character sheet overlay not mobile-responsive (iPhone) | bug | builder | P1 | done (2026-07-16, real-phone check pending) |
 | BUG-5 | L3 attribute picker options show lower-case not capitalised | bug | builder | P3 | done (2026-07-16) |
 | BUG-6 | Runt armour mis-modelled + staff Guard / Pact Armor AD+MDR / DR unpopulated | bug | engine+data | P1 | done (2026-07-16) |
-| BUG-7 | Runt AD reads 12, RAW says 14 after the armour fix | bug | data | P2 | blocked (Phil / re-audit); now surfaced red by design |
+| BUG-7 | Runt AD reads 12, RAW says 14 after the armour fix | bug | data | P2 | done (2026-07-16, confirmed with Phil) |
 | FR-1 | Sort the builder character picker alphabetically | feature | builder | P3 | done (2026-07-16) |
 | FR-2 | Finish DR (PDR/EDR/MDR) for the rest of the party + rules references | feature | engine | P2 | ready |
 | FR-3 | Level-up plans for all PCs (like Tan) | feature | builder+data | P2 | ready |
@@ -77,7 +77,7 @@ Worked top to bottom. Wave 1 is designed to verify in a single regression cycle.
 
 **BUG-6. Runt armour / defences / DR.** Runt's armour is confirmed (magic-item audit): magical Ancestral Dwarf Armor = Defensive Heavy (+1 PD, +1 AD, PDR Half) with Rigid and Bulky stripped (the 2 Magical Power cost), so no Speed -1 and no DisADV Agility. The ledger currently mis-models it as "Deflecting Heavy +2 PD / +0 AD" with Speed/Agility penalties. Compensating errors keep PD correct (old: armour +2 / staff +0; correct: armour +1 / staff Guard +1; both sum to +2, so unbuffed PD stays 15, sheet 17 = 15 + Primal Hide daily buff). Fix set: correct the armour entry (pd 1 / ad 1 / pdr half, drop the Deflecting/Speed/DisADV note); model the wielded Quarterstaff's Guard +1 PD; apply Pact Armor's RAW +1 AD and MDR (catalog marks it "contextual, not a grant", so it is currently unmodelled, warlock.yaml l.90); populate DR = PDR Half + MDR Half, EDR none. Then run the engine to verify. Not blocked. Surfaces BUG-7.
 
-**BUG-7. Runt AD 12 vs 14.** Once the armour is fixed, RAW AD = 12 base + armour 1 + Pact Armor 1 = 14, but the sheet / expected block records 12. Either the sheet under-counts (should be 14) or something offsets it. Confirm with Phil, or catch via CH-1. Replaces the now-closed "PD 15 vs 17" question.
+**BUG-7. Runt AD 12 vs 14.** CLOSED 2026-07-16 (confirmed with Phil). The BUG-6 armour reading was wrong twice over: (a) the magic Ancestral Dwarven armour is **Deflecting Heavy (+2 PD, +0 AD)**, not Defensive Heavy (+1/+1) - Darryl's mistake, not Phil's; (b) Pact Armor's +1 is **AD, not PD** - the paper sheet had it in the PD box. Net: base 13 PD / 12 AD, + armour Deflecting +2 PD, + staff Guard +1 PD, + Pact Armor +1 AD (carried on the worn armour item, contextual per the catalog) = **PD 16 (18 with Primal Hide), AD 13** - which now matches the sheet, so the engine derives it clean (no more red MISMATCH). Also supersedes the old PD 15-vs-17 reading (PD was 16 unbuffed all along).
 
 ---
 
