@@ -489,6 +489,7 @@ const PARTY_DERIVED=__PARTY_DERIVED__;
 (function(){const sgn=v=>(v>=0?'+':'')+v;
 Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c)return;
   ['hp','mp','sp','grit','pd','ad'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});
+  if(d.dr!==undefined)c.dr=d.dr;  // FR-16A: overwrite DR from the engine-derived bake
   c.sub=c.sub.replace(/<b>L\d+<\/b>/,'<b>L'+d.level+'<\/b>').replace(/CM \d+/,'CM '+d.cm);
   c.stats=c.stats.map(p=>{const v=p[0],l=p[1];
     if(l==='Attack')return[sgn(d.attack),l];
@@ -526,6 +527,8 @@ function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
   saveS();renderParty();toast('Long Rest: everything restored.');}
 function togCond(x){const i=S.conds.indexOf(x);if(i>=0)S.conds.splice(i,1);else S.conds.push(x);saveS();renderParty();}
 function curPD(){const c=CHARS[cur];let pd=c.pd;c.toggles.forEach(x=>{if(x.pd&&S.t[x.k])pd+=x.pd;});return pd;}
+// FR-16A: format engine DR compactly, e.g. "PDR Half \u00b7 MDR Half"; "" when none.
+function fmtDR(dr){if(!dr)return '';const parts=[];['PDR','EDR','MDR'].forEach(k=>{if(dr[k]&&dr[k].length){const v=dr[k].map(x=>String(x).toLowerCase()==='half'?'Half':x).join(', ');parts.push(k+' '+v);}});return parts.join(' \u00b7 ');}
 /* ---- char-pill "Build" menu: long-press (mobile) / right-click (desktop) opens the builder on that character ---- */
 const BUILDER_BASE='https://theonegargoyle.github.io/dc20-companion/builder.html';
 const BUILDER_HANDLE={tan:'tanrielle',min:'minimus',runt:'runt',scale:'scaletrix',bonan:'bonan',xan:'xanwyn'};
@@ -566,7 +569,8 @@ function renderParty(){
          '<div class="stat"><div class="v">'+c.ad+'</div><div class="l">AD</div></div>';
   c.stats.forEach(([v,l])=>{sg+='<div class="stat"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';});
   document.getElementById('cStats').innerHTML=sg;
-  document.getElementById('defDetail').innerHTML='PD: Heavy '+(pd+5)+' · Brutal '+(pd+10)+' &nbsp;|&nbsp; AD: Heavy '+(c.ad+5)+' · Brutal '+(c.ad+10);
+  const drStr=fmtDR(c.dr);
+  document.getElementById('defDetail').innerHTML='PD: Heavy '+(pd+5)+' · Brutal '+(pd+10)+' &nbsp;|&nbsp; AD: Heavy '+(c.ad+5)+' · Brutal '+(c.ad+10)+(drStr?'<br>DR: '+drStr:'');
   const hp=S.hp,bl=Math.ceil(c.hp/2),wb=Math.ceil(c.hp/4);
   document.getElementById('hpVal').textContent=hp+' / '+c.hp;
   document.getElementById('hpBar').style.width=Math.max(0,hp/c.hp*100)+'%';

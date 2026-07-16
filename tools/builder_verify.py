@@ -622,10 +622,20 @@ def check_sheet():
     ok("tanrielle Awareness = +7 (Prime 3 + Adept 4)", aw == 7, aw)
     ok("tanrielle PD 17 and 6 equipment items", d["core"]["PD"] == "17" and len(d["equipment"]) == 6,
        (d["core"]["PD"], len(d["equipment"])))
+    # FR-15: trades carry a numeric mastery bonus (Novice +2 .. Grandmaster +10), no attribute.
+    for c in builder_build.CHARS:
+        d = json.loads(builder_api.BuilderAPI(c, CATPATHS).sheet())
+        bad_tr = [t for t in d["trades"] if t.get("mb") != MB.get(t["tier"], 0)]
+        ok("%-10s trade bonus = mastery bonus only (no attribute)" % c, not bad_tr, bad_tr)
+    xd = json.loads(builder_api.BuilderAPI("xanwyn", CATPATHS).sheet())
+    arc = next((t for t in xd["trades"] if t["name"] == "Arcana"), None)
+    ok("FR-15 xanwyn Arcana (Adept) shows mb +4", arc and arc["mb"] == 4, arc)
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page has sheet button + renderer + print CSS",
        'id="sheetbtn"' in html and "function renderSheet(" in html and "api.sheet()" in html
        and "body.sheeting .wrap" in html and ".sh-paper" in html)
+    ok("FR-15 sheet bakes the trade mastery-only note",
+       "Bonus = Mastery only" in html)
 
 
 # ---------------------------------------------------------------- (10) new derived stats
@@ -685,6 +695,14 @@ def check_newstats():
     ok("page sheet has Saves section, DR row and the move/jump footer",
        ">Saves</h3>" in html and "Damage reduction" in html and "sh-foot" in html
        and "Move Speed" in html and "Spend Limit" in html)
+    # FR-16A: the Companion bakes engine DR and renders a DR line (omitted when empty).
+    cbp = open(os.path.join(REPO, "companion-src", "build.py"), encoding="utf-8").read()
+    ctpl = open(os.path.join(REPO, "companion-src", "template.html"), encoding="utf-8").read()
+    ok("FR-16A Companion build.py bakes engine-derived DR into party_derived",
+       '"dr": _d.get("dr", {})' in cbp)
+    ok("FR-16A Companion template merges DR + has fmtDR + renders the DR line",
+       "if(d.dr!==undefined)c.dr=d.dr" in ctpl and "function fmtDR(" in ctpl
+       and "drStr?'<br>DR: '+drStr" in ctpl)
     # BUG-4: the sheet overlay is mobile-responsive - a max-width:640px block stacks .sh-cols
     # to one column and sizes .sh-paper fluidly (real-phone verification is Darryl's).
     ok("sheet overlay has mobile-responsive rules (BUG-4)",
@@ -834,9 +852,11 @@ def check_wave2():
                                     for b in blines), blines)
         ok("%-10s no budget line still reads the old 'UNDER-SPENT'" % c,
            not any("UNDER-SPENT" in b for b in s["budgets"]), s["budgets"])
-    s = st(builder_api.BuilderAPI("xanwyn", CATPATHS))
-    ok("BUG-3 xanwyn spare TP reads SPARE (legal) in advisories, not a problem",
-       any("SPARE" in a and "Trade points" in a for a in s["advisories"])
+    # BUG-8 (2026-07-16) added Xanwyn's missing History trade, so his trade budget now
+    # balances; the "legal SPARE" example moves to minimus (6 unspent skill points).
+    s = st(builder_api.BuilderAPI("minimus", CATPATHS))
+    ok("BUG-3 minimus spare SP reads SPARE (legal) in advisories, not a problem",
+       any("SPARE" in a and "Skill points" in a for a in s["advisories"])
        and not any("SPARE" in p for p in s["problems"]), (s["advisories"], s["problems"]))
     s = st(builder_api.BuilderAPI("tanrielle", CATPATHS))
     ok("BUG-3 language line is symmetric (prints -> balanced even when balanced)",
@@ -857,6 +877,22 @@ def check_wave2():
     ok("FR-5 unsaved-changes guard on switch (confirm + revert selection)",
        "if(dirty && !confirm(" in html and "Switch anyway" in html
        and "sel.value = currentSelValue(); return;" in html)
+
+    # ---- BUG-9: character-sheet button pinned top-right via a flex header ----
+    ok("BUG-9 header is a flex row with the sheet button pinned right",
+       ".apphead{display:flex" in html and ".apphead #sheetbtn{margin-left:auto}" in html
+       and '<div class="apphead">' in html)
+
+    # ---- BUG-10: picker labels format grants, never print the raw dict ----
+    xapi = builder_api.BuilderAPI("xanwyn", CATPATHS)   # spellblade -> disciplines
+    dlabels = [o["label"] for o in xapi._options_for("discipline")]
+    rapi = builder_api.BuilderAPI("runt", CATPATHS)      # warlock -> pact_boons
+    blabels = [o["label"] for o in rapi._options_for("pact_boon")]
+    ok("BUG-10 no picker label prints a raw grants dict",
+       not any("{'" in l or "':" in l for l in dlabels + blabels), dlabels + blabels)
+    ok("BUG-10 discipline/boon labels format grants readably (e.g. '+2 maneuvers')",
+       any("maneuver" in l for l in blabels) and any("MP" in l for l in dlabels),
+       dlabels + blabels)
 
 
 def main():

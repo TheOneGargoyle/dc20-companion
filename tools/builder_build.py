@@ -97,6 +97,27 @@ CLASS_NAMES = {'spellblade': 'Spellblade', 'warlock': 'Warlock', 'commander': 'C
                'barbarian': 'Barbarian', 'druid': 'Druid'}
 ATTRS = ('might', 'agility', 'charisma', 'intelligence')
 
+# BUG-10 (2026-07-16): picker labels used to print the raw grants dict
+# (e.g. "Pact Weapon {'maneuvers': 2}"). Format grants into readable text instead.
+_GRANT_WORDS = {'mp': 'MP', 'sp': 'SP', 'spells': 'spell', 'maneuvers': 'maneuver',
+                'disciplines': 'discipline', 'trade_points': 'trade point',
+                'skill_points': 'skill point'}
+
+
+def _fmt_grants(grants):
+    # Render a grants dict as e.g. " (+2 maneuvers, +1 MP)"; empty string when nothing to show.
+    if not grants:
+        return ''
+    parts = []
+    for k, v in grants.items():
+        word = _GRANT_WORDS.get(k, k.replace('_', ' '))
+        if isinstance(v, int):
+            plural = word if (word.isupper() or abs(v) == 1) else word + 's'
+            parts.append('%+d %s' % (v, plural))
+        else:
+            parts.append('%s %s' % (v, word))
+    return ' (' + ', '.join(parts) + ')' if parts else ''
+
 
 def base_name(pick):
     return re.sub(r"\s*\([^)]*\)\s*$", '', str(pick).replace('’', "'")).strip()
@@ -569,11 +590,11 @@ class BuilderAPI:
             return [{'name': s, 'group': '', 'label': s} for s in self.ccat['subclasses']]
         if slot == 'discipline':
             return [{'name': d['name'], 'group': '',
-                     'label': d['name'] + (' %s' % d['grants'] if d.get('grants') else '')}
+                     'label': d['name'] + _fmt_grants(d.get('grants'))}
                     for d in self.ccat.get('disciplines', [])]
         if slot == 'pact_boon':
             return [{'name': b['name'], 'group': '',
-                     'label': b['name'] + (' %s' % b['grants'] if b.get('grants') else '')}
+                     'label': b['name'] + _fmt_grants(b.get('grants'))}
                     for b in self.ccat.get('pact_boons', [])]
         if slot == 'spell_school':
             return [{'name': s, 'group': '', 'label': s}
@@ -920,7 +941,7 @@ class BuilderAPI:
                 amod = prime if gov == 'Prime' else attrs.get(gov, 0)
                 skills.append({'name': a['name'], 'attr': gov, 'tier': tier, 'bonus': amod + mb})
             else:
-                trades.append({'name': a['name'], 'tier': tier})
+                trades.append({'name': a['name'], 'tier': tier, 'mb': mb})  # FR-15: mastery bonus only
         cur = s['level']
         eder = eng.replay(self.ledger, cur).derived
         groups = {}
@@ -1372,6 +1393,8 @@ TEMPLATE = r"""<!doctype html>
 body{font-family:system-ui,Segoe UI,Arial,sans-serif;color:var(--ink);margin:0;background:#eef0f4;line-height:1.42}
 .wrap{max-width:1120px;margin:0 auto;padding:1.3rem 1.3rem 3rem}
 h1{font-size:1.35rem;margin:.1rem 0;display:inline-block}
+.apphead{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .6rem;margin:.1rem 0 .3rem}
+.apphead #sheetbtn{margin-left:auto}
 .badge{display:inline-block;font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;
  background:var(--accent);color:#fff;border-radius:4px;padding:.12rem .45rem;vertical-align:middle}
 .sub{color:var(--muted);font-size:.9rem;margin:.25rem 0 .9rem}
@@ -1516,10 +1539,12 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 }
 </style></head>
 <body><div class="wrap">
+<div class="apphead">
 <h1>DC20 Character Builder</h1> <span class="badge">rung 3 - step 5</span>
 <select id="charsel"></select>
 <label class="loadlbl">or load a YAML: <input type="file" id="loadyaml" accept=".yaml,.yml"></label>
 <button id="sheetbtn" class="sheetbtn" type="button">Character sheet</button>
+</div>
 <div id="status">Booting Pyodide (first load pulls a few MB from the CDN)&hellip;</div>
 <div id="resume"></div>
 <div id="canonbar"></div>
@@ -1607,7 +1632,10 @@ function shBuild(d){
       return `<div class="sh-row"><span>${shEsc(s.name)} <span class="sh-tag">${shEsc(s.tier||'')}</span></span><span class="v">${sign}${s.bonus}</span></div>`;
     }).join('');
   });
-  const tradeHtml=(d.trades||[]).length?d.trades.map(t=>`<div class="sh-row"><span>${shEsc(t.name)}</span><span class="v">${shEsc(t.tier||'')}</span></div>`).join(''):'<div class="sh-note">None</div>';
+  const tradeHtml=(d.trades||[]).length?d.trades.map(t=>{
+    const mb=t.mb||0; const sign=mb>=0?'+':'';
+    return `<div class="sh-row"><span>${shEsc(t.name)} <span class="sh-tag">${shEsc(t.tier||'')}</span></span><span class="v">${sign}${mb}</span></div>`;
+  }).join('')+'<div class="sh-note">Bonus = Mastery only; add the relevant attribute in play (it varies by use).</div>':'<div class="sh-note">None</div>';
   const langHtml=(d.languages||[]).map(l=>`<div class="sh-row"><span>${shEsc(l.name)}</span><span class="v">${shEsc(l.fluency)}</span></div>`).join('')||'<div class="sh-note">None</div>';
   const catLabels=[['subclass','Subclass'],['class_feature','Class features'],['discipline','Disciplines'],['path','Path'],['bound_weapon_options','Bound weapon'],['maneuver','Maneuvers'],['talent','Talents'],['ancestry_trait','Ancestry'],['spell_school','Spell schools']];
   let featHtml='';

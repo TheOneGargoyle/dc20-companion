@@ -286,6 +286,7 @@ for _k, _fn in PARTY_LEDGERS.items():
         "initiative": _d["Initiative"], "grit": _d["Grit"],
         "hp": _d["HP"], "sp": _d["SP"], "mp": _d["MP"],
         "pd": _d["PD"], "ad": _d["AD"],
+        "dr": _d.get("dr", {}),  # FR-16A: engine-derived Damage Reduction, e.g. {"PDR":["half"],"MDR":["half"]}
     }
     for (_dk, _f), _delta in DISPLAY_DELTAS.items():
         if _dk == _k:

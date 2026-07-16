@@ -68,7 +68,8 @@ trades:
     Alchemy: {mastery: Novice}
     Lockpick: {mastery: Novice}
     Engineering: {mastery: Novice}
-  knowledge_trades: [Arcana]
+    History: {mastery: Novice}  # BUG-8 fix 2026-07-16: on Xanwyn's paper sheet (confirmed by Darryl), was unrecorded - the real cause of the leftover 1 spare TP. Spent TP 7->8 = balanced.
+  knowledge_trades: [Arcana, History]
 languages:
   - {name: Common, fluency: Fluent, cost: 0}
   - {name: Elvan, fluency: Limited, cost: 1}  # BUG-1 fix 2026-07-16: sheet shows Elven at 1 dot (Limited), was wrongly recorded Fluent (same-total swap, slipped past budget checks)

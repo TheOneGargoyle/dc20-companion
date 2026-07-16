@@ -195,7 +195,7 @@ equipment:
   ad: 1
   pdr: half
   mdr: half
-  mods: 'BUG-6 / BUG-7 fix 2026-07-16 (magic-item audit, confirmed with Phil): this is Deflecting Heavy (+2 PD, +0 AD, PDR Half), NOT Defensive Heavy - the earlier Defensive reading was Darryl''s mistake. The magic enchantment (2 Magical Power) removes the Rigid/Bulky penalties, so NO Speed -1 and NO DisADV Agility. ad 1 here = Pact Armor''s +1 AD while worn (contextual, carried on the worn item not as a class grant per the catalog note; the sheet had this +1 in the PD box by mistake - it is AD). DR = PDR Half (armour) + MDR Half (Pact Armor), EDR none. PD 16 unbuffed = 13 base + armour 2 + staff Guard 1; AD 13 = 12 base + Pact Armor 1; sheet PD 18 = 16 + Primal Hide 2 (daily Forbidden Knowledge routine).'
+  mods: 'BUG-6 / BUG-7 fix 2026-07-16 (magic-item audit, confirmed with Phil): this is Deflecting Heavy (+2 PD, +0 AD, PDR Half), NOT Defensive Heavy - the earlier Defensive reading was Darryl''s mistake. The magic enchantment (2 Magical Power) removes the Rigid/Bulky penalties, so NO Speed -1 and NO DisADV Agility. ad 1 here = Pact Armor''s +1 AD while worn (contextual, carried on the worn item not as a class grant per the catalog note; the sheet had this +1 in the PD box by mistake - it is AD). DR = PDR Half (Heavy Armour PDR: tables.md l.219, char-creation.md l.142) + MDR Half (Pact Armor "Mystical Armor: +1 AD and MDR": classes.md l.3271), EDR none. FR-2 rules refs 2026-07-16; DR reduces normal Hits only, not Heavy/Crit (bestiary.md l.318-330). PD 16 unbuffed = 13 base + armour 2 + staff Guard 1; AD 13 = 12 base + Pact Armor 1; sheet PD 18 = 16 + Primal Hide 2 (daily Forbidden Knowledge routine).'
 - name: Steadfast Boots
 - name: Staff of Lightning
   pd: 1
