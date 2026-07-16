@@ -917,6 +917,84 @@ def check_wave2():
        (ts["next"], sorted(planned)))
 
 
+# ---------------------------------------------------------------- (13) FR-8 slice 2 backbone
+def check_slice2():
+    UND = "(undecided)"
+    print()
+    print("## (13) FR-8 slice 2: grants -> typed child picker-slots backbone")
+    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic), excludes maneuvers/spells",
+       builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic"},
+       builder_api.GRANT_CHILD_SLOTS)
+
+    # No party ledger grants a pickable resource yet (rune/metamagic catalogs land in slices 3/4),
+    # so drive the backbone with a synthetic fixture - same style as the DR-plumbing injection test.
+
+    # ---- (a) a LEVEL grant-bearing parent materialises typed child slots keyed to it ----
+    rapi = builder_api.BuilderAPI("runt", CATPATHS)
+    rapi.ccat["runes"] = [{"name": "Fire Rune"}, {"name": "Water Rune"}, {"name": "Cloud Rune"}]
+    l4 = rapi.ledger["levels"][4]
+    pe = next(e for e in l4 if e.get("slot") == "pact_boon")   # a real grant-bearing parent
+    pe["grants"] = dict(pe.get("grants") or {}); pe["grants"]["runes"] = 2
+    pe["granted_runes"] = ["Fire Rune"]                        # one pre-filled, one should be undecided
+    idx = l4.index(pe)
+    s = st(rapi)
+    kids = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#L4:%d#runes#" % idx)]
+    ok("a LEVEL parent's {runes:2} grant materialises 2 typed 'rune' child pickers keyed to it",
+       len(kids) == 2 and all(d["slot"] == "rune" and d["widget"] == "picker" and d["editable"] for d in kids),
+       [(d["id"], d.get("current")) for d in kids])
+    ok("child picks read from the parent's granted_runes (Fire Rune filled, slot 1 undecided), 3 options each",
+       kids[0]["current"] == "Fire Rune" and kids[1]["current"] == UND
+       and all(len(d["options"]) == 3 for d in kids),
+       [(d["current"], len(d["options"])) for d in kids])
+    ok("an undecided grant-child surfaces as a builder completeness problem",
+       any("rune undecided" in p for p in s["builder_problems"]), s["builder_problems"])
+    rapi.set_decision(kids[1]["id"], "Water Rune")
+    ok("editing a grant-child writes into the parent's granted_runes list (structural link)",
+       rapi.ledger["levels"][4][idx].get("granted_runes") == ["Fire Rune", "Water Rune"],
+       rapi.ledger["levels"][4][idx].get("granted_runes"))
+
+    # ---- (b) re-picking a real grant-bearing PARENT rebuilds/clears its child slots (_apply_grants) ----
+    bapi = builder_api.BuilderAPI("runt", CATPATHS)
+    bapi.ccat["runes"] = [{"name": "Fire Rune"}, {"name": "Water Rune"}]
+    next(b for b in bapi.ccat["pact_boons"] if b["name"] == "Pact Spell")["grants"] = {"runes": 2}
+    l4boon = next(d for d in st(bapi)["decisions"] if d.get("slot") == "pact_boon" and d.get("level") == 4)
+    bapi.set_decision(l4boon["id"], "Pact Spell")             # re-pick to the rune-granting boon
+    pe = next(e for e in bapi.ledger["levels"][4] if e.get("slot") == "pact_boon")
+    ok("re-picking a boon to a rune-granting option rebuilds granted_runes as 2 undecided slots and clears old granted_maneuvers",
+       pe.get("grants") == {"runes": 2} and pe.get("granted_runes") == [UND, UND]
+       and not pe.get("granted_maneuvers"),
+       (pe.get("grants"), pe.get("granted_runes"), pe.get("granted_maneuvers")))
+    kids = [d for d in st(bapi)["decisions"] if "#runes#" in str(d.get("id"))]
+    ok("2 rune child pickers now render under the re-picked boon", len(kids) == 2, [d["id"] for d in kids])
+    bapi.set_decision(kids[0]["id"], "Fire Rune")
+    bapi.set_decision(l4boon["id"], "Pact Armor")             # back to a non-rune boon
+    pe = next(e for e in bapi.ledger["levels"][4] if e.get("slot") == "pact_boon")
+    ok("re-picking to a non-rune boon drops both the runes grant and the granted_runes children",
+       "runes" not in (pe.get("grants") or {}) and not pe.get("granted_runes"),
+       (pe.get("grants"), pe.get("granted_runes")))
+
+    # ---- (c) the closed slice-1 gap: the CHARGEN cg:choice re-pick clears stale granted_maneuvers ----
+    gapi = builder_api.BuilderAPI("runt", CATPATHS)
+    cc = next(c for c in gapi.ledger["chargen"]["class_choices"] if c["slot"] == "pact_boon")
+    ok("precondition: Runt's L1 chargen boon carries granted_maneuvers (Cleave/Pathcarver)",
+       cc.get("granted_maneuvers") == ["Cleave", "Pathcarver"], cc.get("granted_maneuvers"))
+    l1boon = next(d for d in st(gapi)["decisions"] if d.get("slot") == "pact_boon" and d.get("level") == 1)
+    gapi.set_decision(l1boon["id"], "Pact Familiar")
+    cc = next(c for c in gapi.ledger["chargen"]["class_choices"] if c["slot"] == "pact_boon")
+    ok("closed slice-1 gap: re-picking the CHARGEN boon clears the old boon's granted_maneuvers (symmetric with the level path)",
+       not cc.get("granted_maneuvers") and not cc.get("grants"),
+       (cc.get("granted_maneuvers"), cc.get("grants")))
+
+    # ---- (d) surgical boundary + built-page furniture ----
+    base = st(builder_api.BuilderAPI("runt", CATPATHS))
+    ok("surgical boundary: maneuvers/spells do NOT become GC child slots (Runt has zero GC# rows at rest)",
+       not any(str(d.get("id")).startswith("GC#") for d in base["decisions"]),
+       [d.get("id") for d in base["decisions"] if str(d.get("id")).startswith("GC#")])
+    ok("the page's BuilderAPI glue carries the slice-2 backbone methods (glue is base64-baked; blob==source is checked in section 1)",
+       all(hasattr(builder_api.BuilderAPI, m) for m in ("_grant_children", "_apply_grants", "_set_grant_child"))
+       and hasattr(builder_api, "GRANT_CHILD_SLOTS"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -940,6 +1018,7 @@ def main():
         check_newstats()
         check_replace_hatch()
         check_wave2()
+        check_slice2()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -954,7 +1033,8 @@ def main():
     print("       comment-preserving export, round-2 bug fixes, character sheet,")
     print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle,")
     print("       composite re-pick escape hatch,")
-    print("       Wave 2 UX (recent files + Level A, sort, unsaved guard, refilter, budget messaging)")
+    print("       Wave 2 UX (recent files + Level A, sort, unsaved guard, refilter, budget messaging),")
+    print("       FR-8 slice 2 grants -> typed child picker-slots backbone")
     sys.exit(0)
 
 

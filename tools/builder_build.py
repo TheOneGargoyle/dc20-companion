@@ -88,6 +88,13 @@ REPLACEABLE_SLOTS = {'talent', 'subclass', 'discipline', 'spell', 'maneuver'}
 # discipline are left to a later pass (they carry budget / choice-count machinery and
 # existing harness expectations).
 FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
+# FR-8 slice 2: pickable grant resources that auto-materialise typed child picker-slots under
+# their granting parent (boon / discipline / talent / subclass). Maps the plural grants key ->
+# the singular child-slot name. Maneuvers/spells are deliberately NOT here: they keep the
+# existing flat-pool + expand_composite model (the surgical slice-2 boundary). The rune /
+# metamagic catalogs land in slices 3/4; the backbone is data-driven so those slices only add
+# catalog data + an _options_for branch, no new plumbing.
+GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic'}
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -599,6 +606,10 @@ class BuilderAPI:
         if slot == 'spell_school':
             return [{'name': s, 'group': '', 'label': s}
                     for s in self.cat['spell_schools']['schools']]
+        if slot in ('rune', 'metamagic'):   # FR-8 slice 2 grant-child pickers (catalogs land in slices 3/4)
+            pool = self.ccat.get('runes' if slot == 'rune' else 'metamagic') or []
+            return [{'name': r['name'], 'group': '',
+                     'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         return []
 
     # ---------- catalog-level legality (the layer the engine does not do) ----------
@@ -693,6 +704,12 @@ class BuilderAPI:
         cnt('L1 spell-school', cg.get('spell_schools') or [])
         for c in cg.get('class_choices') or []:
             cnt('L1 %s' % c['slot'], c.get('picks') or [])
+            for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
+                _n = int((c.get('grants') or {}).get(_res, 0) or 0)
+                _lst = c.get('granted_%s' % _res) or []
+                for _k in range(_n):
+                    if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                        probs.append('builder: L1 %s undecided' % _sing)
         for t in cg.get('ancestry_traits') or []:
             if str(t.get('name')) == UNDECIDED:
                 probs.append('builder: L1 ancestry trait undecided')
@@ -703,6 +720,12 @@ class BuilderAPI:
             for e in self.ledger['levels'][lvl] or []:
                 if str(e.get('pick')) == UNDECIDED:
                     probs.append('builder: L%d %s undecided' % (lvl, e.get('slot')))
+                for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
+                    _n = int((e.get('grants') or {}).get(_res, 0) or 0)
+                    _lst = e.get('granted_%s' % _res) or []
+                    for _k in range(_n):
+                        if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                            probs.append('builder: L%d %s undecided' % (lvl, _sing))
         if self.scratch and not str(self.ledger.get('ancestry') or '').strip():
             probs.append('builder: ancestry not chosen')
         return probs
@@ -735,6 +758,7 @@ class BuilderAPI:
                 ds.append({'id': None, 'level': 1, 'slot': c['slot'],
                            'pick': ', '.join(str(x) for x in c['picks']),
                            'widget': 'fixed', 'editable': False, 'cost': None, 'inferred': False})
+            ds.extend(self._grant_children(c, 'cg:%d' % ci, 1, True))   # FR-8 slice 2
         for i, s in enumerate(cg.get('spells') or []):
             ds.append(self._dec('cg:spell:%d' % i, 1, 'spell', s, None, False, not is_composite(s)))
         for i, m in enumerate(cg.get('maneuvers') or []):
@@ -750,6 +774,7 @@ class BuilderAPI:
                                                 and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))
                                                or (e.get('slot') in ('maneuver', 'spell')
                                                    and BUILDER_NOTE in str(e.get('note', ''))))))
+                ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl, lvl <= cur))   # FR-8 slice 2
         return ds
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
@@ -800,6 +825,67 @@ class BuilderAPI:
                 m = re.match(r'MC \w+(?: \((?:Novice|Adept|Expert|Master)\))?:\s*(.*)', str(pick))
                 d['current'] = base_name((m.group(1) if m else str(pick)).split(':')[0])
         return d
+
+    def _grant_children(self, parent, parentref, level, editable):
+        # FR-8 slice 2: a grant-bearing parent (boon / discipline / talent / subclass) auto-
+        # materialises typed child picker-slots for each PICKABLE grant resource (GRANT_CHILD_SLOTS:
+        # runes, metamagic, ...). The picks live in a granted_<resource> list ON the parent, so the
+        # link is structural: the child id encodes the parent (GC#<parentref>#<resource>#<k>), and
+        # re-picking or removing the parent rebuilds/drops them. Maneuvers/spells are excluded (they
+        # keep the flat-pool + expand_composite model - the surgical slice-2 boundary).
+        out = []
+        grants = parent.get('grants') or {}
+        for resource, singular in GRANT_CHILD_SLOTS.items():
+            n = int(grants.get(resource, 0) or 0)
+            if n <= 0:
+                continue
+            lst = parent.get('granted_%s' % resource) or []
+            for k in range(n):
+                pick = lst[k] if k < len(lst) else UNDECIDED
+                out.append(self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
+                                     pick, None, False, editable,
+                                     plan=level > self.ledger['current_level']))
+        return out
+
+    def _apply_grants(self, entry, grants, changed):
+        # FR-8 slice 2: one home for "a re-picked grant-bearing parent rebuilds its grants and its
+        # granted child-slots". Sets/pops the grants dict; clears stale maneuver/spell provenance on
+        # a real option change (mirrors the level pact_boon branch, now applied to discipline / talent
+        # / the chargen cg:choice path too); resizes each pickable granted_<resource> list to the new
+        # count (all UNDECIDED on change; kept then padded/truncated when the option is unchanged).
+        grants = dict(grants or {})
+        if grants:
+            entry['grants'] = grants
+        else:
+            entry.pop('grants', None)
+        if changed:
+            entry.pop('granted_maneuvers', None)
+            entry.pop('granted_spells', None)
+        for resource in GRANT_CHILD_SLOTS:
+            gkey = 'granted_%s' % resource
+            n = int(grants.get(resource, 0) or 0)
+            if n <= 0:
+                entry.pop(gkey, None)
+                continue
+            prev = [] if changed else list(entry.get(gkey) or [])
+            entry[gkey] = (prev + [UNDECIDED] * n)[:n]
+
+    def _set_grant_child(self, did, value):
+        # write a grant-child pick into its parent's granted_<resource> list (see _grant_children).
+        # did = GC#<parentref>#<resource>#<k>; parentref = 'cg:<ci>' (chargen choice) or 'L<lvl>:<idx>'.
+        _, parentref, resource, k = did.split('#')
+        k = int(k)
+        if parentref.startswith('cg:'):
+            entry = self.ledger['chargen']['class_choices'][int(parentref.split(':')[1])]
+        else:
+            lvl, idx = parentref[1:].split(':')
+            entry = self.ledger['levels'][int(lvl)][int(idx)]
+        n = int((entry.get('grants') or {}).get(resource, 0) or 0)
+        lst = list(entry.get('granted_%s' % resource) or [])
+        lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
+        lst[k] = value
+        entry['granted_%s' % resource] = lst
+        return self.state()
 
     def _alloc(self):
         out = []
@@ -980,6 +1066,8 @@ class BuilderAPI:
     def set_decision(self, did, value):
         did = str(did)
         value = str(value)
+        if did.startswith('GC#'):
+            return self._set_grant_child(did, value)   # FR-8 slice 2 grant-child pick
         if did.startswith('cg:'):
             parts = did.split(':')
             kind = parts[1]
@@ -987,18 +1075,20 @@ class BuilderAPI:
             if kind == 'choice':
                 ci, pi = int(parts[2]), int(parts[3])
                 row_ch = cg['class_choices'][ci]
+                changed = base_name(row_ch['picks'][pi]) != value
                 row_ch['picks'][pi] = value
                 # aggregate grants across picks (Magus mp/spells, Pact Weapon maneuvers, ...)
-                pool = (self.ccat.get('disciplines') or []) + (self.ccat.get('pact_boons') or [])
+                pool = ((self.ccat.get('disciplines') or []) + (self.ccat.get('pact_boons') or [])
+                        + (self.ccat.get('runes') or []))
                 agg = {}
                 for p in row_ch['picks']:
                     r = next((d for d in pool if d['name'] == p), None)
                     for k2, v2 in ((r or {}).get('grants') or {}).items():
                         agg[k2] = agg.get(k2, 0) + v2
-                if agg:
-                    row_ch['grants'] = agg
-                else:
-                    row_ch.pop('grants', None)
+                # FR-8 slice 2: apply grants + rebuild grant children, and clear stale
+                # granted_maneuvers/granted_spells on a real change - the chargen path did NOT do
+                # this before (the known slice-1 gap), now symmetric with the level pact_boon branch.
+                self._apply_grants(row_ch, agg, changed)
             elif kind == 'school':
                 cg['spell_schools'][int(parts[2])] = value
             elif kind == 'spell':
@@ -1019,10 +1109,7 @@ class BuilderAPI:
                 row = next((d for d in self.ccat.get('disciplines', [])
                             if d['name'] == value), {})
                 e['pick'] = value
-                if row.get('grants'):
-                    e['grants'] = dict(row['grants'])
-                else:
-                    e.pop('grants', None)
+                self._apply_grants(e, row.get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
                 self._edited(e)
             elif slot == 'talent':
                 row = next((t for t in self.cat['talents']['mc_features']
@@ -1030,10 +1117,7 @@ class BuilderAPI:
                     or next((t for t in self.cat['talents']['general']
                              if t['name'] == value), None)
                 e['pick'] = value
-                if row and row.get('grants'):
-                    e['grants'] = dict(row['grants'])
-                else:
-                    e.pop('grants', None)
+                self._apply_grants(e, (row or {}).get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
                 self._edited(e)
                 self._sync_talent_rider(int(lvl), e)
             elif slot == 'subclass':
@@ -1044,13 +1128,7 @@ class BuilderAPI:
                 changed = base_name(e.get('pick')) != value
                 row = next((b for b in (self.ccat.get('pact_boons') or []) if b['name'] == value), {})
                 e['pick'] = value
-                if row.get('grants'):
-                    e['grants'] = dict(row['grants'])
-                else:
-                    e.pop('grants', None)
-                if changed:
-                    e.pop('granted_maneuvers', None)   # old boon's named picks no longer apply
-                    e.pop('granted_spells', None)
+                self._apply_grants(e, row.get('grants'), changed)   # FR-8 slice 2 (clears stale granted_* on change)
                 self._edited(e)
             else:
                 e['pick'] = value
