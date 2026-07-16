@@ -102,6 +102,9 @@ subclass_grants:
       spells: 1
     spell_access:
       tag: Psychic
+    languages:
+    - name: Deep Speech
+      fluency: Fluent
 spellcasting:
   model: schools
   schools_chosen: 3

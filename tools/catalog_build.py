@@ -66,8 +66,11 @@ WARLOCK_PACT_BOONS = {
 # Eldritch Otherworldly Gift - Psychic Spellcasting: "You learn 1 Spell of your choice with
 # the Psychic Spell Tag. When you learn a new Spell, you can choose any Spell that has the
 # Psychic Spell Tag." (classes.md l.3414-17)
+# Eldritch also grants Fluent Deep Speech for free (classes.md l.3432) - modelled as a
+# `languages` grant so the builder can flow it and the engine zero-costs it (BUG-2).
 SUBCLASS_GRANTS = {
-    "Warlock": {"Eldritch": {"grants": {"spells": 1}, "spell_access": {"tag": "Psychic"}}},
+    "Warlock": {"Eldritch": {"grants": {"spells": 1}, "spell_access": {"tag": "Psychic"},
+                             "languages": [{"name": "Deep Speech", "fluency": "Fluent"}]}},
 }
 
 CLASS_CONFIG = {

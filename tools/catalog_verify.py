@@ -3,8 +3,9 @@
 
 Three checks, in order:
   (1) The engine oracle - re-run every builds/*.yaml ledger through the engine; derived-stat
-      checks must pass. (The two "Trade points over-spent" flags on runt/scaletrix are the KNOWN
-      1-TP language over-spends recorded in _SESSION_LOG, not stat-check failures - whitelisted.)
+      checks must pass. One documented delta remains: runt AD 12 vs 14 (BUG-7) - after the
+      armour fix RAW AD = 14 but the sheet records 12, pending Phil / CH-1, shown red. The old
+      "Trade points over-spent" whitelist is retired (BUG-2: Deep Speech is a free Eldritch grant).
   (2) Catalog vs ALL SIX ledgers - every walked pick must be legal and priced by the catalog:
       each class spine == CLASS_TABLES; every ancestry-trait cost matches (with source aliases,
       trait aliases, and the Redeemed Fiendborn->Angelborn fallback); every named spell exists in
@@ -32,7 +33,8 @@ LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from build_engine import replay, CLASS_TABLES  # noqa: E402
 
-KNOWN_OPEN = {"Trade points over-spent"}  # runt/scaletrix 1-TP language over-spends (session log)
+KNOWN_OPEN = set()  # retired 2026-07-16: runt's trade over-spend was the phantom Deep Speech LP
+                    # (BUG-2, now a free Eldritch grant); scaletrix's was fixed 2026-07-12 (Draconic Limited).
 # Ledger entries that are placeholders for known-missing/known-invalid data, not real picks:
 PLACEHOLDER_MARKERS = ("not itemised", "does NOT exist")
 
@@ -84,9 +86,10 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     mm = sum(1 for ln in rep.lines if ln.endswith("| MISMATCH |"))
     total_ok += ok
     total_mismatch += mm
-    # scaletrix Saves / bonan Move-Jump mismatch the sheet reference BY DESIGN
-    # (item/feature overlays the RAW engine does not model - shown red, whitelisted).
-    _MM = ("Saves", "Move Speed", "Jump Distance")
+    # Documented deltas shown red BY DESIGN. "AD" is runt's BUG-7: after the armour fix
+    # RAW AD = 14 but the sheet records 12 (pending Phil / CH-1). Saves/Move/Jump remain
+    # here as the historical overlay slots (all currently modelled, none tripping).
+    _MM = ("Saves", "Move Speed", "Jump Distance", "AD")
     unexpected = [p for p in rep.problems
                   if p not in KNOWN_OPEN and p.split(":")[0] not in _MM]
     tag = "OK" if not unexpected else f"UNEXPECTED: {unexpected}"
@@ -94,8 +97,8 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     print(f"  {os.path.basename(path):16} L{lvl}  {ok:2} stat-checks OK, {mm} mismatch  {tag}{known}")
     expect(not unexpected, f"{os.path.basename(path)} unexpected problems: {unexpected}")
 print(f"  => TOTAL {total_ok}/{total_ok + total_mismatch} derived-stat checks passed\n")
-expect(total_mismatch == 0, f"expected 0 mismatches (all item/feature effects modelled), got {total_mismatch}")
-expect(total_ok == 90, f"expected 90 passing checks (66 + 24 new stat rows, all clean), got {total_ok}")
+expect(total_mismatch == 1, f"expected 1 documented delta (runt AD 12 vs 14, BUG-7, pending Phil), got {total_mismatch}")
+expect(total_ok == 89, f"expected 89 passing checks (90 rows - 1 documented AD delta), got {total_ok}")
 
 # ---- load the catalog -----------------------------------------------------
 CLASS_CAT = {c: load(f"builds/catalog/{c.lower()}.yaml")
@@ -241,6 +244,18 @@ def check_ledger(fname, led):
         if e.get("grants") and sg:
             expect(e["grants"] == sg["grants"],
                    f"{who}: subclass {b} grants {e['grants']} vs catalog {sg['grants']}")
+        # BUG-2: a subclass that grants languages (e.g. Eldritch -> Fluent Deep Speech) must
+        # have each recorded in the ledger as a free (granted / cost 0) language.
+        for gl in (sg or {}).get("languages", []) if sg else []:
+            led_lang = next((L for L in (led.get("languages") or [])
+                             if norm(L.get("name")) == norm(gl["name"])), None)
+            expect(led_lang is not None,
+                   f"{who}: subclass {b} grants language {gl['name']} but the ledger does not record it")
+            if led_lang is not None:
+                expect(led_lang.get("granted") is True and led_lang.get("cost", 0) == 0,
+                       f"{who}: granted language {gl['name']} must be granted:true cost:0, got "
+                       f"granted={led_lang.get('granted')} cost={led_lang.get('cost')}")
+                print(f"    subclass {b} grants language {gl['name']} (Fluent, free) OK")
         print(f"    subclass {b} OK" + (f" (grants {sg['grants']} match)" if sg and e.get('grants') else ""))
 
     # ancestry traits
@@ -539,4 +554,4 @@ if fails:
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print("PASS - engine oracle holds (90/90 checks; all item/feature effects modelled);\n       catalog reconciles with all six ledgers and rules/*.md")
+print("PASS - engine oracle holds (89/90 checks; 1 documented delta: runt AD 12 vs 14, BUG-7);\n       catalog reconciles with all six ledgers and rules/*.md")

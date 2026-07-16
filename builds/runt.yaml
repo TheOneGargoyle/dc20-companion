@@ -20,17 +20,32 @@ chargen:
   # Point buy: M3=5, A0=2, C-1=1, I2=4 = 12. L3 point assumed Int 2->3 (ask Phil; Phil's
   # summary says "no increases yet" but the budget proves one was spent, same trap as Tan's).
   ancestry_traits:
+  # L1 itemisation from Phil's L1 sheet (2026-07-16). Giantborn (ogre) list, all in
+  # catalog ancestries.yaml Giantborn: 2+1+1+1+1+0-1 = 5 = L1 Ancestry Points.
+  - name: Powerful Build
+    source: Giantborn
+    cost: 2
+  - name: Brute
+    source: Giantborn
+    cost: 1
   - name: Tough
     source: Giantborn
     cost: 1
     grants:
       hp: 1
-    inferred: true
-    note: 'Inferred: explains sheet HP 16 vs 15 derived without it. Verify with Phil.'
-  - name: L1 traits not itemised (remainder)
-    cost: 4
-    inferred: true
-    note: Phil's summary lists no L1 Giantborn/Dwarf traits. 4 points unaccounted. ASK PHIL.
+    note: 'Grants +1 HP (explains sheet HP 16). In both Giantborn and Dwarf lists; tagged Giantborn.'
+  - name: Titanic Toss
+    source: Giantborn
+    cost: 1
+  - name: Mighty Hurl
+    source: Giantborn
+    cost: 1
+  - name: Unyielding Movement
+    source: Giantborn
+    cost: 0
+  - name: Heavy Riser
+    source: Giantborn
+    cost: -1
   spell_schools:
   - Elemental
   - Invocation
@@ -169,23 +184,28 @@ languages:
   fluency: Fluent
   cost: 2
 - name: Deep Speech
-  fluency: Limited
-  cost: 1
+  fluency: Fluent
+  granted: true
+  cost: 0
+  note: 'BUG-2 fix 2026-07-16: Eldritch subclass grants Fluent Deep Speech for free (classes.md l.3432). Was wrongly bought as Limited (cost 1); that phantom LP forced a TP->LP conversion = the long-whitelisted "Runt trade over-spent". Retired as actually fixed.'
 
 equipment:
 - name: Ancestral Dwarven Heavy Armor
-  pd: 2
-  ad: 0
-  mods: Pact Armor; Deflecting Heavy (+2 PD, PDR Half, Speed -1, DisADV Agility — confirm on sheet). Sheet PD 17 = 15 base + Primal Hide 2 (his all-day Forbidden Knowledge routine), Darryl hypothesis 2026-07-10 — CONFIRM WITH PHIL via his handwritten breakdown
+  pd: 1
+  ad: 2
+  pdr: half
+  mdr: half
+  mods: 'BUG-6 fix 2026-07-16 (magic-item audit): Defensive Heavy (+1 PD, +1 AD, PDR Half) with Rigid and Bulky stripped for the 2 Magical Power cost, so NO Speed -1 and NO DisADV Agility. Pact Armor while worn adds +1 AD and MDR Half (RAW; catalog notes it contextual). ad 2 = Defensive Heavy 1 + Pact Armor 1. DR = PDR Half (armour) + MDR Half (Pact Armor), EDR none. Sheet PD 17 = 15 base + Primal Hide 2 (daily Forbidden Knowledge routine).'
 - name: Steadfast Boots
 - name: Staff of Lightning
-  mods: bonded Pact Weapon (pass 2.1)
+  pd: 1
+  mods: 'bonded Pact Weapon (pass 2.1); Quarterstaff Guard property = +1 PD while wielded (BUG-6). PD stays 15: old armour +2/staff +0 = correct armour +1/staff +1.'
 - name: Brass Knuckles
   mods: the +1-vs-grappled rider is retired (previous-version)
 - name: Light Shield (Buckler)
   pd: 0
   ad: 0
-  mods: carried, not wielded (2H staff), so no defense contribution; sheet AD 12 confirms
+  mods: carried, not wielded (2H staff), so no defense contribution
 expected:
   hp: 16
   sp: 2
@@ -211,5 +231,6 @@ expected:
 
 notes:
 - MP 9 is the ruled value (sheet's 8 was previous-version; fixed 2026-07-04).
-- 'L1 Giantborn/Dwarf trait itemisation missing (5 pts: Tough inferred + 4 unknown). ASK PHIL.'
+- 'L1 ancestry itemised 2026-07-16 from Phil''s L1 sheet: Powerful Build 2 / Brute 1 / Tough 1 / Titanic Toss 1 / Mighty Hurl 1 / Unyielding Movement 0 / Heavy Riser -1 = 5. Closes the old "ASK PHIL" itemisation item.'
+- 'BUG-7 (open, Phil / CH-1): after the armour fix RAW AD = 12 base + armour 1 + Pact Armor 1 = 14, but the sheet records 12. Shown as a MISMATCH in the review table as a live reminder until Phil confirms.'
 - 'Second Talent slot contents were resolved 2026-07-05: L2 Martial Expansion + L4 Expanded Boon.'

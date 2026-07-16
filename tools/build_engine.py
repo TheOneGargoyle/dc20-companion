@@ -328,7 +328,9 @@ def replay(ledger, level):
                 steps -= 1  # Trade/Skill Expertise: Cap AND Level +1 = one free step
             spent_tp += steps
         langs = ledger.get("languages", []) or []
-        spent_lp = sum(l.get("cost", 0) for l in langs)
+        # Subclass/feature-granted languages are free regardless of fluency (e.g. Eldritch
+        # grants Fluent Deep Speech, classes.md l.3432): a `granted: true` language costs 0 LP.
+        spent_lp = sum(l.get("cost", 0) for l in langs if not l.get("granted"))
         # conversions: TP deficit funded by SP (1->2), LP deficit funded by TP (1->2)
         tp_deficit = max(0, spent_tp - earned_tp)
         conv_sp = math.ceil(tp_deficit / 2)

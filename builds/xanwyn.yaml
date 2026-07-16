@@ -71,7 +71,7 @@ trades:
   knowledge_trades: [Arcana]
 languages:
   - {name: Common, fluency: Fluent, cost: 0}
-  - {name: Elvan, fluency: Fluent, cost: 2}
+  - {name: Elvan, fluency: Limited, cost: 1}  # BUG-1 fix 2026-07-16: sheet shows Elven at 1 dot (Limited), was wrongly recorded Fluent (same-total swap, slipped past budget checks)
   - {name: Fey, fluency: Limited, cost: 1}
 
 equipment:

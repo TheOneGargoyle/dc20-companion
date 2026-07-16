@@ -527,7 +527,8 @@ class BuilderAPI:
         if slot == 'talent':
             return self._talent_options()
         if slot == 'attribute':
-            return [{'name': a, 'group': '', 'label': a} for a in ATTRS]
+            # BUG-5: capitalise for display only; value (name) stays lower-case as stored.
+            return [{'name': a, 'group': '', 'label': a.title()} for a in ATTRS]
         if slot == 'path':
             return [{'name': p, 'group': '', 'label': p} for p in self.ccat['paths']]
         if slot == 'subclass':
@@ -1455,6 +1456,18 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 .sh-note{font-size:8.5px;color:#5b6472;margin-top:3px}
 .sh-foot{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:8px;padding-top:6px;border-top:1px solid #e2e5ec;font-size:11.5px}
 .sh-foot b{color:#5b6472;font-weight:600}
+/* BUG-4: mobile-responsive character sheet - stack the fixed 3-col grid, size the
+   paper fluidly, tighten padding, and darken the backdrop so the builder does not
+   bleed through. Same max-width:640px pattern the builder UI already uses. */
+@media (max-width:640px){
+  #sheetOverlay{padding:8px;background:rgba(15,20,28,.82)}
+  #sheetOverlay .sheetbar{width:100%;font-size:.8rem;flex-wrap:wrap;gap:.35rem}
+  .sh-paper{width:100%;max-width:100%;padding:12px 12px}
+  .sh-head{flex-wrap:wrap;gap:6px}
+  .sh-chips{flex-wrap:wrap}
+  .sh-cols{grid-template-columns:1fr;gap:8px}
+  .sh-big{flex-wrap:wrap}
+}
 @media print{
   body.sheeting .wrap{display:none!important}
   body.sheeting #sheetOverlay{position:static!important;background:none!important;padding:0!important;overflow:visible!important;display:block!important}

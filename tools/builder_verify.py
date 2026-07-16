@@ -133,11 +133,12 @@ def stage():
     return tmp
 
 
-KNOWN = {"runt": ["Trade points over-spent"]}  # scaletrix over-spend was the wrong Draconic fluency (fixed 2026-07-12)
+KNOWN = {}  # runt trade over-spend retired 2026-07-16 (BUG-2: Deep Speech is a free Eldritch grant)
 # by-design table mismatch: the sheet reference carries an overlay the RAW engine
-# does not model - bonan paper Move 6 / Jump 6 (no speed trait; Mighty Leap re-keys jump).
-KNOWN_MISMATCH = {}  # all deltas now modelled (scaletrix amulet; bonan Fast Movement/Mighty Leap/Jumper/Titanic Leap)
-MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance"}
+# does not model. runt AD 12 vs 14 is BUG-7 (after the armour fix RAW AD = 14; sheet says 12,
+# pending Phil / CH-1) - shown red as a live reminder.
+KNOWN_MISMATCH = {"runt": {"AD"}}
+MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance", "AD"}
 CATPATHS = None
 builder_api = None
 
@@ -666,7 +667,12 @@ def check_newstats():
                der["jump"] == JUMP_DELTA[c], der["jump"])
         else:
             ok("%-10s jump distance = %d (matches oracle)" % (c, o["jump"]), der["jump"] == o["jump"], der["jump"])
-        ok("%-10s DR empty (plumbing; no structured DR declared yet)" % c, der["dr"] == {}, der["dr"])
+        if c == "runt":
+            # BUG-6: Runt now declares DR - PDR Half (Defensive Heavy armour) + MDR Half (Pact Armor).
+            ok("%-10s DR = PDR/MDR Half (armour + Pact Armor)" % c,
+               der["dr"] == {"PDR": ["half"], "MDR": ["half"]}, der["dr"])
+        else:
+            ok("%-10s DR empty (plumbing; no structured DR declared yet)" % c, der["dr"] == {}, der["dr"])
     # DR plumbing end-to-end: inject a structured PDR/MDR onto an equipment item
     api = builder_api.BuilderAPI("runt", CATPATHS)
     api.ledger["equipment"][0]["pdr"] = "half"
@@ -679,6 +685,11 @@ def check_newstats():
     ok("page sheet has Saves section, DR row and the move/jump footer",
        ">Saves</h3>" in html and "Damage reduction" in html and "sh-foot" in html
        and "Move Speed" in html and "Spend Limit" in html)
+    # BUG-4: the sheet overlay is mobile-responsive - a max-width:640px block stacks .sh-cols
+    # to one column and sizes .sh-paper fluidly (real-phone verification is Darryl's).
+    ok("sheet overlay has mobile-responsive rules (BUG-4)",
+       "@media (max-width:640px)" in html and ".sh-cols{grid-template-columns:1fr" in html
+       and ".sh-paper{width:100%;max-width:100%" in html)
 
 
 # ---------------------------------------------------------------- (11) composite re-pick escape hatch
@@ -759,8 +770,8 @@ def check_replace_hatch():
        all(d["widget"] == "picker" and d.get("editable") for d in mrows)
        and all(d.get("removable") for d in mrows if (d.get("level") or 1) > 1),
        [(d.get("level"), d.get("current")) for d in mrows])
-    ok("no new problems introduced by the replace (runt keeps only his known trade over-spend)",
-       s1["problems"] == ["Trade points over-spent"], s1["problems"])
+    ok("no new problems introduced by the replace (runt shows only the known AD 12-vs-14 delta, BUG-7)",
+       s1["problems"] == ["AD: derived 14 vs sheet 12"], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page JS carries the replace-picker furniture",
        "t.replaceable" in html and "&mdash; replace &mdash;" in html
