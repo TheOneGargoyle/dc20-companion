@@ -59,7 +59,7 @@ chargen:
     granted_maneuvers:
     - Cleave
     - Pathcarver
-    note: Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12
+    note: Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12, confirmed by Darryl 2026-07-16
   spells:
   - Lightning Torrent
   - Heal
@@ -118,7 +118,7 @@ levels:
     - Brace
     - Side Step
     source: Expanded Boon talent
-    note: 'Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step); +1 AD & MDR while worn (contextual). Phil to confirm.'
+    note: 'Ancestral Dwarven Heavy Armor: 2 defensive maneuvers (Brace, Side Step) - confirmed by Darryl 2026-07-16; +1 AD & MDR while worn (contextual, AD still to confirm with Phil - BUG-7).'
   - slot: path
     pick: Martial
   - slot: ancestry_trait
