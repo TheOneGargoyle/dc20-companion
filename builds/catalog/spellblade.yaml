@@ -101,10 +101,21 @@ disciplines:
 - name: Blink Blade
 - name: Sense Magic
   flavor: true
+runes:
+- name: Earth
+- name: Flame
+- name: Frost
+- name: Lightning
+- name: Water
+- name: Wind
 subclasses:
 - Paladin
 - Rune Knight
 - Paragon
+subclass_grants:
+  Rune Knight:
+    grants:
+      runes: 2
 spellcasting:
   model: schools
   schools_chosen: 2

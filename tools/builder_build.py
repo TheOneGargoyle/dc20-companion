@@ -1121,8 +1121,15 @@ class BuilderAPI:
                 self._edited(e)
                 self._sync_talent_rider(int(lvl), e)
             elif slot == 'subclass':
+                # FR-8 slice 3: the subclass is a grant-bearing parent (the one branch slice 2 left
+                # un-wired). Look up its grants in the catalog subclass_grants side-map and route
+                # through _apply_grants so re-picking rebuilds/clears its rune child-slots (e.g. Rune
+                # Knight grants runes: 2), symmetric with the discipline / pact_boon / talent branches.
+                sg = (self.ccat.get('subclass_grants') or {}).get(value) or {}
+                changed = base_name(e.get('pick')) != value
                 e['pick'] = value
                 self.ledger['subclass'] = value
+                self._apply_grants(e, sg.get('grants'), changed)   # FR-8 slice 3
                 self._edited(e)
             elif slot == 'pact_boon':
                 changed = base_name(e.get('pick')) != value

@@ -995,6 +995,67 @@ def check_slice2():
        and hasattr(builder_api, "GRANT_CHILD_SLOTS"))
 
 
+# ---------------------------------------------------------------- (14) FR-8 slice 3 Rune Knight
+def check_slice3():
+    UND = "(undecided)"
+    print()
+    print("## (14) FR-8 slice 3: Rune Knight subclass grants 2 runes (Xanwyn, real catalog)")
+
+    # ---- (a) the real Spellblade rune catalog populates the 'rune' picker ----
+    xapi = builder_api.BuilderAPI("xanwyn", CATPATHS)
+    rune_opts = xapi._options_for("rune")
+    ok("Spellblade ccat['runes'] populates _options_for('rune') with the 6 canonical runes",
+       {o["name"] for o in rune_opts} == {"Earth", "Flame", "Frost", "Lightning", "Water", "Wind"},
+       [o["name"] for o in rune_opts])
+    ok("Rune Knight carries the runes:2 grant in the catalog subclass_grants side-map",
+       (xapi.ccat.get("subclass_grants") or {}).get("Rune Knight", {}).get("grants") == {"runes": 2},
+       (xapi.ccat.get("subclass_grants") or {}).get("Rune Knight"))
+
+    # ---- (b) Xanwyn's L3 subclass is now a real editable picker (de-bundled from the name) ----
+    s = st(xapi)
+    subdec = next(d for d in s["decisions"] if d.get("slot") == "subclass")
+    ok("Xanwyn's subclass row is a clean editable picker reading 'Rune Knight' (not fixed composite text)",
+       subdec["widget"] == "picker" and subdec["editable"] and subdec["current"] == "Rune Knight"
+       and not subdec.get("replaceable"),
+       (subdec["widget"], subdec.get("current"), subdec.get("replaceable")))
+    subref = str(subdec["id"])   # e.g. 'L3:0'
+
+    # ---- (c) 2 rune child pickers materialise keyed to the subclass, reading Flame + Water ----
+    kids = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#runes#" % subref)]
+    ok("the {runes:2} subclass grant materialises 2 'rune' child pickers keyed to the subclass row",
+       len(kids) == 2 and all(d["slot"] == "rune" and d["widget"] == "picker" and d["editable"] for d in kids),
+       [(d["id"], d.get("current")) for d in kids])
+    ok("the rune children read Xanwyn's granted_runes [Flame, Water], 6 options each",
+       [d["current"] for d in kids] == ["Flame", "Water"] and all(len(d["options"]) == 6 for d in kids),
+       [(d["current"], len(d["options"])) for d in kids])
+    ok("both runes decided -> no rune completeness problem and Xanwyn's build stays clean",
+       not any("rune undecided" in p for p in s["builder_problems"]) and s["catalog_problems"] == [],
+       (s["builder_problems"], s["catalog_problems"]))
+
+    # ---- (d) re-picking the subclass rebuilds/clears the rune child-slots (_apply_grants wiring) ----
+    xapi.set_decision(subref, "Paladin")                       # a non-rune subclass
+    e = next(e for lvl in xapi.ledger["levels"] for e in xapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("re-picking to a non-rune subclass (Paladin) drops the runes grant and the granted_runes children",
+       "runes" not in (e.get("grants") or {}) and not e.get("granted_runes")
+       and not any(str(d.get("id")).startswith("GC#%s#runes#" % subref) for d in st(xapi)["decisions"]),
+       (e.get("grants"), e.get("granted_runes")))
+    xapi.set_decision(subref, "Rune Knight")                   # back to the rune-granting subclass
+    e = next(e for lvl in xapi.ledger["levels"] for e in xapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("re-picking Rune Knight rebuilds 2 undecided rune slots (all UNDECIDED on a real option change)",
+       e.get("grants") == {"runes": 2} and e.get("granted_runes") == [UND, UND],
+       (e.get("grants"), e.get("granted_runes")))
+    s2 = st(xapi)
+    kids2 = [d for d in s2["decisions"] if str(d.get("id")).startswith("GC#%s#runes#" % subref)]
+    ok("2 fresh rune child pickers render + surface as builder problems until decided",
+       len(kids2) == 2 and all(d["current"] == UND for d in kids2)
+       and any("rune undecided" in p for p in s2["builder_problems"]),
+       ([d["current"] for d in kids2], [p for p in s2["builder_problems"] if "rune" in p]))
+    xapi.set_decision(kids2[0]["id"], "Frost")
+    e = next(e for lvl in xapi.ledger["levels"] for e in xapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("editing a rune child writes into the subclass's granted_runes (structural GC# link)",
+       e.get("granted_runes") == ["Frost", UND], e.get("granted_runes"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1019,6 +1080,7 @@ def main():
         check_replace_hatch()
         check_wave2()
         check_slice2()
+        check_slice3()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1034,7 +1096,8 @@ def main():
     print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle,")
     print("       composite re-pick escape hatch,")
     print("       Wave 2 UX (recent files + Level A, sort, unsaved guard, refilter, budget messaging),")
-    print("       FR-8 slice 2 grants -> typed child picker-slots backbone")
+    print("       FR-8 slice 2 grants -> typed child picker-slots backbone,")
+    print("       FR-8 slice 3 Rune Knight subclass grants 2 runes (Xanwyn, real catalog)")
     sys.exit(0)
 
 

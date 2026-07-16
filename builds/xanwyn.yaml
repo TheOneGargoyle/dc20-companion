@@ -5,7 +5,7 @@ ruleset: "DC20 0.10.5"
 character: "Xanwyn Andaaras"
 player: Jesse
 class: Spellblade
-subclass: "Rune Knight (Flame + Water runes)"
+subclass: "Rune Knight"  # FR-8 slice 3: runes de-bundled from the name into the L3 subclass entry's granted_runes (Flame + Water)
 ancestry: "Elvan (Elf + Beast trait lists)"
 background: "Clandestine Alchemist"
 current_level: 4
@@ -42,7 +42,7 @@ levels:
     - {slot: maneuver, pick: Resolve, inferred: true, source: "Martial path rank 1"}
     - {slot: spell, pick: "Death Bolt + Regenerate (the 2 SSI picks; timing/order inferred)", inferred: true}
   3:
-    - {slot: subclass, pick: "Rune Knight (Flame + Water)"}
+    - {slot: subclass, pick: "Rune Knight", grants: {runes: 2}, granted_runes: [Flame, Water]}  # FR-8 slice 3: 2 Runes learned (classes.md l.3080); flows via the slice-2 child-slot backbone
     - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed. ASK JESSE."}
     - {slot: spell, pick: Primal Hide, inferred: true, source: "Magus +1 spell (timing inferred)"}
     - {slot: maneuver, pick: Pathcarver, inferred: true, source: "class table +1"}

@@ -62,15 +62,31 @@ WARLOCK_PACT_BOONS = {
     "Pact Familiar": {"note": "summons a familiar (no resource delta)"},
 }
 
+# Spellblade Rune Knight runes (classes.md l.3080-3116): "You learn 2 Runes from the following
+# list." Six runes; short names (the ledger's convention). None confer a resource delta (their
+# effects are passive / on-Smite riders), so no `grants:` - they are pure picks that flow from the
+# Rune Knight subclass grant (runes: 2) via the FR-8 slice-2 child-slot backbone.
+RUNES = {
+    "Earth": {},
+    "Flame": {},
+    "Frost": {},
+    "Lightning": {},
+    "Water": {},
+    "Wind": {},
+}
+
 # Subclass resource grants the walked ledgers record (cross-checked below):
 # Eldritch Otherworldly Gift - Psychic Spellcasting: "You learn 1 Spell of your choice with
 # the Psychic Spell Tag. When you learn a new Spell, you can choose any Spell that has the
 # Psychic Spell Tag." (classes.md l.3414-17)
 # Eldritch also grants Fluent Deep Speech for free (classes.md l.3432) - modelled as a
 # `languages` grant so the builder can flow it and the engine zero-costs it (BUG-2).
+# Spellblade Rune Knight learns 2 Runes (classes.md l.3080) - a pickable grant that materialises
+# 2 rune child-slots via the FR-8 slice-2 backbone (FR-8 slice 3).
 SUBCLASS_GRANTS = {
     "Warlock": {"Eldritch": {"grants": {"spells": 1}, "spell_access": {"tag": "Psychic"},
                              "languages": [{"name": "Deep Speech", "fluency": "Fluent"}]}},
+    "Spellblade": {"Rune Knight": {"grants": {"runes": 2}}},
 }
 
 CLASS_CONFIG = {
@@ -79,6 +95,7 @@ CLASS_CONFIG = {
         "extras": {
             "disciplines_pick_l1": 2,
             "disciplines": SPELLBLADE_DISCIPLINES,
+            "runes": RUNES,
         },
         "spellcasting": {"model": "schools", "schools_chosen": 2, "tag_access": ["Weapon", "Ward"]},
     },
@@ -198,6 +215,11 @@ def build(cls):
         verify_names_present(section, extras["pact_boons"], "pact boon(s)", cls)
         catalog["pact_boons_pick_l1"] = extras["pact_boons_pick_l1"]
         catalog["pact_boons"] = [dict({"name": n}, **v) for n, v in extras["pact_boons"].items()]
+    if "runes" in extras:
+        # FR-8 slice 3: Rune Knight learns 2 Runes; same shape as disciplines/pact_boons so the
+        # builder can look one up. Short names (ledger convention) appear in classes.md as "<X> Rune".
+        verify_names_present(section, extras["runes"], "rune(s)", cls)
+        catalog["runes"] = [dict({"name": n}, **v) for n, v in extras["runes"].items()]
 
     catalog["subclasses"] = subclasses
     sg = SUBCLASS_GRANTS.get(cls, {})

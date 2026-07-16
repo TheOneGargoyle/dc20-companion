@@ -146,6 +146,14 @@ for cls, cat in CLASS_CAT.items():
         expect(row.get("features") == list(deltas.get("features", [])), f"{cls} spine L{lvl} features drift")
 print("  spines match CLASS_TABLES across all 10 levels x 5 classes")
 
+# FR-8 slice 3: Spellblade rune catalog + Rune Knight grant (feeds the slice-2 child-slot backbone)
+_sb = CLASS_CAT["Spellblade"]
+expect({r["name"] for r in _sb.get("runes", [])} == {"Earth", "Flame", "Frost", "Lightning", "Water", "Wind"},
+       f"Spellblade runes drift (classes.md l.3081-3116): {[r.get('name') for r in _sb.get('runes', [])]}")
+expect((_sb.get("subclass_grants") or {}).get("Rune Knight", {}).get("grants") == {"runes": 2},
+       f"Spellblade Rune Knight must grant runes: 2, got {(_sb.get('subclass_grants') or {}).get('Rune Knight')}")
+print("  Spellblade rune catalog (6 runes) present + Rune Knight grants runes: 2 OK")
+
 
 def anc_lookup(source, name):
     """Resolve (source, trait-name) -> (cost, resolved-list). Tries the named list (via
@@ -256,6 +264,16 @@ def check_ledger(fname, led):
                        f"{who}: granted language {gl['name']} must be granted:true cost:0, got "
                        f"granted={led_lang.get('granted')} cost={led_lang.get('cost')}")
                 print(f"    subclass {b} grants language {gl['name']} (Fluent, free) OK")
+        # FR-8 slice 3: a rune-granting subclass (Rune Knight) records its picks in granted_runes;
+        # each must be a real catalog rune (short name).
+        cat_runes = {r["name"] for r in (cat.get("runes") or [])}
+        for r in (e.get("granted_runes") or []):
+            expect(r in cat_runes,
+                   f"{who}: granted rune {r!r} not in {cls} catalog runes {sorted(cat_runes)}")
+        if e.get("granted_runes"):
+            expect(sg and len(e["granted_runes"]) == sg["grants"].get("runes", 0),
+                   f"{who}: {len(e['granted_runes'])} granted_runes vs grant {sg and sg.get('grants')}")
+            print(f"    subclass {b} granted_runes {e['granted_runes']} all in catalog OK")
         print(f"    subclass {b} OK" + (f" (grants {sg['grants']} match)" if sg and e.get('grants') else ""))
 
     # ancestry traits
