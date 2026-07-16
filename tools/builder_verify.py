@@ -783,6 +783,17 @@ def check_replace_hatch():
     ok("changing the boon flows grants from the catalog and drops the old boon's captured maneuvers",
        e4["pick"] == "Pact Spell" and not e4.get("grants") and not e4.get("granted_maneuvers"),
        (e4.get("grants"), e4.get("granted_maneuvers")))
+    # FR-8 slice 1: Runt's L1 Pact Weapon boon is now a clean picker (de-bundled from its weapon text)
+    api4 = builder_api.BuilderAPI("runt", CATPATHS)
+    l1boon = next((d for d in st(api4)["decisions"]
+                   if d.get("slot") == "pact_boon" and d.get("level") == 1), None)
+    ok("FR-8 L1 Pact Weapon is a clean editable picker (not fixed text), current Pact Weapon, 4 options",
+       bool(l1boon) and l1boon["widget"] == "picker" and l1boon.get("editable")
+       and l1boon.get("current") == "Pact Weapon" and len(l1boon.get("options") or []) == 4, l1boon)
+    api4.set_decision(l1boon["id"], "Pact Familiar")
+    cc4 = next(c for c in api4.ledger["chargen"]["class_choices"] if c["slot"] == "pact_boon")
+    ok("changing the L1 boon re-aggregates grants from the catalog (Pact Familiar grants none)",
+       cc4["picks"][0] == "Pact Familiar" and not cc4.get("grants"), (cc4.get("picks"), cc4.get("grants")))
     mrows = [d for d in st(api2)["decisions"] if d.get("slot") == "maneuver"]
     ok("all generated maneuver rows are editable pickers (level slots removable)",
        all(d["widget"] == "picker" and d.get("editable") for d in mrows)

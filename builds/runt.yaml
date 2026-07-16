@@ -53,13 +53,13 @@ chargen:
   class_choices:
   - slot: pact_boon
     picks:
-    - 'Pact Weapon: Staff (Powerful focus; 1B, 2H, Guard, Reach, Impact)'
+    - Pact Weapon
     grants:
       maneuvers: 2
     granted_maneuvers:
     - Cleave
     - Pathcarver
-    note: Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver) - captured structurally 2026-07-12, confirmed by Darryl 2026-07-16
+    note: 'Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver - confirmed by Darryl 2026-07-16). The bonded weapon is the Staff of Lightning (Powerful focus; 1B, 2H, Guard, Reach, Impact), recorded under equipment. FR-8 slice 1 (2026-07-17): de-bundled the weapon text from the boon name so the L1 boon renders as a clean picker like the L4 Pact Armor.'
   spells:
   - Lightning Torrent
   - Heal

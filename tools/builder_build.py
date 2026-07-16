@@ -726,7 +726,7 @@ class BuilderAPI:
                                 removable=self.scratch or BUILDER_NOTE in str(t.get('note', ''))))
         for ci, c in enumerate(cg.get('class_choices') or []):
             opt_slot = ('discipline' if c['slot'] == 'spellblade_disciplines'
-                        else 'pact_boon' if c['slot'] == 'pact_boons' else None)
+                        else 'pact_boon' if c['slot'] in ('pact_boons', 'pact_boon') else None)
             if opt_slot:
                 for pi, p in enumerate(c.get('picks') or []):
                     ds.append(self._dec('cg:choice:%d:%d' % (ci, pi), 1, opt_slot, p,
