@@ -18,27 +18,27 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
-| BUG-1 | Xanwyn Elven fluency wrong (Fluent should be Limited) | bug | data | P2 | ready |
-| BUG-2 | Subclass/feature-granted languages not modelled as free (Deep Speech) | bug | engine+catalog+data | P1 | ready |
-| BUG-3 | Point-budget messaging: legal-spare vs over-spent, symmetric language verdict | bug | engine | P2 | ready |
-| BUG-4 | Character sheet overlay not mobile-responsive (iPhone) | bug | builder | P1 | ready |
-| BUG-5 | L3 attribute picker options show lower-case not capitalised | bug | builder | P3 | ready |
-| BUG-6 | Runt armour mis-modelled + staff Guard / Pact Armor AD+MDR / DR unpopulated | bug | engine+data | P1 | ready |
-| BUG-7 | Runt AD reads 12, RAW says 14 after the armour fix | bug | data | P2 | blocked (Phil / re-audit) |
-| FR-1 | Sort the builder character picker alphabetically | feature | builder | P3 | ready |
+| BUG-1 | Xanwyn Elven fluency wrong (Fluent should be Limited) | bug | data | P2 | done (2026-07-16) |
+| BUG-2 | Subclass/feature-granted languages not modelled as free (Deep Speech) | bug | engine+catalog+data | P1 | done (2026-07-16) |
+| BUG-3 | Point-budget messaging: legal-spare vs over-spent, symmetric language verdict | bug | engine | P2 | done (2026-07-16) |
+| BUG-4 | Character sheet overlay not mobile-responsive (iPhone) | bug | builder | P1 | done (2026-07-16, real-phone check pending) |
+| BUG-5 | L3 attribute picker options show lower-case not capitalised | bug | builder | P3 | done (2026-07-16) |
+| BUG-6 | Runt armour mis-modelled + staff Guard / Pact Armor AD+MDR / DR unpopulated | bug | engine+data | P1 | done (2026-07-16) |
+| BUG-7 | Runt AD reads 12, RAW says 14 after the armour fix | bug | data | P2 | blocked (Phil / re-audit); now surfaced red by design |
+| FR-1 | Sort the builder character picker alphabetically | feature | builder | P3 | done (2026-07-16) |
 | FR-2 | Finish DR (PDR/EDR/MDR) for the rest of the party + rules references | feature | engine | P2 | ready |
 | FR-3 | Level-up plans for all PCs (like Tan) | feature | builder+data | P2 | ready |
 | FR-4 | Rename a char / file | feature | builder+data | P3 | needs-clarification |
-| FR-5 | Unsaved-changes guard when switching character | feature | builder | P2 | ready |
+| FR-5 | Unsaved-changes guard when switching character | feature | builder | P2 | done (2026-07-16) |
 | FR-6 | Show rules text for a chosen trait/ability (link or hover) | feature | builder | P2 | ready |
-| FR-7 | Refilter dropdowns to hide already-chosen options | feature | builder | P2 | ready |
+| FR-7 | Refilter dropdowns to hide already-chosen options | feature | builder | P2 | done (2026-07-16, spell/maneuver/talent/spell_school; ancestry/pact_boon/discipline later) |
 | FR-8 | Choice-bearing talents/subclasses need pickers/slots (epic) | feature | engine+catalog+builder | P1 | ready |
 | FR-9 | Expand ancestry traits into slots (like maneuvers) | feature | builder | P2 | ready (Runt data resolved) |
 | FR-10 | Echo next-level preview text into the level's section header | feature | builder | P3 | ready |
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
 | FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | ready (epic) |
 | FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | ready |
-| FR-14 | Recent Files list in the picker + auto-add on deeplink | feature | builder | P2 | ready |
+| FR-14 | Recent Files list in the picker + auto-add on deeplink | feature | builder | P2 | done (2026-07-16, incl. Level A) |
 | CH-1 | Re-audit all six ledgers' languages/skills/trades vs paper sheets | chore | data | P2 | ready |
 | CH-2 | Standardise Elven / Elvish / Elvan spelling | chore | data+catalog | P3 | ready |
 | CH-3 | Drop the vestigial tracked root index.html | chore | repo | P3 | ready |
@@ -54,6 +54,10 @@ Worked top to bottom. Wave 1 is designed to verify in a single regression cycle.
 - **Wave 3, bigger features:** FR-3, FR-6, FR-10, FR-2.
 - **Wave 4, epics (interdependent):** FR-8, then FR-12 (needs FR-7 + picker search), with FR-13 alongside FR-12.
 - **Low / when convenient:** CH-2, CH-3, FR-4 (needs scoping), FR-11 (parked).
+
+**Shipped 2026-07-16 (pushed, head `e26963b` then `caca1d0`):** all of Wave 1 (BUG-1, BUG-2, BUG-5, BUG-6 + Runt L1 ancestry itemisation) plus BUG-4 (mobile sheet); BUG-7 now surfaces as a red MISMATCH by design (pending Phil). Baseline is now **89/90** (the 1 delta is BUG-7). Stray `runt_old.yaml` removed from the repo; `BACKLOG.md` added. Companion `template.html` sknotes aligned to the ledger fixes (Xanwyn Elven limited; Runt Deep Speech Fluent Eldritch grant).
+
+**Wave 2 remainder BUILT + VERIFIED 2026-07-16 (awaiting sync/commit/push):** FR-14 (Recent Files in the picker, per-device localStorage, deeplink `?char=` auto-adds; plus Level A: the baked party is no longer listed in the default dropdown but still resolves by deeplink), FR-1 (new-from-scratch list sorted alphabetically; the party list is delisted by Level A so the alpha-sort applies there and recents stay recency-ordered by design), FR-5 (unsaved-changes confirm-guard when switching character in the dropdown; Cancel reverts the selection), FR-7 (pickers hide options already chosen elsewhere for spell / maneuver / talent / spell_school; ancestry_trait / pact_boon / discipline left to a later pass because of their budget / choice-count machinery and existing harness expectations), BUG-3 (symmetric, clearer budget verdicts: balanced / "N SPARE (legal)" / OVER-SPENT on all three of skills/trades/languages; the language line is no longer asymmetric, and "UNDER-SPENT" is retired so a legal lumpy-conversion spare no longer reads as a fault). Harness section (12) added (238 OK; catalog_verify still 89/90). Files: `tools/build_engine.py`, `tools/builder_build.py`, `tools/builder_verify.py`, regenerated `builds/builder.html`, and this `BACKLOG.md`. Remaining in the plan: Wave 3 (FR-3, FR-6, FR-10, FR-2), then the Wave 4 epics.
 
 **Demo context (2026-07-16).** Next session is tomorrow night. Nothing here is required for the game, it runs fine as-is: zero must-do, the session is not blocked whatever we do. Everything working by then is an "above and beyond" demo bonus, and players (Phil especially, on Runt) will likely use the builder live on their phones if enough works. So for the demo the highest-leverage subset is the mobile sheet (BUG-4) and Runt's correctness (BUG-2, BUG-6, the ancestry itemisation), since those are what the players would actually touch; FR-14 Level A makes the picker demo cleaner. Anything meant to be live for the demo must be synced + committed + pushed by Darryl (or shown from a local build).
 

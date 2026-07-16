@@ -338,25 +338,36 @@ def replay(ledger, level):
         conv_tp = math.ceil(lp_deficit / 2)
         total_sp = spent_sp + conv_sp
         total_tp_ok = spent_tp + conv_tp <= earned_tp + conv_sp * 2
+        # BUG-3: symmetric, clear verdicts. Under-spend after whole 2-for-1 conversions
+        # (or before level-up night) is LEGAL and must not read as a fault; only an
+        # over-spend is illegal. All three lines (skills/trades/languages) use one verdict.
+        def verdict(total, avail):
+            if total == avail:
+                return "balanced"
+            if total < avail:
+                n = avail - total
+                return (f"{n} SPARE (legal - a lumpy 2-for-1 conversion leftover or an "
+                        f"unspent point; spend at level-up)")
+            return f"OVER-SPENT by {total - avail} (illegal)"
         rep.add("## Point budgets")
         rep.add()
         rep.add(f"- Skill points: earned {earned_sp}, spent {spent_sp}"
                 + (f" + {conv_sp} converted to {conv_sp*2} TP" if conv_sp else "")
-                + f" = {total_sp} -> " + ("balanced" if total_sp == earned_sp else
-                  ("UNDER-SPENT" if total_sp < earned_sp else "OVER-SPENT")))
+                + f" = {total_sp} -> " + verdict(total_sp, earned_sp))
         if total_sp > earned_sp:
             rep.problem(f"Skill points over-spent: {total_sp} vs {earned_sp}")
         tp_total, tp_avail = spent_tp + conv_tp, earned_tp + conv_sp * 2
         rep.add(f"- Trade points: earned {earned_tp} (+{conv_sp*2} via conversion), spent {spent_tp}"
                 + (f" + {conv_tp} converted to LP" if conv_tp else "")
-                + f" -> " + ("balanced" if tp_total == tp_avail else
-                  ("UNDER-SPENT" if tp_total < tp_avail else "OVER-SPENT")))
+                + f" -> " + verdict(tp_total, tp_avail))
         if not total_tp_ok:
             rep.problem("Trade points over-spent")
         lp_avail = BACKGROUND_LANG + conv_tp * 2
         rep.add(f"- Language points: {BACKGROUND_LANG} free, spent {spent_lp}"
-                + (f" ({conv_tp} TP converted)" if conv_tp else "")
-                + (" -> UNDER-SPENT" if spent_lp < lp_avail else ""))
+                + (f" ({conv_tp} TP converted -> +{conv_tp*2} LP)" if conv_tp else "")
+                + f" -> " + verdict(spent_lp, lp_avail))
+        if spent_lp > lp_avail:
+            rep.problem(f"Language points over-spent: {spent_lp} vs {lp_avail}")
         rep.add()
 
     # --- derived table ------------------------------------------------------

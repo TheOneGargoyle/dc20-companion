@@ -83,6 +83,11 @@ EDITABLE_SLOTS = {'talent', 'path', 'subclass', 'discipline', 'spell', 'maneuver
 # (single clean-value slots; ancestry_trait/attribute excluded - they have cost/budget
 # machinery and 'remainder not itemised' placeholders that a single pick can't replace).
 REPLACEABLE_SLOTS = {'talent', 'subclass', 'discipline', 'spell', 'maneuver'}
+# FR-7: slots whose picker hides options already chosen elsewhere (so the same one can't
+# be picked twice). Kept to the clear "collectibles"; ancestry_trait / pact_boon /
+# discipline are left to a later pass (they carry budget / choice-count machinery and
+# existing harness expectations).
+FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -517,6 +522,35 @@ class BuilderAPI:
                                                           r['feature_level'], r['via'])})
         return opts
 
+    def _chosen_names(self, slot):
+        # FR-7: base names already chosen for this slot across chargen + every level,
+        # so a picker can hide them. Composite / undecided entries are skipped.
+        out = set()
+        cg = self.ledger['chargen']
+        namekey = slot in ('spell', 'maneuver', 'talent')
+
+        def add(v):
+            if v is None:
+                return
+            s = str(v)
+            if s == UNDECIDED or is_composite(s):
+                return
+            out.add(base_name(s) if namekey else s)
+        if slot == 'spell':
+            for x in cg.get('spells') or []:
+                add(x)
+        elif slot == 'maneuver':
+            for x in cg.get('maneuvers') or []:
+                add(x)
+        elif slot == 'spell_school':
+            for x in cg.get('spell_schools') or []:
+                add(x)
+        for lvl in self.ledger.get('levels') or {}:
+            for e in self.ledger['levels'][lvl] or []:
+                if e.get('slot') == slot:
+                    add(e.get('pick'))
+        return out
+
     def _options_for(self, slot):
         if slot == 'ancestry_trait':
             return self._anc_options()
@@ -721,7 +755,12 @@ class BuilderAPI:
                     d['expandable'] = True
                     d['expand_n'] = self._total_granted('maneuvers' if slot == 'maneuver' else 'spells')
         if d['widget'] == 'picker':
-            d['options'] = self._options_for(slot)
+            opts = self._options_for(slot)
+            if slot in FR7_FILTER_SLOTS:  # FR-7: hide options already taken elsewhere
+                mine = base_name(pick) if slot in ('spell', 'maneuver', 'talent') else str(pick)
+                taken = self._chosen_names(slot) - ({mine} if str(pick) != UNDECIDED else set())
+                opts = [o for o in opts if o['name'] not in taken]
+            d['options'] = opts
             if str(pick) == UNDECIDED:
                 d['current'] = UNDECIDED
                 return d
@@ -840,7 +879,7 @@ class BuilderAPI:
             'languages': self._langs(),
             'language_options': self._language_options(),
             'stats': stats, 'budgets': budgets,
-            'advisories': [b for b in budgets if 'UNDER-SPENT' in b],
+            'advisories': [b for b in budgets if 'SPARE' in b],
             'problems': rep.problems,
             'catalog_problems': self.catalog_problems(),
             'builder_problems': self.builder_problems(),
@@ -1687,16 +1726,49 @@ const storeKey = () => "dc20builder:" + handle;
 const isCanon = () => ST && !ST.scratch && CHARS.includes(ST.handle);
 const slug = s => ((s.character||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || s.handle);
 
+const RECENT_KEY = "dc20builder:recent";
+function loadRecents(){                 // FR-14: per-device Recent Files (party handles only)
+  try{ const a = JSON.parse(localStorage.getItem(RECENT_KEY)||"[]");
+    return Array.isArray(a) ? a.filter(r=>r && CHARS.includes(r.handle)) : []; }
+  catch(e){ return []; }
+}
+function addRecent(h, label){
+  if(!h || !CHARS.includes(h)) return;  // only baked party canon handles resolve by ?char=
+  let a = loadRecents().filter(r=>r.handle!==h);
+  a.unshift({handle:h, label:label||h, ts:Date.now()});
+  a = a.slice(0, 8);
+  try{ localStorage.setItem(RECENT_KEY, JSON.stringify(a)); }catch(e){}
+}
+function currentSelValue(){
+  if(mode.newClass) return "new:"+mode.newClass;
+  if(handle && CHARS.includes(handle)) return handle;
+  if(ST && ST.scratch) return "__loaded__";
+  return "";
+}
+function buildCharSel(){                // FR-14 Level A (no baked party list) + FR-1 (sorted)
+  const sel = $('charsel');
+  let list = loadRecents();
+  if(mode.char && !list.some(r=>r.handle===mode.char)) list = [{handle:mode.char, label:mode.char}].concat(list);
+  const cur = currentSelValue();
+  sel.innerHTML =
+    (mode.blank ? '<option value="" selected disabled>&mdash; pick a character &mdash;</option>' : '') +
+    (list.length ? '<optgroup label="recent files">' +
+       list.map(r=>`<option value="${esc(r.handle)}" ${r.handle===cur?'selected':''}>${esc(r.label||r.handle)}</option>`).join("") +
+       '</optgroup>' : '') +
+    '<optgroup label="new from scratch">' +
+       NEWC.slice().sort().map(c=>`<option value="new:${esc(c)}" ${("new:"+c)===cur?'selected':''}>new ${esc(c)}</option>`).join("") +
+    '</optgroup>';
+}
 async function boot(){
   const sel = $('charsel');
-  sel.innerHTML = (mode.blank ? '<option value="" selected disabled>&mdash; pick a character &mdash;</option>' : '') +
-    '<optgroup label="party">' +
-      CHARS.map(c=>`<option value="${c}" ${(!mode.newClass && c===handle)?'selected':''}>${c}</option>`).join("") +
-    '</optgroup><optgroup label="new from scratch">' +
-      NEWC.map(c=>`<option value="new:${c}" ${(mode.newClass===c)?'selected':''}>new ${c}</option>`).join("") +
-    '</optgroup>';
+  buildCharSel();
   sel.onchange = () => {
     if(sel.value === "__loaded__") return;   // synthetic entry for a file-loaded character
+    // FR-5: switching character reloads the page; guard unsaved in-memory edits first.
+    if(dirty && !confirm("You have unsaved changes to " + ((ST&&ST.character)||handle||"this character")
+        + ".\n\nSwitching characters reloads the builder and discards them. Export first if you want to keep them.\n\nSwitch anyway?")){
+      sel.value = currentSelValue(); return;
+    }
     const u = new URL(location); u.searchParams.delete('char'); u.searchParams.delete('new');
     if(sel.value.startsWith('new:')) u.searchParams.set('new', sel.value.slice(4));
     else u.searchParams.set('char', sel.value);
@@ -1737,7 +1809,9 @@ async function boot(){
   }
   api = mode.newClass ? pyodide.globals.get("make_api_new")(mode.newClass)
                       : pyodide.globals.get("make_api")(handle);
-  render(JSON.parse(api.state()));
+  const s0 = JSON.parse(api.state());
+  render(s0);
+  if(mode.char){ addRecent(handle, s0.character); buildCharSel(); }  // FR-14: deeplink auto-adds to Recent Files
   $('app').style.display = "grid";
   $('status').className = "ready";
   $('status').textContent = "Ready - the engine is running in your browser. Edit any highlighted decision, adjust skills, trades and languages, or add a level; every change re-validates live.";

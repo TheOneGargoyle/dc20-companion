@@ -356,7 +356,7 @@ def check_addlevel():
        "expected" not in api.ledger and "expected_at_L4" in api.ledger)
     ok("tanrielle promoted L5 has no undecided slots", s["builder_problems"] == [], s["builder_problems"])
     ok("tanrielle promoted L5 flags the unspent-points ADVISORY (green + amber)",
-       not s["problems"] and any("UNDER-SPENT" in a for a in s["advisories"]), s["advisories"])
+       not s["problems"] and any("SPARE" in a for a in s["advisories"]), s["advisories"])
     # apply the plan's allocator changes (Awareness->Expert, Herbalism->Expert, Arcana/Nature->Adept)
     api.set_mastery("skills:Awareness", "Expert")
     api.set_mastery("trades:Herbalism", "Expert")
@@ -780,6 +780,85 @@ def check_replace_hatch():
        and "!t.expandable" in html)   # replace dropdown suppressed on expandable rows
 
 
+# ---------------------------------------------------------------- (12) Wave 2 UX
+def check_wave2():
+    print()
+    print("## (12) Wave 2 UX: FR-14 recent files + Level A, FR-1 sort, FR-5 guard, "
+          "FR-7 refilter, BUG-3 budget messaging")
+    # ---- FR-7: a picker hides options already chosen elsewhere (no double-picks) ----
+    api = builder_api.BuilderAPI(None, CATPATHS, new_class="commander")  # 2 L1 maneuver slots
+    s = st(api)
+    man = [d for d in s["decisions"] if (d.get("id") or "").startswith("cg:man:")]
+    names = [o["name"] for o in man[0]["options"]]
+    A, B = names[0], names[1]
+    api.set_decision(man[0]["id"], A)
+    s = json.loads(api.set_decision(man[1]["id"], B))
+    o0 = [o["name"] for o in find_dec(s, lambda d: d["id"] == man[0]["id"])["options"]]
+    o1 = [o["name"] for o in find_dec(s, lambda d: d["id"] == man[1]["id"])["options"]]
+    ok("FR-7 maneuver: each picker hides the other's pick, keeps its own",
+       B not in o0 and A in o0 and A not in o1 and B in o1, (A, B))
+    api = builder_api.BuilderAPI(None, CATPATHS, new_class="druid")  # 4 L1 spell slots
+    s = st(api)
+    spl = [d for d in s["decisions"] if (d.get("id") or "").startswith("cg:spell:")]
+    names = [o["name"] for o in spl[0]["options"]]
+    A, B = names[0], names[1]
+    api.set_decision(spl[0]["id"], A)
+    s = json.loads(api.set_decision(spl[1]["id"], B))
+    s0 = [o["name"] for o in find_dec(s, lambda d: d["id"] == spl[0]["id"])["options"]]
+    s1 = [o["name"] for o in find_dec(s, lambda d: d["id"] == spl[1]["id"])["options"]]
+    ok("FR-7 spell: each picker hides the other's pick, keeps its own",
+       B not in s0 and A in s0 and A not in s1 and B in s1, (A, B))
+    api = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")  # 2 school slots
+    s = st(api)
+    sch = [d for d in s["decisions"] if (d.get("id") or "").startswith("cg:school:")]
+    names = [o["name"] for o in sch[0]["options"]]
+    A, B = names[0], names[1]
+    api.set_decision(sch[0]["id"], A)
+    s = json.loads(api.set_decision(sch[1]["id"], B))
+    sc1 = [o["name"] for o in find_dec(s, lambda d: d["id"] == sch[1]["id"])["options"]]
+    ok("FR-7 spell_school: the second picker hides the school already chosen",
+       A not in sc1 and B in sc1, (A, B, sc1))
+    ok("FR-7 filter set = spell/maneuver/talent/spell_school",
+       builder_api.FR7_FILTER_SLOTS == {"spell", "maneuver", "talent", "spell_school"},
+       builder_api.FR7_FILTER_SLOTS)
+    ok("FR-7 leaves ancestry_trait unfiltered (budget/opens machinery, later pass)",
+       "ancestry_trait" not in builder_api.FR7_FILTER_SLOTS)
+
+    # ---- BUG-3: symmetric, clear budget verdicts ----
+    for c in builder_build.CHARS:
+        s = st(builder_api.BuilderAPI(c, CATPATHS))
+        blines = [b for b in s["budgets"]
+                  if b.startswith(("Skill points", "Trade points", "Language points"))]
+        ok("%-10s all three budget lines print an explicit verdict (symmetric)" % c,
+           len(blines) == 3 and all(("balanced" in b or "SPARE" in b or "OVER-SPENT" in b)
+                                    for b in blines), blines)
+        ok("%-10s no budget line still reads the old 'UNDER-SPENT'" % c,
+           not any("UNDER-SPENT" in b for b in s["budgets"]), s["budgets"])
+    s = st(builder_api.BuilderAPI("xanwyn", CATPATHS))
+    ok("BUG-3 xanwyn spare TP reads SPARE (legal) in advisories, not a problem",
+       any("SPARE" in a and "Trade points" in a for a in s["advisories"])
+       and not any("SPARE" in p for p in s["problems"]), (s["advisories"], s["problems"]))
+    s = st(builder_api.BuilderAPI("tanrielle", CATPATHS))
+    ok("BUG-3 language line is symmetric (prints -> balanced even when balanced)",
+       any(b.startswith("Language points") and "-> balanced" in b for b in s["budgets"]),
+       s["budgets"])
+
+    # ---- FR-14 / FR-1 / FR-5: page furniture in the built builder.html ----
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("FR-14 Level A: the baked party is no longer listed in the default dropdown",
+       '<optgroup label="party">' not in html and "CHARS.map(c=>`<option" not in html)
+    ok("FR-14 recent-files machinery present (localStorage + build + deeplink auto-add)",
+       "RECENT_KEY" in html and '"dc20builder:recent"' in html and "function loadRecents(" in html
+       and "function addRecent(" in html and "function buildCharSel(" in html
+       and "recent files" in html and "if(mode.char){ addRecent(handle" in html)
+    ok("FR-14 party still resolves by deeplink (baked ledgers kept; ?char= reads CHARS)",
+       "CHARS.includes(h)" in html and "return {char: h}" in html)
+    ok("FR-1 new-from-scratch list is sorted alphabetically", "NEWC.slice().sort()" in html)
+    ok("FR-5 unsaved-changes guard on switch (confirm + revert selection)",
+       "if(dirty && !confirm(" in html and "Switch anyway" in html
+       and "sel.value = currentSelValue(); return;" in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -802,6 +881,7 @@ def main():
         check_sheet()
         check_newstats()
         check_replace_hatch()
+        check_wave2()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -815,7 +895,8 @@ def main():
     print("       add-a-level (promote + generate + undo), received-file safety,")
     print("       comment-preserving export, round-2 bug fixes, character sheet,")
     print("       new derived stats (saves/move/jump/spend-limit/DR) vs oracle,")
-    print("       composite re-pick escape hatch")
+    print("       composite re-pick escape hatch,")
+    print("       Wave 2 UX (recent files + Level A, sort, unsaved guard, refilter, budget messaging)")
     sys.exit(0)
 
 
