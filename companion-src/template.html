@@ -462,7 +462,7 @@ bonan:{short:'Bonan',name:'Bonan O’Cryin',
  sub:'“Meltor the Magnificent” · Halfling (Beastborn) Barbarian (Elemental Fury — Fire) · <b>L4</b> · CM 2 · Player: Ed',
  hp:17,mp:3,sp:4,grit:5,pd:9,ad:18,
  stats:[['+5','Attack'],['15','Save DC'],['+2','Initiative'],['6','Move'],['6','Jump'],['2','MSL / SSL']],
- toggles:[{k:'rage',l:'Rage (1 AP + 1 SP, 1 min)',onl:'😡 RAGING — PD −5 · half Phys/Elem dmg · +1 melee dmg',pd:-5,def:false},{k:'bob',l:'Burst of Bravery',rest:true},{k:'band',l:'Bandolier of Unrelenting 1/day',rest:true}],
+ toggles:[{k:'rage',l:'Rage (1 AP + 1 SP, 1 min)',onl:'😡 RAGING — PD −5 · half Phys/Elem dmg · +1 melee dmg',pd:-5,dr:{PDR:['half'],EDR:['half']},def:false},{k:'bob',l:'Burst of Bravery',rest:true},{k:'band',l:'Bandolier of Unrelenting 1/day',rest:true}],
  rolls:[[5,'Attack','⚔ Attack +5'],[5,'Spell Check','✨ Spell +5'],[2,'Initiative','⚡ Init +2'],[5,'Might Save','Mig Save +5'],[2,'Agility Save','Agi Save +2'],[1,'Int Save','Int Save +1'],[5,'Charisma Save','Cha Save +5'],[0,'Flat d20','Flat d20'],['d8','Help Die (d8)','Help d8']],
  skills:[['Awareness',5],['Athletics',5],['Intimidation',7],['Influence',5],['Insight',5],['Animal',3]],
  sknote:'Trades (values blank on sheet): Brewing, Cooking, Musician, Tinkering. Languages: Common, Halfling. Misc: +2 Regard with the Marquis.',
@@ -527,6 +527,17 @@ function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
   saveS();renderParty();toast('Long Rest: everything restored.');}
 function togCond(x){const i=S.conds.indexOf(x);if(i>=0)S.conds.splice(i,1);else S.conds.push(x);saveS();renderParty();}
 function curPD(){const c=CHARS[cur];let pd=c.pd;c.toggles.forEach(x=>{if(x.pd&&S.t[x.k])pd+=x.pd;});return pd;}
+// FR-16 Part B: current DR = base engine DR merged with any ACTIVE toggle DR payload,
+// take-the-stronger (NOT additive): 'half' beats a flat numeric; two numerics take the max;
+// half+half stays half. Passthrough of c.dr when no DR toggle is active (FR-16A unchanged).
+function drRank(v){return String(v).toLowerCase()==='half'?Infinity:(Number(v)||0);}
+function curDR(){const c=CHARS[cur];
+  const tgs=c.toggles.filter(x=>x.dr&&S.t[x.k]);
+  if(!tgs.length)return c.dr;
+  const out={};const add=(k,v)=>{if(!out[k]||drRank(v)>drRank(out[k][0]))out[k]=[v];};
+  ['PDR','EDR','MDR'].forEach(k=>{if(c.dr&&c.dr[k])c.dr[k].forEach(v=>add(k,v));});
+  tgs.forEach(x=>['PDR','EDR','MDR'].forEach(k=>{if(x.dr[k])x.dr[k].forEach(v=>add(k,v));}));
+  return out;}
 // FR-16A: format engine DR compactly, e.g. "PDR Half \u00b7 MDR Half"; "" when none.
 function fmtDR(dr){if(!dr)return '';const parts=[];['PDR','EDR','MDR'].forEach(k=>{if(dr[k]&&dr[k].length){const v=dr[k].map(x=>String(x).toLowerCase()==='half'?'Half':x).join(', ');parts.push(k+' '+v);}});return parts.join(' \u00b7 ');}
 /* ---- char-pill "Build" menu: long-press (mobile) / right-click (desktop) opens the builder on that character ---- */
@@ -569,7 +580,7 @@ function renderParty(){
          '<div class="stat"><div class="v">'+c.ad+'</div><div class="l">AD</div></div>';
   c.stats.forEach(([v,l])=>{sg+='<div class="stat"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';});
   document.getElementById('cStats').innerHTML=sg;
-  const drStr=fmtDR(c.dr);
+  const drStr=fmtDR(curDR());
   document.getElementById('defDetail').innerHTML='PD: Heavy '+(pd+5)+' · Brutal '+(pd+10)+' &nbsp;|&nbsp; AD: Heavy '+(c.ad+5)+' · Brutal '+(c.ad+10)+(drStr?'<br>DR: '+drStr:'');
   const hp=S.hp,bl=Math.ceil(c.hp/2),wb=Math.ceil(c.hp/4);
   document.getElementById('hpVal').textContent=hp+' / '+c.hp;

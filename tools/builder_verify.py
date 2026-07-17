@@ -703,6 +703,13 @@ def check_newstats():
     ok("FR-16A Companion template merges DR + has fmtDR + renders the DR line",
        "if(d.dr!==undefined)c.dr=d.dr" in ctpl and "function fmtDR(" in ctpl
        and "drStr?'<br>DR: '+drStr" in ctpl)
+    # FR-16 Part B: DR is now toggle-aware. Bonan's Rage toggle carries a DR payload
+    # (PDR/EDR Half while raging); curDR() merges base engine DR with active-toggle DR
+    # take-the-stronger (half beats numeric); the DR line reads fmtDR(curDR()).
+    ok("FR-16B Bonan's Rage toggle carries a DR payload (PDR/EDR Half)",
+       "dr:{PDR:['half'],EDR:['half']}" in ctpl)
+    ok("FR-16B curDR() exists and the DR line is toggle-aware (fmtDR(curDR()))",
+       "function curDR(" in ctpl and "const drStr=fmtDR(curDR());" in ctpl)
     # BUG-4: the sheet overlay is mobile-responsive - a max-width:640px block stacks .sh-cols
     # to one column and sizes .sh-paper fluidly (real-phone verification is Darryl's).
     ok("sheet overlay has mobile-responsive rules (BUG-4)",
