@@ -1244,9 +1244,73 @@ def check_slice5():
        e.get("granted_spells") == ["Psychic Wave"], e.get("granted_spells"))
 
 
+def check_fr6():
+    print("\n## (17) FR-6: rule text on a chosen option (baked corpus + Companion linkify)")
+    path = os.path.join(REPO, "builds", "builder.html")
+    html = open(path, encoding="utf-8").read()
+    m = re.search(r"const RULES_DATA = (\[.*?\]);\n", html, re.S)
+    ok("rules corpus baked into builder.html (const RULES_DATA)", bool(m))
+    corpus = json.loads(m.group(1)) if m else []
+    ok("baked corpus is non-empty and shaped {f,t,h,x}",
+       len(corpus) > 100 and all(k in corpus[0] for k in ("f", "t", "h", "x")), len(corpus))
+    import rules_corpus
+    ok("baked corpus == tools/rules_corpus.build_rules_data(REPO) (single source, no drift)",
+       bool(m) and m.group(1) == rules_corpus.corpus_embed(rules_corpus.build_rules_data(REPO)))
+    for fn in ("function linkifyTerms", "function _linkable", "function ruleTag",
+               "function openRulePanel", "function closeRulePanel"):
+        ok("builder JS has %s" % fn, fn in html)
+    ok("rule panel + scrim + body markup present",
+       'id="rulePanel"' in html and 'id="ruleScrim"' in html and 'id="ruleBody"' in html)
+    ok("term sets present (CONDS_SET / DEFINED)",
+       "const CONDS_SET=" in html and "const DEFINED=" in html)
+    ok("picker branch routes t.current through ruleTag", "ruleTag(t.current)" in html)
+    ok("fixed-text branch routes t.pick through ruleTag", "ruleTag(t.pick)" in html)
+    ok("rule panel renders rule HTML through linkifyTerms (in-doc cross-links)", "linkifyTerms(sec.h)" in html)
+    node = shutil.which("node")
+    if not node:
+        print("  FR-6 runtime harness: node not available, SKIPPED")
+        return
+    i = html.index("const RULES_DATA = [")
+    j = html.index(">rule</span>';}", i) + len(">rule</span>';}")
+    block = html[i:j]
+    harness = (
+        'var esc=function(s){return String(s);};\n'
+        + block + '\n'
+        + 'function resolves(q){q=_clean(q);var k=q.toLowerCase(),b=-1;if(CONDS_SET.has(k)){b=_condTarget(k);if(b<0)b=_home(k);}else{b=_home(k);}return b;}\n'
+        + 'var R={};\n'
+        + 'R.prone_link=_linkable("Prone");R.prone_res=resolves("Prone");\n'
+        + 'R.pw_link=_linkable("Pact Weapon");R.pw_res=resolves("Pact Weapon");\n'
+        + 'R.tag_known=ruleTag("Pact Weapon");R.tag_junk=ruleTag("Zqxwvthing");R.tag_undec=ruleTag("(undecided)");\n'
+        + 'R.tag_comp=ruleTag("Meta Magic (Quickened Spell, Vicious Spell)");\n'
+        + 'R.lt_known=linkifyTerms("<p><b>Prone</b> x</p>");R.lt_unknown=linkifyTerms("<p><b>Zqxwvthing</b> x</p>");\n'
+        + 'console.log(JSON.stringify(R));\n'
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+        f.write(harness)
+        name = f.name
+    r = subprocess.run([node, name], capture_output=True, text=True)
+    os.unlink(name)
+    ok("FR-6 runtime harness runs on the real baked corpus", r.returncode == 0, r.stderr[:300])
+    R = json.loads(r.stdout) if (r.returncode == 0 and r.stdout.strip()) else {}
+    ok("known condition 'Prone' is linkable and resolves to a section",
+       R.get("prone_link") is True and isinstance(R.get("prone_res"), int) and R.get("prone_res", -1) >= 0, R)
+    ok("known term 'Pact Weapon' is linkable and resolves to a section",
+       R.get("pw_link") is True and R.get("pw_res", -1) >= 0, R)
+    ok("ruleTag builds a clickable rule link for a known term",
+       "rlink" in R.get("tag_known", "") and "data-q=" in R.get("tag_known", ""), R.get("tag_known"))
+    ok("ruleTag is empty for an unknown pick and for (undecided)",
+       R.get("tag_junk") == "" and R.get("tag_undec") == "", (R.get("tag_junk"), R.get("tag_undec")))
+    ok("ruleTag cleans a composite pick to its base name",
+       'data-q="Meta Magic"' in R.get("tag_comp", ""), R.get("tag_comp"))
+    ok("linkifyTerms wraps a known bold term, leaves an unknown one plain",
+       "rlink" in R.get("lt_known", "") and "rlink" not in R.get("lt_unknown", ""),
+       (R.get("lt_known"), R.get("lt_unknown")))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
+    check_fr6()
     tmp = stage()
     old = os.getcwd()
     os.chdir(tmp)
@@ -1290,6 +1354,7 @@ def main():
     print("       FR-8 slice 3 Rune Knight subclass grants 2 runes (Xanwyn, real catalog)")
     print("       FR-8 slice 4 Meta Magic talent grants 2 metamagic (Scaletrix, real cat-level catalog)")
     print("       FR-8 slice 5 Eldritch constrained Psychic-spell grant (Runt; meets FR-13)")
+    print("       FR-6 rule text on a chosen option (baked corpus + linkify + rule panel)")
     sys.exit(0)
 
 

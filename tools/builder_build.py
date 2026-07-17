@@ -47,6 +47,9 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)  # tools/.. == campaign/repo root
+import sys
+sys.path.insert(0, HERE)
+from rules_corpus import build_rules_data, corpus_embed  # FR-6: shared rules corpus
 
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
@@ -1597,6 +1600,17 @@ h3.sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(
 .dec.edit .slot{color:var(--accent)}
 .dec.plan{opacity:.62;border-style:dashed}
 .dec.newlvl{border-left:4px solid var(--warn)}
+/* FR-6 rule links + rule panel */
+.rlink{color:var(--accent);border-bottom:1px dotted var(--accent);cursor:pointer}
+.rulei{font-size:.68rem;margin-left:.35rem;white-space:nowrap;opacity:.9}
+#ruleScrim{display:none;position:fixed;inset:0;background:rgba(15,20,28,.35);z-index:7000}
+#rulePanel{display:none;position:fixed;top:0;right:0;height:100%;width:min(460px,92vw);background:#fff;border-left:1px solid var(--line);box-shadow:-6px 0 24px rgba(0,0,0,.18);z-index:7001;overflow:auto;padding:1rem 1.15rem 2.4rem}
+#rulePanel .rpbar{display:flex;align-items:center;gap:.6rem;position:sticky;top:0;background:#fff;padding:.1rem 0 .45rem;border-bottom:1px solid var(--line);margin-bottom:.6rem}
+#rulePanel .rpf{font-size:.72rem;color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+#rulePanel .rpclose{margin-left:auto;cursor:pointer;border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:.2rem .55rem;font-size:.85rem}
+#rulePanel h2{font-size:1.05rem;margin:.2rem 0 .5rem}
+#rulePanel h3{font-size:.92rem;margin:.7rem 0 .3rem}
+#rulePanel table{border-collapse:collapse;margin:.4rem 0}#rulePanel td,#rulePanel th{border:1px solid var(--line);padding:.2rem .45rem;font-size:.82rem}
 .wlabel{font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--accent);border-radius:4px;padding:.08rem .4rem}
 .select{border:1px solid var(--accent);border-radius:6px;padding:.28rem .45rem;background:#fff;font-size:.84rem;max-width:420px}
 input.select{max-width:180px}
@@ -1770,6 +1784,8 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 
 <p class="foot">Unofficial fan tooling for our home DC20 (v0.10.5) campaign. DC20 is by The Dungeon Coach,
 released under the ORC License.</p>
+<div id="ruleScrim"></div>
+<aside id="rulePanel" aria-label="DC20 rule"><div class="rpbar"><span class="rpf" id="ruleF"></span><button class="rpclose" id="ruleClose" type="button">close &times;</button></div><div id="ruleBody"></div></aside>
 
 <script>
 const CHARS = __CHARS_JSON__;
@@ -1779,6 +1795,37 @@ const REL = __REL_JSON__;
 const dec64 = b => new TextDecoder().decode(Uint8Array.from(atob(b), c=>c.charCodeAt(0)));
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ============ FR-6: rule text on a chosen option (shared corpus tools/rules_corpus.py + Companion linkify) ============ */
+const RULES_DATA = __RULES_DATA__;
+var RULE_CORPUS=' '+RULES_DATA.map(function(r){return r.x||'';}).join(' ').replace(/[^a-z0-9 '’\/-]+/g,' ').replace(/\s+/g,' ')+' ';
+function _clean(t){return String(t).replace(/\s*\(.*$/,'').replace(/[:;].*$/,'').replace(/\s+/g,' ').trim();}
+function _corpusHas(k){return RULE_CORPUS.indexOf(' '+k+' ')>=0;}
+function _hasCost(t){return /\([^)]*\b(?:MP|AP|SP)\b/i.test(t);}
+function _linkable(name){if(!name||name.length<4)return false;var c0=name.charAt(0);if(c0===c0.toLowerCase())return false;var k=name.toLowerCase();if(CONDS_SET.has(k))return true;return (k.indexOf(' ')>=0)?_corpusHas(k):DEFINED.has(k);}
+function _mk(disp,name){return '<span class="rlink" data-q="'+_clean(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+disp+'<\/span>';}
+function linkifyTerms(html){return String(html)
+  .replace(/<b>([^<]{3,40})<\/b>/g,function(m,inner){var nm=_clean(inner);if(_hasCost(inner)&&nm.indexOf(' ')<0)return m;return _linkable(nm)?'<b>'+_mk(inner,nm)+'<\/b>':m;})
+  .replace(/<h3>([^<]{3,48}?)(\s*)(<span|<\/h3>)/g,function(m,name,ws,tail){return _linkable(_clean(name))?'<h3>'+_mk(name.trim(),name)+ws+tail:m;});}
+const CONDS=['Exposed','Hindered','Impaired','Dazed','Taunted','Prone','Bleeding','Poisoned','Charmed','Frightened','Grappled','Stunned'];
+const CONDS_SET=new Set(CONDS.map(function(c){return c.toLowerCase();}));
+const _STOP=new Set(['same','each','both','more','move','hit','turn','target','attack','damage','with','when','your','this','that','from','into','also','next','once','they','their','then','than','only','used','gain','give','make','take','have']);
+const DEFINED=new Set();(function(){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{2,40})<\/(?:strong|b|h[1-6])>/ig,m;for(var i=0;i<RULES_DATA.length;i++){var s=RULES_DATA[i].h;re.lastIndex=0;while(m=re.exec(s)){var t=m[1].replace(/[:.,;]+$/,'').toLowerCase().trim();if(t&&t.indexOf(' ')<0&&t.length>=4&&!_STOP.has(t))DEFINED.add(t);}}})();
+const CONDSECTIONS=(function(){var a=[];for(var i=0;i<RULES_DATA.length;i++)if((RULES_DATA[i].t||'').toLowerCase()==='conditions')a.push(i);return a;})();
+function _esc(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function _wc(x,k){return (x.match(new RegExp('\\b'+_esc(k)+'\\b','g'))||[]).length;}
+function _boldHasWord(html,k){return new RegExp('<(strong|b|h[1-6])[^>]*>[^<]*\\b'+_esc(k)+'\\b','i').test(html);}
+function _headingHas(html,k){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{1,40})<\/(?:strong|b|h[1-6])>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
+function _hHas(html,k){var re=/<h[1-6][^>]*>([^<]{1,40})<\/h[1-6]>/ig,m;while(m=re.exec(html)){var t=m[1].toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(t===k)return true;}return false;}
+function _home(key){var best=-1,bs=0;for(var i=0;i<RULES_DATA.length;i++){var c=_wc(RULES_DATA[i].x,key);if(!c)continue;var s=c+(_hHas(RULES_DATA[i].h,key)?100000:0)+(_headingHas(RULES_DATA[i].h,key)?10000:0)+(_boldHasWord(RULES_DATA[i].h,key)?1000:0)-(/changelog|errata|extraction/i.test((RULES_DATA[i].t||'')+(RULES_DATA[i].f||''))?800:0);if(s>bs){bs=s;best=i;}}return best;}
+function _condTarget(key){for(var j=0;j<CONDSECTIONS.length;j++){var i=CONDSECTIONS[j];if(_headingHas(RULES_DATA[i].h,key))return i;}return -1;}
+/* FR-6 additions: trailing rule affordance for a chosen option + a lightweight rule panel */
+function ruleTag(name){var nm=_clean(name);if(!_linkable(nm))return "";return ' <span class="rlink rulei" data-q="'+nm.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" title="Show the DC20 rule for &quot;'+esc(nm)+'&quot;">rule</span>';}
+function openRulePanel(q){q=_clean(q);var key=q.toLowerCase(),b=-1;if(CONDS_SET.has(key)){b=_condTarget(key);if(b<0)b=_home(key);}else{b=_home(key);}if(b<0)return;var sec=RULES_DATA[b];$('ruleF').textContent=sec.f||'';$('ruleBody').innerHTML='<h2>'+esc(sec.t)+'</h2>'+linkifyTerms(sec.h);$('rulePanel').style.display='block';$('ruleScrim').style.display='block';$('rulePanel').scrollTop=0;}
+function closeRulePanel(){$('rulePanel').style.display='none';$('ruleScrim').style.display='none';}
+document.addEventListener('click',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('rlink')){e.preventDefault();openRulePanel(t.getAttribute('data-q'));}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeRulePanel();});
+(function(){var c=$('ruleClose');if(c)c.onclick=closeRulePanel;var s=$('ruleScrim');if(s)s.onclick=closeRulePanel;})();
+
 /* ---- character sheet (feature 3): print/PDF view rendered from api.sheet() ---- */
 function shEsc(x){return esc(x==null?'':x);}
 function shBuild(d){
@@ -2121,7 +2168,7 @@ function render(s){
       body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` +
         ((t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"") +
         (t.was_note ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.was_note)} <a href="#" class="rm" data-dismiss="${esc(t.id)}" title="dismiss this note">&times;</a></span>`:"") +
-        (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + `</span>`;
+        (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + ruleTag(t.current) + `</span>`;
     } else {
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
       const allocHint = (!t.plan && (t.slot==='skill'||t.slot==='trade'))
@@ -2132,7 +2179,7 @@ function render(s){
       const expandHTML = t.expandable
         ? ` <a href="#" data-expand="${esc(t.id)}" style="font-size:.7rem;color:var(--accent)" title="rebuild all maneuver/spell slots across every level (${t.expand_n} total) so each granted pick has its own slot">[expand into per-level slots]</a>`
         : '';
-      body = `<span class="pick">${esc(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
+      body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
     }
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(t.slot)}</span>${body}</div>`;
   };
@@ -2368,7 +2415,8 @@ def main():
             .replace("__CHARS_JSON__", json.dumps(CHARS))
             .replace("__NEWC_JSON__", json.dumps(NEWCLASSES))
             .replace("__B64_JSON__", json.dumps(b64))
-            .replace("__REL_JSON__", json.dumps(rel)))
+            .replace("__REL_JSON__", json.dumps(rel))
+            .replace("__RULES_DATA__", corpus_embed(build_rules_data(REPO))))
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(html)
     print("wrote %s (%d bytes; %d spells in meta)" % (args.out, len(html), len(meta)))
