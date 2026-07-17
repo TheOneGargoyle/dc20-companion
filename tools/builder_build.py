@@ -51,7 +51,7 @@ REPO = os.path.dirname(HERE)  # tools/.. == campaign/repo root
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
-           "talents", "skills_trades", "languages"]
+           "talents", "skills_trades", "languages", "metamagic"]
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 
@@ -606,8 +606,12 @@ class BuilderAPI:
         if slot == 'spell_school':
             return [{'name': s, 'group': '', 'label': s}
                     for s in self.cat['spell_schools']['schools']]
-        if slot in ('rune', 'metamagic'):   # FR-8 slice 2 grant-child pickers (catalogs land in slices 3/4)
-            pool = self.ccat.get('runes' if slot == 'rune' else 'metamagic') or []
+        if slot == 'rune':   # FR-8 slice 3 grant-child pickers (class-scoped: Spellblade runes in ccat)
+            pool = self.ccat.get('runes') or []
+            return [{'name': r['name'], 'group': '',
+                     'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
+        if slot == 'metamagic':   # FR-8 slice 4 grant-child pickers (cat-level, cross-class: reached via MC Sorcerer)
+            pool = (self.cat.get('metamagic') or {}).get('options') or []
             return [{'name': r['name'], 'group': '',
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         return []
@@ -1908,7 +1912,8 @@ async function boot(){
     "    'barbarian':'barbarian.yaml','druid':'druid.yaml','ancestries':'ancestries.yaml',\n" +
     "    'spell_schools':'spell_schools.yaml','spell_sources':'spell_sources.yaml',\n" +
     "    'maneuvers':'maneuvers.yaml','talents':'talents.yaml',\n" +
-    "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml'}\n" +
+    "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml',\n" +
+    "    'metamagic':'metamagic.yaml'}\n" +
     "def make_api(handle):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS)\n" +
     "def make_api_new(cls):\n" +

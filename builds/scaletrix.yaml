@@ -41,7 +41,9 @@ levels:
     - {slot: attribute, pick: might, inferred: true, note: "Destination unconfirmed. ASK DAMO."}
     - {slot: spell, pick: "Dispel Magic (or another of the Arcane set)", inferred: true, source: "class table +1"}
   4:
-    - {slot: talent, pick: "Meta Magic (Quickened Spell, Vicious Spell)"}
+    - {slot: talent, pick: "Meta Magic", grants: {metamagic: 2},
+       granted_metamagic: [Quickened Spell, Vicious Spell],
+       note: "FR-8 slice 4: de-bundled from the composite name into the metamagic grant + child-slots (the Meta Magic talent grants 2 Spell Enhancements; classes.md l.2618-2639). Metamagic carries no resource delta, so the derived oracle is unchanged."}
     - {slot: path, pick: Spellcaster, inferred: true,
        note: "Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven."}
     - {slot: ancestry_trait, pick: Second Breath, source: Dragonborn, cost: 2, inferred: true}

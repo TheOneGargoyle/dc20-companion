@@ -1,0 +1,19 @@
+# CURATED cross-cutting cost list - the Meta Magic option catalog (the Spell Enhancements a
+# 'Meta Magic' talent's metamagic grant-slots resolve to). Cross-class: it is reached via the
+# Sorcerer 'Meta Magic' Multiclass feature (Adept MC), so it lives at catalog level (like
+# spell_schools / maneuvers / talents), NOT inside a single class file. FR-8 slice 4.
+# Source: rules/classes.md l.2618-2639 - Sorcerer Level 2 'Meta Magic': "You gain 2 unique
+# Spell Enhancements from the list below." Six options; NONE confer a resource delta (each is a
+# per-use 1 MP Spell Enhancement used in play, not a build-time resource), so no `grants:` -
+# they are pure picks that flow from the Meta Magic talent grant (metamagic: 2) via the FR-8
+# slice-2 child-slot backbone. Full names (the ledger convention; the rules name each "<X> Spell").
+# tools/catalog_verify.py checks these six names against classes.md.
+catalog_version: 1
+ruleset: "DC20 0.10.5"
+options:
+  - {name: Careful Spell}
+  - {name: Distant Spell}
+  - {name: Quickened Spell}
+  - {name: Subtle Spell}
+  - {name: Transmuted Spell}
+  - {name: Vicious Spell}

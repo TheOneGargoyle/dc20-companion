@@ -108,6 +108,7 @@ sources_cat = load("builds/catalog/spell_sources.yaml")
 anc = load("builds/catalog/ancestries.yaml")
 maneuvers_cat = load("builds/catalog/maneuvers.yaml")
 talents_cat = load("builds/catalog/talents.yaml")
+metamagic_cat = load("builds/catalog/metamagic.yaml")
 
 ALL_MANEUVERS = {m for lst in maneuvers_cat["maneuvers"].values() for m in lst}
 TALENT_NAMES = ({t["name"] for t in talents_cat["general"]}
@@ -153,6 +154,19 @@ expect({r["name"] for r in _sb.get("runes", [])} == {"Earth", "Flame", "Frost", 
 expect((_sb.get("subclass_grants") or {}).get("Rune Knight", {}).get("grants") == {"runes": 2},
        f"Spellblade Rune Knight must grant runes: 2, got {(_sb.get('subclass_grants') or {}).get('Rune Knight')}")
 print("  Spellblade rune catalog (6 runes) present + Rune Knight grants runes: 2 OK")
+
+# FR-8 slice 4: cat-level metamagic catalog + Meta Magic talent grant (feeds the slice-2 child-slot backbone).
+# Cross-class (reached via the Sorcerer 'Meta Magic' MC feature), so it lives at catalog level, not in a class file.
+METAMAGIC_NAMES = {o["name"] for o in metamagic_cat.get("options", [])}
+expect(METAMAGIC_NAMES == {"Careful Spell", "Distant Spell", "Quickened Spell",
+                           "Subtle Spell", "Transmuted Spell", "Vicious Spell"},
+       f"metamagic option drift (classes.md l.2618-2639): {sorted(METAMAGIC_NAMES)}")
+_mm_classes = read("rules/classes.md")
+for _mm in METAMAGIC_NAMES:
+    expect(_mm in _mm_classes, f"metamagic option {_mm!r} not found in classes.md")
+expect((MC_FEATURES.get("Meta Magic") or {}).get("grants") == {"metamagic": 2},
+       f"Meta Magic mc_feature must grant metamagic: 2, got {(MC_FEATURES.get('Meta Magic') or {}).get('grants')}")
+print("  metamagic catalog (6 options) present in classes.md + Meta Magic talent grants metamagic: 2 OK")
 
 
 def anc_lookup(source, name):
@@ -345,6 +359,15 @@ def check_ledger(fname, led):
                 expect(e["grants"] == known["grants"],
                        f"{who}: talent {b} grants {e['grants']} vs catalog {known['grants']}")
             print(f"    talent L{lvl} {str(e['pick'])[:44]:46} -> {via}")
+        # FR-8 slice 4: a metamagic-granting talent (Meta Magic) records its picks in granted_metamagic;
+        # each must be a real catalog metamagic option, and the count must match the grant.
+        for mm in (e.get("granted_metamagic") or []):
+            expect(mm in METAMAGIC_NAMES,
+                   f"{who}: granted metamagic {mm!r} not in catalog {sorted(METAMAGIC_NAMES)}")
+        if e.get("granted_metamagic"):
+            expect((e.get("grants") or {}).get("metamagic") == len(e["granted_metamagic"]),
+                   f"{who}: {len(e['granted_metamagic'])} granted_metamagic vs grant {e.get('grants')}")
+            print(f"    talent {base_name(e['pick'])} granted_metamagic {e['granted_metamagic']} all in catalog OK")
 
     # maneuvers
     mp = maneuver_picks(led)

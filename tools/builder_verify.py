@@ -1056,6 +1056,69 @@ def check_slice3():
        e.get("granted_runes") == ["Frost", UND], e.get("granted_runes"))
 
 
+# ---------------------------------------------------------------- (15) FR-8 slice 4 Meta Magic talent
+def check_slice4():
+    UND = "(undecided)"
+    print()
+    print("## (15) FR-8 slice 4: Meta Magic talent grants 2 metamagic (Scaletrix, real cat-level catalog)")
+
+    # ---- (a) the cat-level metamagic catalog populates the 'metamagic' picker (cross-class) ----
+    sapi = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    mm_opts = sapi._options_for("metamagic")
+    ok("cat-level metamagic catalog populates _options_for('metamagic') with the 6 canonical options",
+       {o["name"] for o in mm_opts} == {"Careful Spell", "Distant Spell", "Quickened Spell",
+                                        "Subtle Spell", "Transmuted Spell", "Vicious Spell"},
+       [o["name"] for o in mm_opts])
+    _mm_feat = next((t for t in sapi.cat["talents"]["mc_features"] if t["name"] == "Meta Magic"), {})
+    ok("Meta Magic carries the metamagic:2 grant in the talents catalog mc_features",
+       _mm_feat.get("grants") == {"metamagic": 2}, _mm_feat.get("grants"))
+
+    # ---- (b) Scaletrix's L4 Meta Magic talent is a clean editable picker (de-bundled from the name) ----
+    s = st(sapi)
+    tdec = next(d for d in s["decisions"] if d.get("slot") == "talent" and d.get("current") == "Meta Magic")
+    ok("Scaletrix's Meta Magic talent row is a clean editable picker reading 'Meta Magic' (not fixed composite text)",
+       tdec["widget"] == "picker" and tdec["editable"] and tdec["current"] == "Meta Magic"
+       and not tdec.get("replaceable"),
+       (tdec["widget"], tdec.get("current"), tdec.get("replaceable")))
+    tref = str(tdec["id"])   # e.g. 'L4:0'
+    _lvl, _idx = int(tref[1:].split(":")[0]), int(tref[1:].split(":")[1])
+
+    # ---- (c) 2 metamagic child pickers materialise keyed to the talent, reading Quickened + Vicious ----
+    kids = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#metamagic#" % tref)]
+    ok("the {metamagic:2} talent grant materialises 2 'metamagic' child pickers keyed to the talent row",
+       len(kids) == 2 and all(d["slot"] == "metamagic" and d["widget"] == "picker" and d["editable"] for d in kids),
+       [(d["id"], d.get("current")) for d in kids])
+    ok("the metamagic children read Scaletrix's granted_metamagic [Quickened Spell, Vicious Spell], 6 options each",
+       [d["current"] for d in kids] == ["Quickened Spell", "Vicious Spell"] and all(len(d["options"]) == 6 for d in kids),
+       [(d["current"], len(d["options"])) for d in kids])
+    ok("both metamagic decided -> no metamagic completeness problem and Scaletrix's build stays clean",
+       not any("metamagic undecided" in p for p in s["builder_problems"]) and s["catalog_problems"] == [],
+       (s["builder_problems"], s["catalog_problems"]))
+
+    # ---- (d) re-picking the talent rebuilds/clears the metamagic child-slots (_apply_grants wiring) ----
+    sapi.set_decision(tref, "Life Tap")                        # a non-metamagic talent (mc_feature, no grants)
+    e = sapi.ledger["levels"][_lvl][_idx]
+    ok("re-picking to a non-metamagic talent (Life Tap) drops the metamagic grant and the granted_metamagic children",
+       "metamagic" not in (e.get("grants") or {}) and not e.get("granted_metamagic")
+       and not any(str(d.get("id")).startswith("GC#%s#metamagic#" % tref) for d in st(sapi)["decisions"]),
+       (e.get("grants"), e.get("granted_metamagic")))
+    sapi.set_decision(tref, "Meta Magic")                      # back to the metamagic-granting talent
+    e = sapi.ledger["levels"][_lvl][_idx]
+    ok("re-picking Meta Magic rebuilds 2 undecided metamagic slots (all UNDECIDED on a real option change)",
+       e.get("grants") == {"metamagic": 2} and e.get("granted_metamagic") == [UND, UND],
+       (e.get("grants"), e.get("granted_metamagic")))
+    s2 = st(sapi)
+    kids2 = [d for d in s2["decisions"] if str(d.get("id")).startswith("GC#%s#metamagic#" % tref)]
+    ok("2 fresh metamagic child pickers render + surface as builder problems until decided",
+       len(kids2) == 2 and all(d["current"] == UND for d in kids2)
+       and any("metamagic undecided" in p for p in s2["builder_problems"]),
+       ([d["current"] for d in kids2], [p for p in s2["builder_problems"] if "metamagic" in p]))
+    sapi.set_decision(kids2[0]["id"], "Subtle Spell")
+    e = sapi.ledger["levels"][_lvl][_idx]
+    ok("editing a metamagic child writes into the talent's granted_metamagic (structural GC# link)",
+       e.get("granted_metamagic") == ["Subtle Spell", UND], e.get("granted_metamagic"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1081,6 +1144,7 @@ def main():
         check_wave2()
         check_slice2()
         check_slice3()
+        check_slice4()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1098,6 +1162,7 @@ def main():
     print("       Wave 2 UX (recent files + Level A, sort, unsaved guard, refilter, budget messaging),")
     print("       FR-8 slice 2 grants -> typed child picker-slots backbone,")
     print("       FR-8 slice 3 Rune Knight subclass grants 2 runes (Xanwyn, real catalog)")
+    print("       FR-8 slice 4 Meta Magic talent grants 2 metamagic (Scaletrix, real cat-level catalog)")
     sys.exit(0)
 
 

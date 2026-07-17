@@ -74,4 +74,6 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      grants: {spells: 2},
      note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}
   - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass}
-  - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass}
+  - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass,
+     grants: {metamagic: 2},
+     note: "gain 2 unique Spell Enhancements from the Meta Magic list (classes.md l.2618-2639); the 2 metamagic child-slots flow via the FR-8 slice-2 backbone, options in metamagic.yaml"}
