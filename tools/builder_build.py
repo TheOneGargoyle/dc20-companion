@@ -491,6 +491,19 @@ class BuilderAPI:
                         tags.add(g['spell_access']['tag'])
         return tags
 
+    def _spell_grant_tag(self, parent):
+        # FR-8 slice 5: if PARENT is a subclass whose catalog subclass_grants entry carries a
+        # spell_access tag AND grants spells, return that tag (e.g. 'Psychic' for Warlock Eldritch's
+        # Otherworldly Gift: "learn 1 Spell with the Psychic Tag"). This is the ONE gate that turns a
+        # tag-constrained spell grant into a constrained child picker - plain 'spells' is deliberately
+        # NOT in GRANT_CHILD_SLOTS, so the other five {spells:N} budget grants stay on the flat pool.
+        if parent.get('slot') != 'subclass':
+            return None
+        if int((parent.get('grants') or {}).get('spells', 0) or 0) <= 0:
+            return None
+        sg = (self.ccat.get('subclass_grants') or {}).get(base_name(parent.get('pick'))) or {}
+        return (sg.get('spell_access') or {}).get('tag')
+
     def _spell_access(self):
         # -> (options set, describe(name) -> why-legal string or None)
         model = self.ccat['spellcasting']['model']
@@ -532,6 +545,20 @@ class BuilderAPI:
         return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
                  'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
                 for n in sorted(names)]
+
+    def _spell_tagged_options(self):
+        # FR-8 slice 5: options for a tag-constrained spell child-slot = accessible spells that carry
+        # the character's granted spell tag (Eldritch -> Psychic). _spell_access already widens the
+        # accessible set to every tag-granted spell, so this yields exactly the Psychic-tag spells
+        # (e.g. Tendrils from Beyond, legal via the tag though its Conjuration school is not chosen).
+        tags = self._grant_tags()
+        if not tags:
+            return []
+        names, _why = self._spell_access()
+        out = [n for n in names if set((self.meta.get(n) or {}).get('tags') or []) & tags]
+        return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
+                 'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
+                for n in sorted(out)]
 
     def _maneuver_options(self):
         return [{'name': m, 'group': typ, 'label': '%s (%s)' % (m, typ)}
@@ -577,6 +604,15 @@ class BuilderAPI:
             for e in self.ledger['levels'][lvl] or []:
                 if e.get('slot') == slot:
                     add(e.get('pick'))
+        if slot == 'spell':   # FR-8 slice 5: a tag-constrained granted spell (Eldritch Psychic) is also
+            # "chosen", so the flat spell picker hides it (no double-pick across the two slots).
+            for c in cg.get('class_choices') or []:
+                for x in c.get('granted_spells') or []:
+                    add(x)
+            for lvl in self.ledger.get('levels') or {}:
+                for e in self.ledger['levels'][lvl] or []:
+                    for x in e.get('granted_spells') or []:
+                        add(x)
         return out
 
     def _options_for(self, slot):
@@ -614,6 +650,8 @@ class BuilderAPI:
             pool = (self.cat.get('metamagic') or {}).get('options') or []
             return [{'name': r['name'], 'group': '',
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
+        if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
+            return self._spell_tagged_options()
         return []
 
     # ---------- catalog-level legality (the layer the engine does not do) ----------
@@ -730,6 +768,12 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d %s undecided' % (lvl, _sing))
+                if self._spell_grant_tag(e):   # FR-8 slice 5 constrained spell grant-child
+                    _n = int((e.get('grants') or {}).get('spells', 0) or 0)
+                    _lst = e.get('granted_spells') or []
+                    for _k in range(_n):
+                        if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                            probs.append('builder: L%d spell (tag) undecided' % lvl)
         if self.scratch and not str(self.ledger.get('ancestry') or '').strip():
             probs.append('builder: ancestry not chosen')
         return probs
@@ -815,7 +859,7 @@ class BuilderAPI:
                 d['current'] = UNDECIDED
                 return d
             d['current'] = (base_name(pick) if slot in ('ancestry_trait', 'talent', 'spell',
-                                                        'maneuver', 'subclass') else str(pick))
+                                                        'maneuver', 'subclass', 'spell_tagged') else str(pick))
             if slot == 'ancestry_trait':
                 lst, row = self._anc_find(pick)
                 if lst is not None:
@@ -849,6 +893,19 @@ class BuilderAPI:
                 out.append(self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
                                      pick, None, False, editable,
                                      plan=level > self.ledger['current_level']))
+        # FR-8 slice 5: a TAG-CONSTRAINED spell grant (Eldritch Otherworldly Gift) materialises one
+        # constrained spell child-slot. The child id uses resource 'spells' so _set_grant_child writes
+        # granted_spells; the slot type 'spell_tagged' filters options to the granted tag. The {spells:1}
+        # grant is CONSUMED by this pick (it is already counted by the spell budget via grant totals,
+        # exactly like granted_maneuvers), so it does not stack - the flat spell count is unchanged.
+        if self._spell_grant_tag(parent):
+            n = int(grants.get('spells', 0) or 0)
+            lst = parent.get('granted_spells') or []
+            for k in range(n):
+                pick = lst[k] if k < len(lst) else UNDECIDED
+                out.append(self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_tagged',
+                                     pick, None, False, editable,
+                                     plan=level > self.ledger['current_level']))
         return out
 
     def _apply_grants(self, entry, grants, changed):
@@ -873,6 +930,17 @@ class BuilderAPI:
                 continue
             prev = [] if changed else list(entry.get(gkey) or [])
             entry[gkey] = (prev + [UNDECIDED] * n)[:n]
+        # FR-8 slice 5: a tag-constrained spell grant (Eldritch Psychic) resizes granted_spells like a
+        # child resource. Plain {spells:N} grants (the other five) are NOT tag-constrained, so this is a
+        # no-op for them and they keep the flat-pool model. (On a real change the granted_spells pop
+        # above already fired; here we rebuild it to the new count, all UNDECIDED.)
+        if self._spell_grant_tag(entry):
+            n = int(grants.get('spells', 0) or 0)
+            if n <= 0:
+                entry.pop('granted_spells', None)
+            else:
+                prev = [] if changed else list(entry.get('granted_spells') or [])
+                entry['granted_spells'] = (prev + [UNDECIDED] * n)[:n]
 
     def _set_grant_child(self, did, value):
         # write a grant-child pick into its parent's granted_<resource> list (see _grant_children).

@@ -986,10 +986,18 @@ def check_slice2():
        (cc.get("granted_maneuvers"), cc.get("grants")))
 
     # ---- (d) surgical boundary + built-page furniture ----
+    # Slice 2 kept plain spells/maneuvers on the flat-pool model (NOT in GRANT_CHILD_SLOTS). Slice 5
+    # then added ONE deliberate, opt-in exception: a TAG-CONSTRAINED spell grant (Eldritch's Psychic
+    # slot) materialises a single spell child via a separate gated path, without adding 'spells' to
+    # GRANT_CHILD_SLOTS. So the structural boundary is intact and Runt has exactly one GC# row.
     base = st(builder_api.BuilderAPI("runt", CATPATHS))
-    ok("surgical boundary: maneuvers/spells do NOT become GC child slots (Runt has zero GC# rows at rest)",
-       not any(str(d.get("id")).startswith("GC#") for d in base["decisions"]),
-       [d.get("id") for d in base["decisions"] if str(d.get("id")).startswith("GC#")])
+    gc_ids = sorted(str(d.get("id")) for d in base["decisions"] if str(d.get("id")).startswith("GC#"))
+    ok("surgical boundary intact: plain 'spells'/'maneuvers' are NOT in GRANT_CHILD_SLOTS (flat-pool model kept)",
+       "spells" not in builder_api.GRANT_CHILD_SLOTS and "maneuvers" not in builder_api.GRANT_CHILD_SLOTS,
+       dict(builder_api.GRANT_CHILD_SLOTS))
+    ok("Runt's flat maneuvers/spells do NOT become GC child slots; his ONLY GC row is the slice-5 tag-constrained Psychic spell",
+       not any("#maneuvers#" in i for i in gc_ids) and gc_ids == ["GC#L3:0#spells#0"],
+       gc_ids)
     ok("the page's BuilderAPI glue carries the slice-2 backbone methods (glue is base64-baked; blob==source is checked in section 1)",
        all(hasattr(builder_api.BuilderAPI, m) for m in ("_grant_children", "_apply_grants", "_set_grant_child"))
        and hasattr(builder_api, "GRANT_CHILD_SLOTS"))
@@ -1119,6 +1127,90 @@ def check_slice4():
        e.get("granted_metamagic") == ["Subtle Spell", UND], e.get("granted_metamagic"))
 
 
+# ---------------------------------------------------------------- (16) FR-8 slice 5 Eldritch Psychic spell
+def check_slice5():
+    UND = "(undecided)"
+    print()
+    print("## (16) FR-8 slice 5: Eldritch constrained Psychic-spell grant (Runt; meets FR-13)")
+
+    rapi = builder_api.BuilderAPI("runt", CATPATHS)
+
+    # ---- (a) the constrained picker offers ONLY Psychic-tag spells (tag sourced from subclass_grants) ----
+    sub_e = next(e for lvl in rapi.ledger["levels"] for e in rapi.ledger["levels"][lvl]
+                if e.get("slot") == "subclass")
+    ok("Eldritch's spell grant is tag-constrained: _spell_grant_tag -> 'Psychic' (from subclass_grants spell_access)",
+       rapi._spell_grant_tag(sub_e) == "Psychic", rapi._spell_grant_tag(sub_e))
+    topts = rapi._options_for("spell_tagged")
+    tnames = {o["name"] for o in topts}
+    meta = rapi.meta
+    ok("the constrained picker offers ONLY Psychic-tag spells",
+       topts and all("Psychic" in (meta.get(o["name"]) or {}).get("tags", []) for o in topts),
+       [o["name"] for o in topts if "Psychic" not in (meta.get(o["name"]) or {}).get("tags", [])][:5])
+    ok("Tendrils from Beyond is offered (Psychic tag; its Conjuration school is NOT chosen)",
+       "Tendrils from Beyond" in tnames and "Conjuration" not in (rapi.ledger["chargen"].get("spell_schools") or []),
+       ("Tendrils from Beyond" in tnames))
+    ok("a non-Psychic accessible spell (Lightning Bolt, chosen Elemental school) is NOT offered in the constrained picker",
+       "Lightning Bolt" not in tnames, "Lightning Bolt" in tnames)
+
+    # ---- (b) Runt's L3 subclass row is a clean editable picker ----
+    sst = st(rapi)
+    subdec = next(d for d in sst["decisions"] if d.get("slot") == "subclass")
+    ok("Runt's subclass row is a clean editable picker reading 'Eldritch'",
+       subdec["widget"] == "picker" and subdec["editable"] and subdec["current"] == "Eldritch",
+       (subdec["widget"], subdec.get("current")))
+    subref = str(subdec["id"])   # e.g. 'L3:0'
+
+    # ---- (c) the {spells:1} grant materialises exactly ONE 'spell_tagged' child, reading Tendrils ----
+    kids = [d for d in sst["decisions"] if str(d.get("id")).startswith("GC#%s#spells#" % subref)]
+    ok("the {spells:1} tag-constrained grant materialises exactly 1 'spell_tagged' child picker keyed to the subclass",
+       len(kids) == 1 and kids[0]["slot"] == "spell_tagged" and kids[0]["widget"] == "picker" and kids[0]["editable"],
+       [(d["id"], d["slot"], d.get("current")) for d in kids])
+    ok("the spell child reads Runt's granted_spells [Tendrils from Beyond] and offers only Psychic spells",
+       kids and kids[0]["current"] == "Tendrils from Beyond"
+       and all("Psychic" in (meta.get(o["name"]) or {}).get("tags", []) for o in kids[0]["options"]),
+       kids[0].get("current") if kids else None)
+    ok("both the spell grant is decided -> no 'spell (tag) undecided' problem and Runt's build stays clean",
+       not any("spell (tag) undecided" in p for p in sst["builder_problems"]) and sst["catalog_problems"] == [],
+       (sst["builder_problems"], sst["catalog_problems"]))
+
+    # ---- (d) consume-not-stack: Tendrils is NOT double-offered in the flat spell pickers (FR-7 dedup) ----
+    flat_spell_opts = [d for d in sst["decisions"] if d.get("slot") == "spell" and d["widget"] == "picker"]
+    ok("the granted Psychic spell is hidden from the flat spell pickers (no double-pick across slots)",
+       flat_spell_opts and all("Tendrils from Beyond" not in {o["name"] for o in d["options"]} for d in flat_spell_opts),
+       "hidden")
+
+    # ---- (e) surgical boundary intact: plain {spells:N} grants do NOT get a spell_tagged child ----
+    for other in ("scaletrix", "tanrielle", "bonan", "xanwyn"):
+        oapi = builder_api.BuilderAPI(other, CATPATHS)
+        os_ = st(oapi)
+        ok("%s's flat {spells:N} grant gets NO spell child slot (spells stay on the flat-pool model)" % other,
+           not any("#spells#" in str(d.get("id")) for d in os_["decisions"]),
+           [d.get("id") for d in os_["decisions"] if "#spells#" in str(d.get("id"))])
+
+    # ---- (f) re-picking the subclass rebuilds/clears the constrained spell slot (_apply_grants wiring) ----
+    rapi.set_decision(subref, "Fey")                            # a non-tag-constrained subclass (no spell_access)
+    e = next(e for lvl in rapi.ledger["levels"] for e in rapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("re-picking to a non-tag subclass (Fey) drops the spells grant and the granted_spells child",
+       "spells" not in (e.get("grants") or {}) and not e.get("granted_spells")
+       and not any(str(d.get("id")).startswith("GC#%s#spells#" % subref) for d in st(rapi)["decisions"]),
+       (e.get("grants"), e.get("granted_spells")))
+    rapi.set_decision(subref, "Eldritch")                       # back to the tag-constrained subclass
+    e = next(e for lvl in rapi.ledger["levels"] for e in rapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("re-picking Eldritch rebuilds 1 undecided Psychic-spell slot (UNDECIDED on a real change)",
+       e.get("grants") == {"spells": 1} and e.get("granted_spells") == [UND],
+       (e.get("grants"), e.get("granted_spells")))
+    s2 = st(rapi)
+    kids2 = [d for d in s2["decisions"] if str(d.get("id")).startswith("GC#%s#spells#" % subref)]
+    ok("1 fresh Psychic-spell child picker renders + surfaces as a builder problem until decided",
+       len(kids2) == 1 and kids2[0]["current"] == UND
+       and any("spell (tag) undecided" in p for p in s2["builder_problems"]),
+       ([d["current"] for d in kids2], [p for p in s2["builder_problems"] if "spell (tag)" in p]))
+    rapi.set_decision(kids2[0]["id"], "Psychic Wave")
+    e = next(e for lvl in rapi.ledger["levels"] for e in rapi.ledger["levels"][lvl] if e.get("slot") == "subclass")
+    ok("editing the Psychic-spell child writes into the subclass's granted_spells (structural GC# link)",
+       e.get("granted_spells") == ["Psychic Wave"], e.get("granted_spells"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1145,6 +1237,7 @@ def main():
         check_slice2()
         check_slice3()
         check_slice4()
+        check_slice5()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1163,6 +1256,7 @@ def main():
     print("       FR-8 slice 2 grants -> typed child picker-slots backbone,")
     print("       FR-8 slice 3 Rune Knight subclass grants 2 runes (Xanwyn, real catalog)")
     print("       FR-8 slice 4 Meta Magic talent grants 2 metamagic (Scaletrix, real cat-level catalog)")
+    print("       FR-8 slice 5 Eldritch constrained Psychic-spell grant (Runt; meets FR-13)")
     sys.exit(0)
 
 

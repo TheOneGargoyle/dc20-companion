@@ -197,10 +197,15 @@ def spell_picks(led):
     names = []
     for s in led["chargen"].get("spells") or []:
         names += split_names(s)
+    for c in led["chargen"].get("class_choices") or []:      # FR-8 slice 5: granted spells (tag-constrained)
+        for x in c.get("granted_spells") or []:
+            names += split_names(x)
     for lvl, entries in (led.get("levels") or {}).items():
         for e in entries or []:
             if e.get("slot") == "spell":
                 names += split_names(e["pick"])
+            for x in e.get("granted_spells") or []:          # FR-8 slice 5: granted spells (tag-constrained)
+                names += split_names(x)
     return names
 
 

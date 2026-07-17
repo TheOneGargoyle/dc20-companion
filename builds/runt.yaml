@@ -98,7 +98,9 @@ levels:
     pick: Eldritch
     grants:
       spells: 1
-    note: 'Otherworldly Gift: Psychic Spellcasting = +1 Psychic-tag spell (= Tendrils from Beyond), classes.md l.3417. Forbidden Knowledge = daily temp spell (Primal Hide routine), not a known spell.'
+    granted_spells:
+    - Tendrils from Beyond
+    note: 'Otherworldly Gift: Psychic Spellcasting = +1 Psychic-tag spell, itemised as a constrained child picker (FR-8 slice 5, 2026-07-17): the {spells:1} grant materialises one Psychic-only spell slot (constraint sourced from the catalog subclass_grants Eldritch spell_access tag Psychic), default Tendrils from Beyond (Conjuration school, legal ONLY via the Psychic tag since Conjuration is not a chosen school), classes.md l.3414-17. The grant is CONSUMED by this pick (counted once via the spell budget, like granted_maneuvers), so spells stays 6. Forbidden Knowledge = daily temp spell (Primal Hide routine), not a known spell.'
   - slot: attribute
     pick: intelligence
     inferred: true
