@@ -1015,11 +1015,12 @@ class BuilderAPI:
                 budgets.append(ln[2:])
         return stats, budgets
 
-    def next_level_info(self):
-        cur = self.ledger['current_level']
-        if cur >= 10:
-            return None
-        row = self.ccat['spine'].get(cur + 1, {})
+    def _level_grant(self, lvl):
+        # FR-10: format ONE class-spine row's grants for that level's section header -
+        # the numeric per-level deltas plus the named features (dropping the generic
+        # L1 'Class Features' label). Shared by next_level_info (the sidebar next-level
+        # strip) and state()'s level_grants map (every rendered level's header).
+        row = self.ccat['spine'].get(lvl, {})
         bits = []
         for k, lab in (('hp', 'HP'), ('sp', 'SP'), ('mp', 'MP'), ('spells', 'spell'),
                        ('maneuvers', 'maneuver'), ('attribute_points', 'attribute pt'),
@@ -1027,8 +1028,15 @@ class BuilderAPI:
             v = row.get(k, 0)
             if v:
                 bits.append('+%d %s' % (v, lab))
-        return {'level': cur + 1, 'summary': ', '.join(bits),
-                'features': [f for f in row.get('features', []) if f != 'Class Features'],
+        return {'summary': ', '.join(bits),
+                'features': [f for f in row.get('features', []) if f != 'Class Features']}
+
+    def next_level_info(self):
+        cur = self.ledger['current_level']
+        if cur >= 10:
+            return None
+        g = self._level_grant(cur + 1)
+        return {'level': cur + 1, 'summary': g['summary'], 'features': g['features'],
                 'has_plan': bool((self.ledger.get('levels') or {}).get(cur + 1))}
 
     def state(self):
@@ -1036,6 +1044,12 @@ class BuilderAPI:
         rep = eng.replay(self.ledger, cur)
         stats, budgets = self._sections(rep.lines)
         planned = [l for l in sorted(self.ledger.get('levels') or {}) if l > cur]
+        # FR-10: per-level grant summaries for EVERY rendered level (1..current +
+        # planned), for all characters - so each level's collapsible header can show
+        # what it grants without expanding. Keyed by level (JSON stringifies the keys;
+        # the JS render loop indexes level_grants[lvl]). Supersedes the old cur+1-only
+        # next-level echo. L1 (chargen starting kit) is included by design.
+        level_grants = {l: self._level_grant(l) for l in list(range(1, cur + 1)) + planned}
         anc_levels = [1] + [l for l in sorted(self.ccat['spine']) if l <= cur and
                             '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or [])]
         return json.dumps({
@@ -1049,6 +1063,7 @@ class BuilderAPI:
             'level': cur, 'planned': planned,
             'scratch': self.scratch,
             'next': self.next_level_info(),
+            'level_grants': level_grants,
             'undo_level': (self._undo[-1]['cur'] + 1) if self._undo else None,
             'anc_levels': anc_levels,
             'anc_lists_all': sorted(self.cat['ancestries']['ancestries'].keys()),
@@ -2139,10 +2154,19 @@ function render(s){
     const open = (String(lvl) in prevOpen) ? prevOpen[String(lvl)] : defOpen;
     const label = lvl===1 ? "Level 1 &mdash; character creation" : `Level ${lvl}` + (plan?" (plan)":"") +
       (lvl===s.level?" &larr; current":"") + (undecAt[lvl]?` &mdash; ${undecAt[lvl]} undecided`:"");
-    // FR-10: echo the sidebar next-level preview into that level's section header
-    // (fires on the planned cur+1 group, so a collapsed plan shows what it grants).
-    const lvlPrev = (s.next && s.next.level===lvl && s.next.summary)
-      ? ` <span class="lvlprev">grants: ${esc(s.next.summary)}${s.next.features.length? ' &middot; '+esc(s.next.features.join(', ')):''}</span>` : '';
+    // FR-10: echo each level's grants (numeric deltas + named features), sourced from
+    // the class spine via state().level_grants, into that level's collapsible section
+    // header - so every level of every character shows what it grants without being
+    // expanded. Supersedes the old cur+1-only next-level gate (the sidebar Add-level
+    // button still uses s.next). L1's chargen starting kit is included.
+    let lvlPrev = "";
+    const lg = s.level_grants && s.level_grants[lvl];
+    if(lg){
+      const parts = [];
+      if(lg.summary) parts.push(esc(lg.summary));
+      if(lg.features && lg.features.length) parts.push(esc(lg.features.join(', ')));
+      if(parts.length) lvlPrev = ` <span class="lvlprev">grants: ${parts.join(' &middot; ')}</span>`;
+    }
     d += `<details class="lvlgrp${plan?' plan':''}" data-lvl="${lvl}" ${open?'open':''}><summary>${label}${lvlPrev}</summary>${rows}</details>`;
   }
   $('decisions').innerHTML = d;

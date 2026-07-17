@@ -905,16 +905,42 @@ def check_wave2():
        any("maneuver" in l for l in blabels) and any("MP" in l for l in dlabels),
        dlabels + blabels)
 
-    # ---- FR-10: echo the next-level preview into that level's section header ----
-    ok("FR-10 builder bakes the lvlprev echo (CSS + summary injection)",
-       ".lvlprev{" in html and "s.next && s.next.level===lvl && s.next.summary" in html
-       and "grants: ${esc(s.next.summary)}" in html)
+    # ---- FR-10: echo EVERY level's grants into that level's section header ----
+    # (generalised 2026-07-17 from the old cur+1-only echo to all levels, all chars).
+    ok("FR-10 builder bakes the generalised lvlprev echo (CSS + per-level level_grants injection)",
+       ".lvlprev{" in html and "s.level_grants && s.level_grants[lvl]" in html
+       and "grants: ${parts.join(' &middot; ')}" in html)
+    ok("FR-10 the old cur+1-only gate is gone (superseded by level_grants)",
+       "s.next && s.next.level===lvl && s.next.summary" not in html)
+    # state() carries a grant summary for EVERY rendered level (1..current + planned),
+    # including L1 (chargen kit), for every party character - not just Tanrielle's plan.
+    for c in builder_build.CHARS:
+        s2 = st(builder_api.BuilderAPI(c, CATPATHS))
+        want = set(range(1, s2["level"] + 1)) | set(s2["planned"])
+        lg = s2["level_grants"]
+        got = {int(k) for k in lg}
+        ok("FR-10 %s: level_grants covers every rendered level %s (1..current + planned)"
+           % (c, sorted(want)), got == want, sorted(got))
+        ok("FR-10 %s: every level_grants entry has a non-empty grant summary (incl L1)" % c,
+           all(lg[k]["summary"] and "features" in lg[k] for k in lg),
+           {k: lg[k]["summary"] for k in lg})
+    # Regression: Tanrielle's L5 header still reads the exact documented FR-10 string,
+    # now sourced from level_grants rather than the next-level strip.
     ts = st(builder_api.BuilderAPI("tanrielle", CATPATHS))
-    planned = {t["level"] for t in ts["decisions"] if t.get("plan")}
-    ok("FR-10 tanrielle next-level (L%s) is a planned group, so the echo fires in its header"
-       % (ts["next"] and ts["next"]["level"]),
-       ts["next"] and ts["next"]["level"] in planned and bool(ts["next"]["summary"]),
-       (ts["next"], sorted(planned)))
+    l5 = ts["level_grants"]["5"]
+    ok("FR-10 tanrielle L5 grant summary unchanged + Class Feature",
+       l5["summary"] == "+2 HP, +1 SP, +1 MP, +1 spell, +1 attribute pt, +2 skill pt, +1 trade pt"
+       and l5["features"] == ["Class Feature"], l5)
+    # A no-plan character (runt) now gets grants on all its levels - the exact case
+    # the old gate missed (Tanrielle-L5-only). Its next-level strip stays intact too.
+    rs = st(builder_api.BuilderAPI("runt", CATPATHS))
+    ok("FR-10 runt (no planned level) now shows grants on all levels 1..current",
+       {int(k) for k in rs["level_grants"]} == set(range(1, rs["level"] + 1))
+       and all(rs["level_grants"][k]["summary"] for k in rs["level_grants"]),
+       sorted(rs["level_grants"]))
+    ok("FR-10 the sidebar next-level strip (s.next) still drives the Add-level button",
+       rs["next"] and rs["next"]["level"] == rs["level"] + 1 and bool(rs["next"]["summary"]),
+       rs["next"])
 
 
 # ---------------------------------------------------------------- (13) FR-8 slice 2 backbone
