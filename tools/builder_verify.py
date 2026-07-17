@@ -955,8 +955,8 @@ def check_slice2():
     UND = "(undecided)"
     print()
     print("## (13) FR-8 slice 2: grants -> typed child picker-slots backbone")
-    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic), excludes maneuvers/spells",
-       builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic"},
+    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills), excludes maneuvers/spells",
+       builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic", "skills": "skill"},
        builder_api.GRANT_CHILD_SLOTS)
 
     # No party ledger grants a pickable resource yet (rune/metamagic catalogs land in slices 3/4),
@@ -1266,19 +1266,24 @@ def check_fr3():
     editable = [d for d in l5 if d["editable"] and d["widget"] == "picker"]
     ok("a builder-generated plan is EDITABLE (spine slots are real pickers you can fill in)",
        len(editable) >= 1 and all(d["slot"] in ("attribute", "talent", "path", "subclass",
-                                                 "spell", "maneuver", "ancestry_trait") for d in editable),
+                                                 "spell", "maneuver", "ancestry_trait", "skill") for d in editable),
        [(d["slot"], d["widget"]) for d in l5])
-    ok("an added plan raises NO builder_problems and leaves the engine/catalog clean (a plan is speculative)",
-       clean(s), probs(s))
-    # editing a plan pick writes it and the row stays an editable picker
-    row = editable[0]
+    # FR-3 slice 2 changed the plan contract for SKILLS ONLY (Darryl's call): a plan is engine/catalog
+    # clean and raises no NON-skill builder problems, but its enforced skill picks flag until filled.
+    e0, c0, b0 = probs(s)
+    ok("an added plan is engine/catalog clean and raises no NON-skill builder problems",
+       not e0 and not c0 and all("planned skill" in p for p in b0), probs(s))
+    # editing a plan pick writes it and the row stays an editable picker (use a non-skill spine row)
+    row = [d for d in editable if d["slot"] != "skill"][0]
     val = row["options"][0]["name"]
     s = json.loads(api.set_decision(row["id"], val))
     r2 = find_dec(s, lambda d: d["id"] == row["id"])
     ok("editing a plan pick writes the value and the row stays an editable picker",
        r2 and r2["current"] == val and r2["editable"] and r2["widget"] == "picker",
        (r2 or {}).get("current"))
-    ok("filling a plan pick still raises no engine/catalog/builder problems", clean(s), probs(s))
+    e1, c1, b1 = probs(s)
+    ok("filling a non-skill plan pick keeps engine/catalog clean (only enforced skill picks remain)",
+       not e1 and not c1 and all("planned skill" in p for p in b1), probs(s))
     # a second planned level stacks; undo unwinds L6 then L5 (undo link never wrongly gone)
     s = json.loads(api.add_planned_level())
     ok("a second planned level stacks to L6 and the undo link now says L6",
@@ -1329,6 +1334,118 @@ def check_fr3():
     ok("planning stops at the L10 ceiling (no plan level above 10)",
        max(s["planned"]) == 10 and not s["can_plan"] and s["plan_level"] is None,
        (s["planned"], s["can_plan"], s["plan_level"]))
+
+
+def check_fr3_slice2():
+    print("\n## (19) FR-3 slice 2: planned levels carry their own skill picks "
+          "(Hybrid, FR-8 backbone, enforced)")
+
+    def skl(s, level):
+        return [d for d in s["decisions"] if d["slot"] == "skill" and d["level"] == level]
+
+    def onames(dec):
+        return [o["name"] for o in dec.get("options", [])]
+
+    # (a) the six baselines are byte-identical at rest: no ledger carries a skills carrier, so no
+    # granted_skills, so every new code path is a no-op and no character gains a problem.
+    allclean = True
+    for c in builder_build.CHARS:
+        api = builder_api.BuilderAPI(c, CATPATHS)
+        s = st(api)
+        if any("planned skill" in p for p in s["builder_problems"]) \
+                or any("planned skill" in p for p in s["catalog_problems"]) \
+                or any(d["slot"] == "skills" for d in s["decisions"]):
+            allclean = False
+    ok("no ledger has a skills carrier at rest; all six baselines stay clean (Hybrid: no reshape)", allclean)
+
+    # (b) a plan level's spine skill_points materialise N editable skill child-slots on a carrier.
+    api = builder_api.BuilderAPI("minimus", CATPATHS)   # Commander L4, empty aggregate; L5 grants 2 SP
+    s = json.loads(api.add_planned_level())
+    carrier = [d for d in s["decisions"] if d["slot"] == "skills" and d["level"] == 5]
+    sk5 = skl(s, 5)
+    ok("the L5 skill-point budget materialises a 'skills' carrier + 2 editable skill child slots",
+       len(carrier) == 1 and len(sk5) == 2 and all(d["editable"] and d["widget"] == "picker" for d in sk5),
+       (len(carrier), len(sk5)))
+    ids = [d["id"] for d in sk5]
+    ok("skill child ids are keyed structurally to the carrier parent (GC#L5:...#skills#k)",
+       all(i.startswith("GC#L5:") and "#skills#" in i for i in ids), ids)
+
+    # (c) ENFORCE (Darryl's call): undecided planned skills flag as problems (under-spend).
+    bp = [p for p in s["builder_problems"] if "planned skill" in p]
+    ok("both undecided planned skill picks are flagged (enforced budget, not speculative)",
+       len(bp) == 2 and not s["problems"] and not s["catalog_problems"], probs(s))
+
+    # (d) add-new options: empty aggregate -> every skill offered at Novice, none as a raise.
+    o0 = onames(sk5[0])
+    ok("add-new offers skills at Novice (e.g. 'Acrobatics: Novice') and no raises for an empty aggregate",
+       "Acrobatics: Novice" in o0 and all(x.endswith(": Novice") for x in o0), o0[:4])
+
+    # (e) sibling distinctness: a skill picked in one slot is hidden from the other slot of the level.
+    s = json.loads(api.set_decision(sk5[0]["id"], "Acrobatics: Novice"))
+    sk5 = skl(s, 5)
+    other = [d for d in sk5 if d["id"] != ids[0]][0]
+    ok("a skill chosen in one slot is hidden from the sibling slot (points go to distinct skills)",
+       "Acrobatics: Novice" not in onames(other), onames(other)[:4])
+    ok("filling one skill leaves exactly one enforced skill problem remaining",
+       len([p for p in s["builder_problems"] if "planned skill" in p]) == 1, s["builder_problems"])
+    s = json.loads(api.set_decision(other["id"], onames(other)[0]))
+    ok("filling both planned skills clears all problems", clean(s), probs(s))
+
+    # (f) RAISE + mastery cap, on Tanrielle (Awareness is Adept in her aggregate).
+    ta = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    for _ in range(4):                                  # L7(0 SP), L8(1 SP), L9(0), L10(2 SP)
+        ta.add_planned_level()
+    s = st(ta)
+    o8 = onames(skl(s, 8)[0])
+    ok("at L8 (cap Adept) an Adept skill cannot raise further (Awareness not offered)",
+       not any(x.startswith("Awareness") for x in o8)
+       and "Athletics: Adept" in o8, o8[:6])
+    o10 = onames(skl(s, 10)[0])
+    ok("at L10 (cap Expert) an Adept skill CAN raise to Expert (Awareness: Expert offered)",
+       "Awareness: Expert" in o10, [x for x in o10 if x.startswith("Awareness")])
+
+    # (g) running state chains across plan levels (a lower plan raise feeds a higher level's options).
+    s = json.loads(ta.set_decision(skl(s, 8)[0]["id"], "Athletics: Adept"))
+    o10b = onames(skl(s, 10)[0])
+    ok("a raise at L8 feeds L10's running state (Athletics: Expert now offered, Adept no longer)",
+       "Athletics: Expert" in o10b and "Athletics: Adept" not in o10b, [x for x in o10b if x.startswith("Athletics")])
+
+    # (h) Tanrielle's HAND-AUTHORED locked plan skill rows stay read-only (the Hybrid boundary).
+    tplan_sk = [d for d in st(builder_api.BuilderAPI("tanrielle", CATPATHS))["decisions"]
+                if d["slot"] == "skill" and d["level"] in (5, 6)]
+    ok("Tanrielle's hand-authored L5/L6 skill rows stay read-only (locked, not builder-generated)",
+       bool(tplan_sk) and not any(d["editable"] for d in tplan_sk),
+       [(d["level"], d["editable"]) for d in tplan_sk])
+
+    # (i) export/reload: granted_skills round-trips and the slots stay editable.
+    ap = builder_api.BuilderAPI("minimus", CATPATHS)
+    ap.add_planned_level()
+    ap.set_decision(skl(st(ap), 5)[0]["id"], "Acrobatics: Novice")
+    y = ap.export_yaml()
+    ok("an exported plan carries granted_skills", "granted_skills" in y, None)
+    ar = builder_api.BuilderAPI("minimus-x", CATPATHS, ledger_text=y)
+    sr = st(ar)
+    keep = [d for d in skl(sr, 5) if d.get("current") == "Acrobatics: Novice"]
+    ok("a reloaded plan skill persists and stays editable (round-trips)",
+       bool(keep) and all(d["editable"] for d in skl(sr, 5)), None)
+
+    # (j) legality DEFENCE: a stale illegal value (2-step jump / over-cap) is caught by catalog_problems.
+    dfn = builder_api.BuilderAPI("minimus", CATPATHS)
+    dfn.add_planned_level()
+    car = [e for e in dfn.ledger["levels"][5] if e.get("slot") == "skills"][0]
+    car["granted_skills"] = ["Acrobatics: Expert", "(undecided)"]   # Novice->Expert is 2 steps AND > cap Adept
+    sd = st(dfn)
+    cp = [p for p in sd["catalog_problems"] if "planned skill" in p]
+    ok("a stale illegal planned skill (2-step + over-cap) is flagged by catalog_problems",
+       any("single step" in p for p in cp) and any("mastery limit" in p for p in cp), cp)
+
+    # (k) HYBRID surgical boundary: a real advance (add_level) does NOT create a skills carrier;
+    # skills stay in the flat aggregate for completed/current levels.
+    adv = builder_api.BuilderAPI("minimus", CATPATHS)
+    adv.add_level()                                    # advance to L5 (real, not a plan)
+    sa = st(adv)
+    ok("a REAL advance (add_level) creates no skills carrier - completed levels keep the flat aggregate",
+       sa["level"] == 5 and not any(d["slot"] == "skills" for d in sa["decisions"]), sa["level"])
 
 
 def check_fr6():
@@ -1423,6 +1540,7 @@ def main():
         check_slice4()
         check_slice5()
         check_fr3()
+        check_fr3_slice2()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1444,6 +1562,7 @@ def main():
     print("       FR-8 slice 5 Eldritch constrained Psychic-spell grant (Runt; meets FR-13)")
     print("       FR-6 rule text on a chosen option (baked corpus + linkify + rule panel)")
     print("       FR-3 Add Planned Level for every PC (editable plans, no ledger reshape) + undo")
+    print("       FR-3 slice 2 planned levels carry their own skill picks (Hybrid, FR-8 backbone, enforced)")
     sys.exit(0)
 
 

@@ -97,7 +97,11 @@ FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 # existing flat-pool + expand_composite model (the surgical slice-2 boundary). The rune /
 # metamagic catalogs land in slices 3/4; the backbone is data-driven so those slices only add
 # catalog data + an _options_for branch, no new plumbing.
-GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic'}
+# FR-3 slice 2: 'skills' joins the backbone so a PLANNED level's skill-point budget materialises
+# editable skill child picker-slots (one per point). The picks live in granted_skills on a per-plan-
+# level carrier entry (slot 'skills', grants {skills:N}); only add_planned_level emits that carrier,
+# so completed/current levels keep the flat skills.masteries aggregate untouched (the Hybrid split).
+GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill'}
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -618,9 +622,76 @@ class BuilderAPI:
                         add(x)
         return out
 
+    # ---------- FR-3 slice 2: planned-level skill picks (Hybrid, reusing the FR-8 backbone) ----
+    def _parse_skill_pick(self, v):
+        # a planned skill pick is stored as "<Skill>: <resulting tier>" (e.g. "Awareness: Expert").
+        # A colon does not trip is_composite (that gate only fires on a colon in a "4th ..." head),
+        # so the value round-trips cleanly. A bare name defaults to Novice (defensive / hand-authored).
+        s = str(v)
+        if ':' in s:
+            a, b = s.rsplit(':', 1)
+            return a.strip(), b.strip()
+        return s.strip(), 'Novice'
+
+    def _mastery_cap_idx(self, level):
+        # the DC20 Mastery Limit as a MASTERIES index (None<Novice<Adept<Expert): Novice <L5,
+        # Adept L5-9, Expert at L10. The builder ladder tops out at Expert, which is the L10 cap,
+        # so no plan (<=L10) is ever clipped by the ladder. Mirrors build_engine.mastery_limit.
+        if level >= 10:
+            return MASTERIES.index('Expert')
+        if level >= 5:
+            return MASTERIES.index('Adept')
+        return MASTERIES.index('Novice')
+
+    def _skill_running_state(self, level):
+        # the running mastery of each skill AS OF just before `level`: the flat skills.masteries
+        # aggregate (the character's whole verified/inferred history, kept as source of truth by the
+        # Hybrid decision) plus any raises from PLAN levels strictly below `level`. Within-level picks
+        # do not chain (each of a level's skill slots is a distinct one-step allocation).
+        st = {}
+        for name, m in ((self.ledger.get('skills') or {}).get('masteries') or {}).items():
+            if m.get('mastery'):
+                st[name] = m.get('mastery')
+        cur = self.ledger['current_level']
+        for L in sorted(self.ledger.get('levels') or {}):
+            if L <= cur or L >= level:
+                continue
+            for e in self.ledger['levels'][L] or []:
+                for v in e.get('granted_skills') or []:
+                    if str(v) == UNDECIDED:
+                        continue
+                    sk, tier = self._parse_skill_pick(v)
+                    if sk:
+                        st[sk] = tier
+        return st
+
+    def _skill_plan_options(self, level):
+        # legal picks for a skill child-slot on a planned `level`: for every catalog skill, offer the
+        # ONE next tier up from its running state (add-new = None->Novice, raise = one tier), but only
+        # if that tier is within the level's Mastery Limit. So the picker can only ever make a legal,
+        # single-step, within-cap pick (FR-13-style: offer only legal options).
+        base = self._skill_running_state(level)
+        cap = self._mastery_cap_idx(level)
+        allsk = sorted({n for lst in ((self.cat.get('skills_trades') or {}).get('skills') or {}).values()
+                        for n in lst})
+        out = []
+        for n in allsk:
+            cur_tier = base.get(n)
+            cur_idx = MASTERIES.index(cur_tier) if cur_tier in MASTERIES else 0
+            nxt = cur_idx + 1
+            if nxt >= len(MASTERIES) or nxt > cap:
+                continue
+            tier = MASTERIES[nxt]
+            verb = 'new' if cur_idx == 0 else 'raise from %s' % cur_tier
+            out.append({'name': '%s: %s' % (n, tier), 'group': 'Skills',
+                        'label': '%s -> %s (%s)' % (n, tier, verb)})
+        return out
+
     def _options_for(self, slot):
         if slot == 'ancestry_trait':
             return self._anc_options()
+        if slot == 'spell':
+            return self._spell_options()
         if slot == 'spell':
             return self._spell_options()
         if slot == 'maneuver':
@@ -655,6 +726,8 @@ class BuilderAPI:
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
             return self._spell_tagged_options()
+        if slot == 'skill':   # FR-3 slice 2 planned-level skill child-slot (options are level-aware, so
+            return []          # _grant_children overrides d['options'] with self._skill_plan_options(level))
         return []
 
     # ---------- catalog-level legality (the layer the engine does not do) ----------
@@ -733,6 +806,42 @@ class BuilderAPI:
             if req and 'any ' not in str(req).lower() and base_name(req) not in present:
                 probs.append('catalog: %s requires %s, which this character has not taken'
                              % (base_name(nm), req))
+        # FR-3 slice 2: planned-level skill picks legality (the enforcement the engine skips on plans).
+        # Each decided pick must be a known catalog skill, exactly ONE mastery step up from its running
+        # state (aggregate + lower plan levels), within the level's Mastery Limit, and distinct within
+        # the level. The picker only offers legal options, so this defends against stale / hand-authored
+        # values (e.g. a lower pick was later changed, leaving a raise no longer one-step).
+        allsk = {n for lst in ((self.cat.get('skills_trades') or {}).get('skills') or {}).values()
+                 for n in lst}
+        cur = self.ledger['current_level']
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            if lvl <= cur:
+                continue
+            base = self._skill_running_state(lvl)
+            cap = self._mastery_cap_idx(lvl)
+            seen = set()
+            for e in self.ledger['levels'][lvl] or []:
+                for v in e.get('granted_skills') or []:
+                    if str(v) == UNDECIDED:
+                        continue
+                    sk, tier = self._parse_skill_pick(v)
+                    if sk not in allsk:
+                        probs.append('catalog: planned skill %r (L%d) is not a known skill' % (sk, lvl))
+                        continue
+                    if tier not in MASTERIES or tier is None:
+                        probs.append('catalog: planned skill %s has an invalid tier %r (L%d)'
+                                     % (sk, tier, lvl))
+                        continue
+                    base_idx = MASTERIES.index(base.get(sk)) if base.get(sk) in MASTERIES else 0
+                    if MASTERIES.index(tier) != base_idx + 1:
+                        probs.append('catalog: planned skill %s -> %s (L%d) is not a single step up from %s'
+                                     % (sk, tier, lvl, base.get(sk) or 'none'))
+                    if MASTERIES.index(tier) > cap:
+                        probs.append('catalog: planned skill %s -> %s (L%d) exceeds the level mastery limit %s'
+                                     % (sk, tier, lvl, MASTERIES[cap]))
+                    if sk in seen:
+                        probs.append('catalog: planned skill %s picked twice at L%d' % (sk, lvl))
+                    seen.add(sk)
         return probs
 
     # ---------- builder-level completeness (undecided slots) ----------
@@ -777,6 +886,19 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d spell (tag) undecided' % lvl)
+        # FR-3 slice 2: planned levels ENFORCE their skill budget (Darryl's call), so an unfilled
+        # planned skill pick is flagged as under-spent. This is the deliberate divergence from Slice
+        # 1's "a plan raises no problems", scoped to skills only: the other plan grant-child slots
+        # (runes / metamagic / tagged spells) stay speculative and are NOT flagged on a plan level.
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            if lvl <= cur:
+                continue
+            for e in self.ledger['levels'][lvl] or []:
+                _n = int((e.get('grants') or {}).get('skills', 0) or 0)
+                _lst = e.get('granted_skills') or []
+                for _k in range(_n):
+                    if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                        probs.append('builder: L%d planned skill undecided' % lvl)
         if self.scratch and not str(self.ledger.get('ancestry') or '').strip():
             probs.append('builder: ancestry not chosen')
         return probs
@@ -896,11 +1018,31 @@ class BuilderAPI:
         # keep the flat-pool + expand_composite model - the surgical slice-2 boundary).
         out = []
         grants = parent.get('grants') or {}
+        cur = self.ledger['current_level']
         for resource, singular in GRANT_CHILD_SLOTS.items():
             n = int(grants.get(resource, 0) or 0)
             if n <= 0:
                 continue
             lst = parent.get('granted_%s' % resource) or []
+            if resource == 'skills':
+                # FR-3 slice 2: skill child-slots get LEVEL-AWARE options (next tier up, within the
+                # level cap) and sibling distinctness (a skill already picked in another slot of THIS
+                # level is hidden, so a level's points go to distinct skills - one step each).
+                base_opts = self._skill_plan_options(level)
+                sib = {self._parse_skill_pick(lst[j])[0]
+                       for j in range(min(n, len(lst))) if str(lst[j]) != UNDECIDED}
+                for k in range(n):
+                    pick = lst[k] if k < len(lst) else UNDECIDED
+                    d = self._dec('GC#%s#skills#%d' % (parentref, k), level, 'skill',
+                                  pick, None, False, editable,
+                                  plan=level > cur,
+                                  plan_editable=editable and level > cur)
+                    mine = self._parse_skill_pick(pick)[0] if str(pick) != UNDECIDED else None
+                    d['options'] = [o for o in base_opts
+                                    if self._parse_skill_pick(o['name'])[0] == mine
+                                    or self._parse_skill_pick(o['name'])[0] not in sib]
+                    out.append(d)
+                continue
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
                 out.append(self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
@@ -1534,6 +1676,15 @@ class BuilderAPI:
         for _ in range(row.get('maneuvers', 0)):
             add({'slot': 'maneuver', 'pick': UNDECIDED,
                  'source': 'class table L%d' % new, 'note': BUILDER_NOTE})
+        # FR-3 slice 2: a PLAN level carries its own skill picks. Emit ONE carrier entry whose
+        # {skills:N} grant materialises N editable skill child-slots via the FR-8 backbone (N = the
+        # class-spine skill_points). Only for plans - a real advance (add_level) leaves skills in the
+        # flat aggregate, so completed/current levels are untouched (the Hybrid split; no ledger reshape).
+        sp = int(row.get('skill_points', 0) or 0)
+        if plan and sp:
+            add({'slot': 'skills', 'grants': {'skills': sp},
+                 'pick': '%d skill point%s' % (sp, '' if sp == 1 else 's'),
+                 'note': 'plan: fill the skill picks below. ' + BUILDER_NOTE})
         return ents
 
     def add_level(self):
