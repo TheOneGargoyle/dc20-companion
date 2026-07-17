@@ -1244,6 +1244,93 @@ def check_slice5():
        e.get("granted_spells") == ["Psychic Wave"], e.get("granted_spells"))
 
 
+def check_fr3():
+    print("## (18) FR-3: Add Planned Level for every PC (editable plans, no ledger reshape) + undo")
+    # minimus has NO hand-authored plan: the plan button + editable plans must work for it.
+    api = builder_api.BuilderAPI("minimus", CATPATHS)
+    s = st(api)
+    ok("minimus (no plan) can add a planned level: can_plan, plan_level 5, no undo yet",
+       s["can_plan"] and s["plan_level"] == 5 and s["undo_level"] is None,
+       (s["can_plan"], s["plan_level"], s["undo_level"]))
+    ok("minimus is clean at rest before planning", clean(s), probs(s))
+    # add a PLANNED level: appends L5 WITHOUT advancing current_level
+    s = json.loads(api.add_planned_level())
+    ok("add_planned_level appends L5 as a plan and does NOT advance current_level",
+       s["level"] == 4 and s["planned"] == [5], (s["level"], s["planned"]))
+    ok("the undo link labels the real added level (L5) and does not vanish",
+       s["undo_level"] == 5, s["undo_level"])
+    ok("planning again is still offered, now at L6", s["can_plan"] and s["plan_level"] == 6,
+       (s["can_plan"], s["plan_level"]))
+    l5 = [d for d in s["decisions"] if d["level"] == 5]
+    ok("the generated L5 rows are all plan rows (dashed group)", l5 and all(d["plan"] for d in l5), len(l5))
+    editable = [d for d in l5 if d["editable"] and d["widget"] == "picker"]
+    ok("a builder-generated plan is EDITABLE (spine slots are real pickers you can fill in)",
+       len(editable) >= 1 and all(d["slot"] in ("attribute", "talent", "path", "subclass",
+                                                 "spell", "maneuver", "ancestry_trait") for d in editable),
+       [(d["slot"], d["widget"]) for d in l5])
+    ok("an added plan raises NO builder_problems and leaves the engine/catalog clean (a plan is speculative)",
+       clean(s), probs(s))
+    # editing a plan pick writes it and the row stays an editable picker
+    row = editable[0]
+    val = row["options"][0]["name"]
+    s = json.loads(api.set_decision(row["id"], val))
+    r2 = find_dec(s, lambda d: d["id"] == row["id"])
+    ok("editing a plan pick writes the value and the row stays an editable picker",
+       r2 and r2["current"] == val and r2["editable"] and r2["widget"] == "picker",
+       (r2 or {}).get("current"))
+    ok("filling a plan pick still raises no engine/catalog/builder problems", clean(s), probs(s))
+    # a second planned level stacks; undo unwinds L6 then L5 (undo link never wrongly gone)
+    s = json.loads(api.add_planned_level())
+    ok("a second planned level stacks to L6 and the undo link now says L6",
+       s["planned"] == [5, 6] and s["undo_level"] == 6, (s["planned"], s["undo_level"]))
+    s = json.loads(api.undo_add_level())
+    ok("first undo removes L6, undo link falls back to L5 (not gone)",
+       s["planned"] == [5] and s["undo_level"] == 5, (s["planned"], s["undo_level"]))
+    s = json.loads(api.undo_add_level())
+    ok("second undo removes L5, planning is back to the baseline (undo link gone)",
+       s["planned"] == [] and s["undo_level"] is None and s["level"] == 4,
+       (s["planned"], s["undo_level"], s["level"]))
+    # a planned level survives export + reload and stays editable (plan_edit persists)
+    api2 = builder_api.BuilderAPI("minimus", CATPATHS)
+    api2.add_planned_level()
+    y = api2.export_yaml()
+    ok("an exported plan carries the plan_edit marker", "plan_edit" in y, None)
+    api3 = builder_api.BuilderAPI("minimus-x", CATPATHS, ledger_text=y)
+    s3 = st(api3)
+    ok("a re-loaded plan is still editable (plan_edit round-trips)",
+       any(d["level"] == 5 and d["editable"] for d in s3["decisions"]),
+       [(d["slot"], d["editable"]) for d in s3["decisions"] if d["level"] == 5])
+    # Tanrielle's HAND-AUTHORED locked plan must stay a read-only preview (the key distinction)
+    ta = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    s = st(ta)
+    tplan = [d for d in s["decisions"] if d["level"] in (5, 6)]
+    ok("Tanrielle's hand-authored locked plan L5/L6 stays read-only (no editable rows)",
+       bool(tplan) and not any(d["editable"] for d in tplan) and all(d["plan"] for d in tplan),
+       [(d["level"], d["slot"], d["editable"]) for d in tplan])
+    ok("Tanrielle can still add a plan ABOVE her locked plan (stacks at L7)",
+       s["can_plan"] and s["plan_level"] == 7, (s["can_plan"], s["plan_level"]))
+    s = json.loads(ta.add_planned_level())
+    ok("adding a plan for Tanrielle appends L7 (undo link L7), locked L5/L6 untouched",
+       s["planned"] == [5, 6, 7] and s["undo_level"] == 7, (s["planned"], s["undo_level"]))
+    # advance vs plan interplay: a planned level can later be PROMOTED, and undo restores it as a plan
+    mi = builder_api.BuilderAPI("minimus", CATPATHS)
+    mi.add_planned_level()                       # L5 becomes a plan
+    s = json.loads(mi.add_level())               # add_level now PROMOTES that plan (new == cur+1 == 5)
+    ok("a planned level can be promoted by Add level (current -> 5, plan consumed)",
+       s["level"] == 5 and s["planned"] == [], (s["level"], s["planned"]))
+    s = json.loads(mi.undo_add_level())
+    ok("undo of the promote restores L5 back as a plan (not deleted)",
+       s["level"] == 4 and s["planned"] == [5], (s["level"], s["planned"]))
+    # the L10 ceiling: no planning past L10
+    cap = builder_api.BuilderAPI("minimus", CATPATHS)
+    for _ in range(8):
+        cap.add_planned_level()
+    s = st(cap)
+    ok("planning stops at the L10 ceiling (no plan level above 10)",
+       max(s["planned"]) == 10 and not s["can_plan"] and s["plan_level"] is None,
+       (s["planned"], s["can_plan"], s["plan_level"]))
+
+
 def check_fr6():
     print("\n## (17) FR-6: rule text on a chosen option (baked corpus + Companion linkify)")
     path = os.path.join(REPO, "builds", "builder.html")
@@ -1335,6 +1422,7 @@ def main():
         check_slice3()
         check_slice4()
         check_slice5()
+        check_fr3()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1355,6 +1443,7 @@ def main():
     print("       FR-8 slice 4 Meta Magic talent grants 2 metamagic (Scaletrix, real cat-level catalog)")
     print("       FR-8 slice 5 Eldritch constrained Psychic-spell grant (Runt; meets FR-13)")
     print("       FR-6 rule text on a chosen option (baked corpus + linkify + rule panel)")
+    print("       FR-3 Add Planned Level for every PC (editable plans, no ledger reshape) + undo")
     sys.exit(0)
 
 

@@ -815,24 +815,34 @@ class BuilderAPI:
         for i, m in enumerate(cg.get('maneuvers') or []):
             ds.append(self._dec('cg:man:%d' % i, 1, 'maneuver', m, None, False, not is_composite(m)))
         for lvl in sorted(self.ledger.get('levels') or {}):
+            is_plan = lvl > cur
             for i, e in enumerate(self.ledger['levels'][lvl] or []):
-                editable = (lvl <= cur and e.get('slot') in EDITABLE_SLOTS
-                            and not is_composite(e.get('pick')))
+                slot_ok = e.get('slot') in EDITABLE_SLOTS and not is_composite(e.get('pick'))
+                # FR-3: a builder-generated plan row (plan_edit flag) is an editable picker so
+                # the plan can be filled in; a hand-authored locked plan row (Tanrielle) is not.
+                plan_edit = is_plan and bool(e.get('plan_edit')) and slot_ok
+                editable = (lvl <= cur and slot_ok) or plan_edit
                 ds.append(self._dec('L%d:%d' % (lvl, i), lvl, e.get('slot'), e.get('pick'),
                                     e.get('cost'), bool(e.get('inferred')), editable,
-                                    note=e.get('note'), plan=lvl > cur,
+                                    note=e.get('note'), plan=is_plan, plan_editable=plan_edit,
                                     removable=((e.get('slot') == 'ancestry_trait'
                                                 and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))
                                                or (e.get('slot') in ('maneuver', 'spell')
                                                    and BUILDER_NOTE in str(e.get('note', ''))))))
-                ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl, lvl <= cur))   # FR-8 slice 2
+                ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl,
+                                               (lvl <= cur) or bool(e.get('plan_edit'))))   # FR-8 slice 2 / FR-3
         return ds
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
-             removable=False):
+             removable=False, plan_editable=False):
+        # FR-3: a builder-generated PLAN row (a level above current_level) is an editable
+        # picker so a player can fill in the plan; a hand-authored locked plan (e.g.
+        # Tanrielle's L5/L6) has no plan_editable flag and stays a read-only preview.
+        # Non-plan rows are unaffected (eff_edit reduces to the old editable-and-not-plan).
+        eff_edit = editable and (not plan or plan_editable)
         d = {'id': did, 'level': lvl, 'slot': slot, 'pick': pick, 'cost': cost,
-             'inferred': inferred, 'editable': editable and not plan, 'plan': plan,
-             'widget': 'picker' if (editable and not plan) else 'fixed',
+             'inferred': inferred, 'editable': eff_edit, 'plan': plan,
+             'widget': 'picker' if eff_edit else 'fixed',
              'removable': removable}
         if note:
             d['note'] = note
@@ -895,7 +905,8 @@ class BuilderAPI:
                 pick = lst[k] if k < len(lst) else UNDECIDED
                 out.append(self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
                                      pick, None, False, editable,
-                                     plan=level > self.ledger['current_level']))
+                                     plan=level > self.ledger['current_level'],
+                                     plan_editable=editable and level > self.ledger['current_level']))
         # FR-8 slice 5: a TAG-CONSTRAINED spell grant (Eldritch Otherworldly Gift) materialises one
         # constrained spell child-slot. The child id uses resource 'spells' so _set_grant_child writes
         # granted_spells; the slot type 'spell_tagged' filters options to the granted tag. The {spells:1}
@@ -908,7 +919,8 @@ class BuilderAPI:
                 pick = lst[k] if k < len(lst) else UNDECIDED
                 out.append(self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_tagged',
                                      pick, None, False, editable,
-                                     plan=level > self.ledger['current_level']))
+                                     plan=level > self.ledger['current_level'],
+                                     plan_editable=editable and level > self.ledger['current_level']))
         return out
 
     def _apply_grants(self, entry, grants, changed):
@@ -1055,6 +1067,9 @@ class BuilderAPI:
         level_grants = {l: self._level_grant(l) for l in list(range(1, cur + 1)) + planned}
         anc_levels = [1] + [l for l in sorted(self.ccat['spine']) if l <= cur and
                             '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or [])]
+        # FR-3: the next level a plan block can be appended to = one above the highest
+        # existing level (completed, current, or already-planned), capped at the L10 ceiling.
+        plan_level = max([cur] + list((self.ledger.get('levels') or {}).keys())) + 1
         return json.dumps({
             'handle': self.handle,
             'character': self.ledger.get('character'),
@@ -1067,7 +1082,9 @@ class BuilderAPI:
             'scratch': self.scratch,
             'next': self.next_level_info(),
             'level_grants': level_grants,
-            'undo_level': (self._undo[-1]['cur'] + 1) if self._undo else None,
+            'undo_level': (self._undo[-1]['added']) if self._undo else None,
+            'can_plan': plan_level <= 10,          # FR-3: room to add a planned level
+            'plan_level': plan_level if plan_level <= 10 else None,
             'anc_levels': anc_levels,
             'anc_lists_all': sorted(self.cat['ancestries']['ancestries'].keys()),
             'skill_trade_options': self._skill_trade_options(),
@@ -1481,42 +1498,58 @@ class BuilderAPI:
         return self.state()
 
     # ---------- add-a-level (the level-up-night flow) ----------
+    def _gen_level_slots(self, new, plan=False):
+        # FR-3: build the decision slots a level grants, from the class spine. Shared by
+        # add_level (advance) and add_planned_level (append a future plan). When plan=True
+        # each generated slot carries plan_edit:True, so a builder-created plan renders as
+        # editable pickers (a hand-authored locked plan has no such flag and stays a
+        # read-only preview - see _decisions / _dec).
+        row = self.ccat['spine'].get(new, {})
+        ents = []
+
+        def add(d):
+            if plan:
+                d['plan_edit'] = True
+            ents.append(d)
+        for _ in range(row.get('attribute_points', 0)):
+            add({'slot': 'attribute', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
+        for f in row.get('features', []):
+            if f == 'Talent':
+                add({'slot': 'talent', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
+            elif f == 'Path':
+                add({'slot': 'path', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
+            elif f == 'Subclass':
+                add({'slot': 'subclass', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
+            elif f == '2 Ancestry Points':
+                add({'slot': 'ancestry_trait', 'pick': UNDECIDED, 'cost': 0,
+                     'note': BUILDER_NOTE})
+            elif f == 'Class Features':
+                pass
+            else:
+                add({'slot': 'class_feature', 'pick': f,
+                     'note': 'auto - see classes.md. ' + BUILDER_NOTE})
+        for _ in range(row.get('spells', 0)):
+            add({'slot': 'spell', 'pick': UNDECIDED,
+                 'source': 'class table L%d' % new, 'note': BUILDER_NOTE})
+        for _ in range(row.get('maneuvers', 0)):
+            add({'slot': 'maneuver', 'pick': UNDECIDED,
+                 'source': 'class table L%d' % new, 'note': BUILDER_NOTE})
+        return ents
+
     def add_level(self):
         cur = self.ledger['current_level']
         if cur >= 10:
             return self.state()
         new = cur + 1
         levels = self.ledger.setdefault('levels', {})
-        self._undo.append({'cur': cur, 'expected': copy.deepcopy(self.ledger.get('expected')),
-                           'had_plan': new in levels, 'plan': copy.deepcopy(levels.get(new))})
+        # FR-3: the undo snapshot now records the exact level added (added) and whether
+        # this was an advance (advanced) vs an appended plan, so undo restores correctly
+        # for both and the undo link labels the real level. Snapshot BEFORE mutating.
+        self._undo.append({'cur': cur, 'added': new, 'advanced': True,
+                           'expected': copy.deepcopy(self.ledger.get('expected')),
+                           'had_block': new in levels, 'block': copy.deepcopy(levels.get(new))})
         if new not in levels:
-            # generate the level's decision slots from the class spine
-            row = self.ccat['spine'].get(new, {})
-            ents = []
-            for _ in range(row.get('attribute_points', 0)):
-                ents.append({'slot': 'attribute', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-            for f in row.get('features', []):
-                if f == 'Talent':
-                    ents.append({'slot': 'talent', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-                elif f == 'Path':
-                    ents.append({'slot': 'path', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-                elif f == 'Subclass':
-                    ents.append({'slot': 'subclass', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-                elif f == '2 Ancestry Points':
-                    ents.append({'slot': 'ancestry_trait', 'pick': UNDECIDED, 'cost': 0,
-                                 'note': BUILDER_NOTE})
-                elif f == 'Class Features':
-                    pass
-                else:
-                    ents.append({'slot': 'class_feature', 'pick': f,
-                                 'note': 'auto - see classes.md. ' + BUILDER_NOTE})
-            for _ in range(row.get('spells', 0)):
-                ents.append({'slot': 'spell', 'pick': UNDECIDED,
-                             'source': 'class table L%d' % new, 'note': BUILDER_NOTE})
-            for _ in range(row.get('maneuvers', 0)):
-                ents.append({'slot': 'maneuver', 'pick': UNDECIDED,
-                             'source': 'class table L%d' % new, 'note': BUILDER_NOTE})
-            levels[new] = ents
+            levels[new] = self._gen_level_slots(new)   # generate slots from the class spine
         # else: PROMOTE the existing plan level - its entries simply become current
         self.ledger['current_level'] = new
         if self.ledger.get('expected') is not None:
@@ -1525,20 +1558,40 @@ class BuilderAPI:
             self.ledger['expected_at_L%d' % cur] = self.ledger.pop('expected')
         return self.state()
 
+    def add_planned_level(self):
+        # FR-3: append the next FUTURE (planned) level as an editable plan block, WITHOUT
+        # advancing current_level - so any character can build a multi-level plan the way
+        # Tanrielle's L5/L6 were hand-authored. The new plan level stacks above the highest
+        # existing level (completed, current, or already-planned) and renders as a dashed,
+        # editable plan group. Undo shares the add_level stack, so its undo link never
+        # vanishes and unwinds correctly (advanced=False: only the block is removed).
+        cur = self.ledger['current_level']
+        levels = self.ledger.setdefault('levels', {})
+        top = max([cur] + list(levels.keys()))
+        new = top + 1
+        if new > 10:
+            return self.state()
+        self._undo.append({'cur': cur, 'added': new, 'advanced': False,
+                           'expected': copy.deepcopy(self.ledger.get('expected')),
+                           'had_block': new in levels, 'block': copy.deepcopy(levels.get(new))})
+        levels[new] = self._gen_level_slots(new, plan=True)
+        return self.state()
+
     def undo_add_level(self):
         if not self._undo:
             return self.state()
         u = self._undo.pop()
-        new = u['cur'] + 1
+        new = u['added']
         levels = self.ledger.get('levels') or {}
-        if u['had_plan']:
-            levels[new] = u['plan']
+        if u.get('had_block'):
+            levels[new] = u['block']
         else:
             levels.pop(new, None)
-        self.ledger['current_level'] = u['cur']
-        self.ledger.pop('expected_at_L%d' % u['cur'], None)
-        if u['expected'] is not None:
-            self.ledger['expected'] = u['expected']
+        if u.get('advanced'):   # only an advance changed current_level / demoted expected
+            self.ledger['current_level'] = u['cur']
+            self.ledger.pop('expected_at_L%d' % u['cur'], None)
+            if u['expected'] is not None:
+                self.ledger['expected'] = u['expected']
         return self.state()
 
     def export_yaml(self):
@@ -1646,6 +1699,8 @@ details.lvlgrp>summary .lvlprev{font-weight:400;font-style:normal;color:var(--mu
 .exportbtn.small{margin-top:0;padding:.3rem .6rem;font-size:.8rem}
 .exportbtn.canonbtn{background:var(--bad)}
 .lvlbtn{width:100%;margin-top:.5rem}
+.planbtn{background:transparent;color:var(--muted);border:1px dashed var(--muted)}
+.planbtn:hover{color:var(--accent);border-color:var(--accent)}
 a.rm{color:var(--bad);text-decoration:none;font-weight:700;font-size:.95rem;padding:0 .2rem}
 .foot{font-size:.76rem;color:var(--muted);margin-top:1rem}
 .src{font-size:.72rem;color:var(--muted);margin-top:.4rem}
@@ -2125,9 +2180,11 @@ function render(s){
     lv += `<button class="exportbtn lvlbtn" id="addlevel">&#8679; ${s.next.has_plan ? 'Promote planned L'+s.next.level : 'Add level '+s.next.level}</button>
       <div class="src">${esc(s.next.summary)}${s.next.features.length? '<br>features: '+esc(s.next.features.join(', ')):''}</div>`;
   }
+  if(s.can_plan) lv += `<button class="exportbtn lvlbtn planbtn" id="addplan">&#43; Add planned level L${s.plan_level}</button>`;
   if(s.undo_level) lv += `<div class="src"><a href="#" id="undolevel">undo add L${s.undo_level}</a></div>`;
   $('levelctl').innerHTML = lv;
   if($('addlevel')) $('addlevel').onclick = () => refresh(api.add_level());
+  if($('addplan')) $('addplan').onclick = () => refresh(api.add_planned_level());
   if($('undolevel')) $('undolevel').onclick = ev => { ev.preventDefault(); refresh(api.undo_add_level()); };
   // meta card (new-from-scratch)
   if(s.scratch){
@@ -2151,7 +2208,10 @@ function render(s){
   // decisions - grouped by level into collapsers; current level (and anything
   // undecided) open, history + plan collapsed
   const undecAt = {};
-  for(const t of s.decisions) if(!t.plan && String(t.pick)==="(undecided)") undecAt[t.level]=(undecAt[t.level]||0)+1;
+  // count undecided picks that a player still has to make: current-and-below rows, plus
+  // FR-3 editable plan rows (a builder-generated plan you can fill in). Locked plan rows
+  // (Tanrielle) are fixed, so they never count and never force a group open.
+  for(const t of s.decisions) if((!t.plan || t.editable) && String(t.pick)==="(undecided)") undecAt[t.level]=(undecAt[t.level]||0)+1;
   const rowHTML = t => {
     if(t.widget === "pointbuy"){
       const sel = a => { let o=""; for(let v=-2; v<=t.limit; v++) o += `<option value="${v}" ${t.attrs[a]===v?'selected':''}>${v}</option>`; return o; };
@@ -2197,7 +2257,11 @@ function render(s){
   for(const lvl of Object.keys(byLevel).map(Number).sort((a,b)=>a-b)){
     const rows = byLevel[lvl].map(rowHTML).join("");
     const plan = byLevel[lvl].every(t=>t.plan);
-    const defOpen = (!plan && (lvl===s.level || undecAt[lvl])) || (lvl===1 && s.level===1);
+    // FR-3: an editable plan group (a builder-generated plan with fillable rows) opens by
+    // default when it has undecided picks, so a freshly added plan is not hidden collapsed;
+    // a locked plan (no editable rows) stays collapsed as before.
+    const editablePlan = plan && byLevel[lvl].some(t=>t.editable);
+    const defOpen = ((!plan || editablePlan) && (lvl===s.level || undecAt[lvl])) || (lvl===1 && s.level===1);
     const open = (String(lvl) in prevOpen) ? prevOpen[String(lvl)] : defOpen;
     const label = lvl===1 ? "Level 1 &mdash; character creation" : `Level ${lvl}` + (plan?" (plan)":"") +
       (lvl===s.level?" &larr; current":"") + (undecAt[lvl]?` &mdash; ${undecAt[lvl]} undecided`:"");
