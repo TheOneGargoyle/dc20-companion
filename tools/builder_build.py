@@ -1131,6 +1131,11 @@ class BuilderAPI:
                 blk_ctr[lvl] = blk
                 rank = FR20_CAT.get(d.get('slot'), FR20_DEFAULT_RANK)
                 anchor[lvl] = (rank, blk)
+            # FR-36 / FR-21: persist the category rank on the row so the page can colour
+            # its left accent by category and group long levels under category sub-headers.
+            # GC children inherit the anchor rank, so a block (e.g. a subclass + its runes)
+            # is one colour / one group.
+            d['cat'] = rank
             meta.append((lvl, rank, blk, idx, d))
         meta.sort(key=lambda t: (t[0], t[1], t[2], t[3]))
         return [t[4] for t in meta]
@@ -2048,7 +2053,16 @@ h3.sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(
 .dec.edit{border:1.2px solid var(--accent);background:#f4f8fc}
 .dec.edit .slot{color:var(--accent)}
 .dec.plan{opacity:.62;border-style:dashed}
-.dec.newlvl{border-left:4px solid var(--warn)}
+/* FR-36: colour the left accent by category (FR20_CAT rank). Replaces the old amber
+   'Added in builder' border - that cue now rides the amber note text in the row body.
+   Placed after .edit/.plan so the coloured left border wins on those rows too. Colour-
+   blind-safe set: attributes blue, class purple, ancestry teal, resources amber. */
+.dec.cat0{border-left:4px solid #185FA5}
+.dec.cat1{border-left:4px solid #534AB7}
+.dec.cat2{border-left:4px solid #1D9E75}
+.dec.cat3{border-left:4px solid #BA7517}
+/* FR-21: light category sub-headers inside a long level section (no extra collapse layer) */
+.deccat{font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.55rem .45rem .15rem;padding:.08rem .45rem;border-left:3px solid var(--muted)}
 /* FR-6 rule links + rule panel */
 .rlink{color:var(--accent);border-bottom:1px dotted var(--accent);cursor:pointer}
 .rulei{font-size:.68rem;margin-left:.35rem;white-space:nowrap;opacity:.9}
@@ -2616,8 +2630,9 @@ function render(s){
         Object.keys(t.attrs).map(a=>`<label>${a} <select class="select" style="max-width:70px" data-attr="${a}">${sel(a)}</select></label>`).join("") +
         `<span class="spent${bad}">point buy: ${t.spent}/${t.budget}</span></span></div>`;
     }
-    const isnew = String(t.note||"").includes("Added in builder");
-    const cls = "dec" + (t.editable?" edit":"") + (t.inferred?" inferred":"") + (t.plan?" plan":"") + (isnew?" newlvl":"");
+    // FR-36: the left accent is now the category colour (cat0..cat3 from FR20_CAT), not the
+    // old amber 'Added in builder' border; the builder-touched cue rides the amber note text.
+    const cls = "dec" + (t.editable?" edit":"") + (t.inferred?" inferred":"") + (t.plan?" plan":"") + " cat" + (t.cat==null?3:t.cat);
     let body;
     if(t.editable && t.options){
       // FR-17: a planned skill/trade slot carries a cap+ toggle - spend 1 extra point to raise this
@@ -2628,6 +2643,7 @@ function render(s){
       body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` + capctl +
         ((t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"") +
         (t.was_note ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.was_note)} <a href="#" class="rm" data-dismiss="${esc(t.id)}" title="dismiss this note">&times;</a></span>`:"") +
+        ((!t.was_note && t.note) ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:"") +
         (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + ruleTag(t.current) + `</span>`;
     } else {
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
@@ -2656,7 +2672,25 @@ function render(s){
   const byLevel = {};
   for(const t of s.decisions) (byLevel[t.level] ||= []).push(t);
   for(const lvl of Object.keys(byLevel).map(Number).sort((a,b)=>a-b)){
-    const rows = byLevel[lvl].map(rowHTML).join("");
+    // FR-21: for a long level (>=5 rows, i.e. really just chargen L1) group the rows under
+    // light category sub-headers so the list is scannable, without a second collapse layer.
+    // Rows are already sorted by category (FR-20), so each category is a contiguous run;
+    // short level-up levels (<5 rows) render flat as before.
+    const dl = byLevel[lvl];
+    let rows;
+    if(dl.length >= 5){
+      const CATLBL = {0:'Attributes',1:'Class',2:'Ancestry',3:'Resources'};
+      const CATCOL = {0:'#185FA5',1:'#534AB7',2:'#1D9E75',3:'#BA7517'};
+      let out = "", lastCat = null;
+      for(const t of dl){
+        const c = (t.cat==null?3:t.cat);
+        if(c!==lastCat){ out += `<div class="deccat" style="border-left-color:${CATCOL[c]}">${CATLBL[c]}</div>`; lastCat = c; }
+        out += rowHTML(t);
+      }
+      rows = out;
+    } else {
+      rows = dl.map(rowHTML).join("");
+    }
     const plan = byLevel[lvl].every(t=>t.plan);
     // FR-3: an editable plan group (a builder-generated plan with fillable rows) opens by
     // default when it has undecided picks, so a freshly added plan is not hidden collapsed;

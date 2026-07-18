@@ -1750,6 +1750,73 @@ def check_bug16():
        added.get("removable") is True, added.get("removable"))
 
 
+# ---------------------------------------------------------------- (24) FR-36 category left accent
+def check_fr36():
+    print("\n## (24) FR-36: decision rows carry a category rank + a coloured left accent (not amber)")
+    # (a) every decision row has a cat in {0,1,2,3}; a top-level (non-child) row's cat equals
+    #     its FR20 slot rank; a GC child inherits its parent block's cat (so a block is one colour)
+    for who in builder_build.CHARS:
+        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        rows = s["decisions"]
+        ok("%s: every row has cat in {0,1,2,3}" % who,
+           all(d.get("cat") in (0, 1, 2, 3) for d in rows),
+           [(d["slot"], d.get("cat")) for d in rows if d.get("cat") not in (0, 1, 2, 3)][:3])
+        top_bad = [(d["slot"], d.get("cat")) for d in rows
+                   if not str(d.get("id") or "").startswith("GC#")
+                   and d.get("cat") != FR20_RANK.get(d["slot"], 3)]
+        ok("%s: top-level rows' cat == FR20 slot rank" % who, not top_bad, top_bad[:3])
+        for i, d in enumerate(rows):
+            if not str(d.get("id") or "").startswith("GC#"):
+                continue
+            # the child's cat matches the nearest preceding non-child row (its parent block)
+            parent = next((rows[j] for j in range(i - 1, -1, -1)
+                           if not str(rows[j].get("id") or "").startswith("GC#")), None)
+            ok("%s: GC child %s inherits parent block cat" % (who, d.get("id")),
+               parent is not None and d.get("cat") == parent.get("cat"),
+               (d.get("cat"), (parent or {}).get("cat")))
+    # (b) the built page carries the four category accent rules and NO longer the amber .newlvl
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    for cls, col in (("cat0", "#185FA5"), ("cat1", "#534AB7"), ("cat2", "#1D9E75"), ("cat3", "#BA7517")):
+        ok("builder.html has .dec.%s left accent %s" % (cls, col),
+           ".dec.%s{border-left:4px solid %s}" % (cls, col) in html)
+    ok("the old amber .dec.newlvl border rule is gone (replaced by category colour)",
+       "newlvl" not in html)
+    # (c) rowHTML tags the row with its category class, and the builder-touched note now rides
+    #     the amber note text in the editable branch (its old signal was only the amber border)
+    ok('rowHTML adds the category class (" cat" + t.cat)', '" cat" + (t.cat==null?3:t.cat)' in html)
+    ok("editable rows now render their note text (builder-touched cue survives)",
+       "(!t.was_note && t.note) ?" in html)
+
+
+# ---------------------------------------------------------------- (25) FR-21 category sub-headers
+def check_fr21():
+    print("\n## (25) FR-21: long level sections group under light category sub-headers (no nesting)")
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html has the .deccat sub-header style", ".deccat{" in html)
+    ok("render loop groups levels with >=5 rows under category sub-headers",
+       "dl.length >= 5" in html and 'class="deccat"' in html
+       and "Attributes" in html and "Resources" in html)
+    # behavioural: Runt L1 is the long level (>=5 rows) and spans multiple categories, so it
+    # renders sub-headers; a typical level-up level is short (<5 rows) and renders flat.
+    from collections import defaultdict
+    s = st(builder_api.BuilderAPI("runt", CATPATHS))
+    byl = defaultdict(list)
+    for d in s["decisions"]:
+        byl[d["level"]].append(d)
+    l1 = byl[1]
+    ok("Runt L1 is a long level (>=5 rows) spanning multiple categories -> sub-headers fire",
+       len(l1) >= 5 and len({d.get("cat") for d in l1}) >= 2,
+       (len(l1), sorted({d.get("cat") for d in l1})))
+    # each category is a single contiguous run (FR-20 sorted), so one sub-header per category
+    cats_in_order = [d.get("cat") for d in l1]
+    runs = [c for i, c in enumerate(cats_in_order) if i == 0 or c != cats_in_order[i - 1]]
+    ok("Runt L1 categories are contiguous (one sub-header per category, not repeated)",
+       len(runs) == len(set(runs)), runs)
+    short = next((lv for lv, ds in byl.items() if len(ds) < 5), None)
+    ok("at least one short level-up level renders flat (no sub-headers, <5 rows)",
+       short is not None, {lv: len(ds) for lv, ds in byl.items()})
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1784,6 +1851,8 @@ def main():
         check_fr20()
         check_fr9()
         check_bug16()
+        check_fr36()
+        check_fr21()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
