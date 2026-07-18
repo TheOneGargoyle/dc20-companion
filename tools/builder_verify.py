@@ -1825,6 +1825,30 @@ def check_fr21():
        short is not None, {lv: len(ds) for lv, ds in byl.items()})
 
 
+# ---------------------------------------------------------------- (26) FR-4 display-name rename
+def check_fr4():
+    print("\n## (26) FR-4: canon/loaded characters get a display-name rename (set_meta 'character')")
+    # (a) behavioural: renaming a canon PC updates the display name but not the stable handle,
+    #     and touches nothing engine-derived (set_meta whitelists character/player/background).
+    api = builder_api.BuilderAPI("runt", CATPATHS)
+    before = st(api)
+    api.set_meta("character", "Runt the Renamed")
+    after = st(api)
+    ok("set_meta('character') renames the display name",
+       after["character"] == "Runt the Renamed", after["character"])
+    ok("rename leaves the stable handle untouched",
+       after["handle"] == before["handle"] == "runt", (before["handle"], after["handle"]))
+    ok("rename does not disturb the derived build (stats unchanged)",
+       after["stats"] == before["stats"], "stats changed under a rename")
+    # (b) the built page renders a name input wired to set_meta('character') for non-scratch chars,
+    #     with the display-name label + the handle/deeplink-unchanged scope note.
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html wires the rename input to set_meta('character')",
+       "api.set_meta('character', $('m-character').value)" in html)
+    ok("the rename card carries the display-name label + scope note",
+       "display name</span>" in html and "Renames the display name only" in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1861,6 +1885,7 @@ def main():
         check_bug16()
         check_fr36()
         check_fr21()
+        check_fr4()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1886,6 +1911,7 @@ def main():
     print("       FR-20 level pickers reorder to chargen flow (attrs->class->ancestry->resources, children glued)")
     print("       FR-9 ancestry-point readout + auto ready-slot (budget-gated, sentinel materialise)")
     print("       BUG-16 maneuver/spell budget slots edit-only (not removable into an unrecoverable shortfall)")
+    print("       FR-4 display-name rename for canon/loaded characters (set_meta, handle/deeplink unchanged)")
     sys.exit(0)
 
 

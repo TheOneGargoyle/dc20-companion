@@ -2615,7 +2615,13 @@ function render(s){
       $('m-'+f).onchange = el => refresh(api.set_meta(f, $('m-'+f).value));
     const anc = () => refresh(api.set_ancestry($('m-anc1').value==='-'?'':$('m-anc1').value, $('m-anc2').value));
     $('m-anc1').onchange = anc; $('m-anc2').onchange = anc;
-  } else $('metacard').style.display = "none";
+  } else {                              // FR-4: display-name rename for a canon / loaded character
+    $('metacard').style.display = "block";
+    $('metacard').innerHTML = `<h3 class="sec">Character <span class="wlabel">display name</span></h3>
+      <div class="pb"><label>name <input class="select" id="m-character" value="${esc(s.character||'')}"></label></div>
+      <div class="src">Renames the display name only; the file handle and deep link are unchanged, and the export filename follows this name.</div>`;
+    $('m-character').onchange = () => refresh(api.set_meta('character', $('m-character').value));
+  }
   // decisions - grouped by level into collapsers; current level (and anything
   // undecided) open, history + plan collapsed
   const undecAt = {};
