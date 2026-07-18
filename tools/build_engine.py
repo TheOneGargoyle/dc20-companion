@@ -483,6 +483,37 @@ def stamina_regen(ledger, regen_cat):
     return out
 
 
+def damage_addons(handle, dmg_cat):
+    """Resolve a character's Damage Calculator config (FR-25 v1).
+
+    Data-driven from dmg_cat (builds/catalog/damage_addons.yaml). Given the character
+    handle (e.g. 'tan'), returns:
+        {"base": <int>, "base_note": <str>, "addons": [<resolved def dict>, ...]}
+    Each resolved add-on is the shared def (defs[<id>]) with the character's per-use
+    overrides merged on top, plus its "id". An unknown handle yields base 1 / no add-ons.
+    The engine is catalog-agnostic: the data is passed in.
+    """
+    defs = (dmg_cat or {}).get("defs", {}) or {}
+    chars = (dmg_cat or {}).get("characters", {}) or {}
+    entry = chars.get(handle) or {}
+    out = []
+    for ref in entry.get("addons", []) or []:
+        if isinstance(ref, str):
+            rid, over = ref, {}
+        else:
+            rid = ref.get("id")
+            over = {k: v for k, v in ref.items() if k != "id"}
+        merged = dict(defs.get(rid, {}))
+        merged.update(over)
+        merged["id"] = rid
+        out.append(merged)
+    return {
+        "base": entry.get("base", 1),
+        "base_note": entry.get("base_note", ""),
+        "addons": out,
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("ledger")

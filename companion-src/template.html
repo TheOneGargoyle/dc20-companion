@@ -76,6 +76,16 @@ details .inner{padding:0 12px 12px}
 .appip.spent{background:var(--gold);opacity:.35}
 .togglebtn{font-size:13px;padding:6px 10px;border-radius:999px}
 .togglebtn.on{background:#4a3b1f;border-color:var(--gold);color:var(--radiant)}
+/* FR-25 damage calculator */
+.dmgrow{display:flex;align-items:center;gap:6px;margin:7px 0;flex-wrap:wrap}
+.dmgrow .lbl{min-width:52px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
+.dmgrow .val{min-width:26px;text-align:center;font-size:17px;color:var(--radiant);font-weight:700}
+.dmgrow .note{flex-basis:100%;font-size:12px;color:var(--dim);margin:-1px 0 0 52px}
+.dmggrades{display:flex;gap:5px;flex-wrap:wrap}
+.dmggrades button{font-size:13px;padding:6px 9px;border-radius:999px}
+.dmggrades button.on{background:#4a3b1f;border-color:var(--gold);color:var(--radiant)}
+.dmgtot{background:#100d0a;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0 2px;display:flex;align-items:baseline;gap:10px}
+.dmgtot .big{font-size:30px;font-weight:700;color:var(--radiant)}
 .rollout{background:#100d0a;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
   margin:8px 0;min-height:52px;font-size:15px}
 .rollout .big{font-size:30px;font-weight:700;color:var(--radiant)}
@@ -223,6 +233,20 @@ details .inner{padding:0 12px 12px}
     <div class="rollout" id="rollOut"><span class="small">Tap a button. Set “vs Def” to auto-grade Hit / Heavy / Brutal.</span></div>
     <div class="small">Bench: at +5 vs an equal-level foe you hit on 8+ (65%), Heavy on 13+, crit on 20. Crit = auto-hit, +2 dmg, bypasses DR. Heavy +1 / Brutal +2 / every +5 beyond adds +1.</div>
   </div>
+
+  <!-- FR-25 damage calculator -->
+  <details><summary>Damage Calculator</summary><div class="inner">
+    <div class="dmgrow"><span class="lbl">Base</span>
+      <button onclick="dmgStep('base',-1)">−</button><span class="val" id="dmgBaseVal">1</span><button onclick="dmgStep('base',1)">+</button>
+      <span class="note" id="dmgBaseNote"></span></div>
+    <div class="dmgrow"><span class="lbl">Hit</span><div class="dmggrades" id="dmgGrades"></div></div>
+    <div class="dmgrow"><span class="lbl">Crit</span>
+      <button class="togglebtn" id="dmgCritBtn" onclick="dmgCrit()">○ Crit +2</button>
+      <button class="rbtn" style="width:auto;flex:0" onclick="dmgPull()">↧ Pull from last roll</button></div>
+    <div id="dmgAddons"></div>
+    <div class="dmgtot"><span class="small">Total damage</span><span class="big" id="dmgTotal">1</span><span class="small" id="dmgBreak"></span></div>
+    <div class="small">Damage dealt, before the target's Damage Reduction (a Crit bypasses DR). Single target; AoE per-target lines are not modelled yet.</div>
+  </div></details>
 
   <details><summary>Skills &amp; Trades</summary><div class="inner">
     <div class="skgrid" id="skGrid"></div>
@@ -494,6 +518,7 @@ Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c
   ['hp','mp','sp','grit','pd','ad'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});
   if(d.dr!==undefined)c.dr=d.dr;  // FR-16A: overwrite DR from the engine-derived bake
   if(d.stamina_regen!==undefined)c.stamina_regen=d.stamina_regen;  // FR-23: baked trigger(s)
+  if(d.damage_addons!==undefined)c.damage_addons=d.damage_addons;  // FR-25: baked calc config
   c.sub=c.sub.replace(/<b>L\d+<\/b>/,'<b>L'+d.level+'<\/b>').replace(/CM \d+/,'CM '+d.cm);
   c.stats=c.stats.map(p=>{const v=p[0],l=p[1];
     if(l==='Attack')return[sgn(d.attack),l];
@@ -632,6 +657,7 @@ function renderParty(){
     b.onclick=()=>{roll(m,n);window.scrollTo({top:document.getElementById('rollOut').offsetTop-140,behavior:'smooth'});};
     sk.appendChild(b);});
   document.getElementById('skNote').innerHTML=c.sknote;
+  renderDmg(c);  // FR-25 damage calculator
   document.getElementById('tanAccordions').innerHTML=linkifyTerms((c.acc==='TAN')?TAN_ACCORDIONS:c.acc);
 }
 function initParty(){loadS();renderParty();var ta=document.getElementById('tanAccordions');if(ta)ta.addEventListener('click',function(e){var t=e.target.closest?e.target.closest('.rlink'):null;if(t)searchFor(t.getAttribute('data-q'));});}
@@ -664,11 +690,85 @@ function roll(mod,label){
       html+='<div style="color:var(--green)"><b>'+tier+'</b> vs '+def+' → bonus dmg +'+bonus+(nat20?' (incl. crit +2)':'')+'</div>';
     }
   }
+  // FR-25: remember this attack's hit grade + crit so the Damage Calculator can pull it.
+  if(label==='Attack'||label==='Spell Check'){
+    let gr=0;
+    if(!isNaN(def)){const o2=Math.max(0,total-def);gr=o2>=15?3:o2>=10?2:o2>=5?1:0;}
+    _lastRoll={grade:gr,crit:nat20};
+  }
   document.getElementById('rollOut').innerHTML=html;
 }
 function rollDie(n,label){
   const v=d(n);
   document.getElementById('rollOut').innerHTML='<div><b>'+label+'</b></div><span class="big">'+v+'</span>';
+}
+
+/* ==================== FR-25 damage calculator ==================== */
+let _lastRoll=null;  // {grade,crit} from the most recent Attack/Spell Check roll
+const DMG_GRADES=[['Hit',0],['Heavy',1],['Brutal',2],['Beyond',3]];
+let dmg={base:1,grade:0,crit:false,vals:{},cfg:{addons:[]},max:{sp:0,mp:0}};
+function renderDmg(c){
+  const cfg=c.damage_addons||{base:1,base_note:'',addons:[]};
+  dmg={base:cfg.base||1,grade:0,crit:false,vals:{},cfg:cfg,max:{sp:c.sp||0,mp:c.mp||0}};
+  document.getElementById('dmgBaseNote').textContent=cfg.base_note||'';
+  const g=document.getElementById('dmgGrades');g.innerHTML='';
+  DMG_GRADES.forEach(([nm,bonus],i)=>{const b=document.createElement('button');
+    b.textContent=nm+(bonus?' +'+bonus:'');b.onclick=()=>{dmg.grade=i;dmgSync();};g.appendChild(b);});
+  const a=document.getElementById('dmgAddons');a.innerHTML='';
+  (cfg.addons||[]).forEach(ad=>{
+    const id=ad.id;dmg.vals[id]=0;
+    const row=document.createElement('div');row.className='dmgrow';
+    const lab=document.createElement('span');lab.className='lbl';
+    lab.style.cssText='min-width:0;text-transform:none;font-size:13px;color:var(--ink)';
+    lab.textContent=ad.label||id;
+    row.appendChild(lab);
+    if(ad.type==='toggle'){
+      const btn=document.createElement('button');btn.className='togglebtn';btn.id='dmgA_'+id;
+      btn.onclick=()=>{dmg.vals[id]=dmg.vals[id]?0:(ad.amount||0);dmgSync();};
+      row.appendChild(btn);
+    }else{
+      const cap=ad.cap_stat?(dmg.max[ad.cap_stat]||0):(ad.cap!=null?ad.cap:9);
+      const minus=document.createElement('button');minus.textContent='−';minus.onclick=()=>dmgStepAddon(id,-1,cap);
+      const val=document.createElement('span');val.className='val';val.id='dmgAv_'+id;val.textContent='0';
+      const plus=document.createElement('button');plus.textContent='+';plus.onclick=()=>dmgStepAddon(id,1,cap);
+      const u=document.createElement('span');u.className='small';
+      u.textContent='× +'+(ad.per||1)+' per '+(ad.unit||'')+' (cap '+cap+')';
+      row.appendChild(minus);row.appendChild(val);row.appendChild(plus);row.appendChild(u);
+    }
+    if(ad.note){const n=document.createElement('span');n.className='note';n.textContent=ad.note;row.appendChild(n);}
+    a.appendChild(row);
+  });
+  dmgSync();
+}
+function dmgStep(which,dir){if(which==='base')dmg.base=Math.max(0,dmg.base+dir);dmgSync();}
+function dmgStepAddon(id,dir,cap){let v=(dmg.vals[id]||0)+dir;if(v<0)v=0;if(v>cap)v=cap;dmg.vals[id]=v;dmgSync();}
+function dmgCrit(){dmg.crit=!dmg.crit;dmgSync();}
+function dmgPull(){
+  if(!_lastRoll){document.getElementById('dmgBreak').textContent='(roll an Attack or Spell Check first)';return;}
+  dmg.grade=_lastRoll.grade;dmg.crit=_lastRoll.crit;dmgSync();
+}
+function dmgSync(){
+  const gbs=document.getElementById('dmgGrades').children;
+  for(let i=0;i<gbs.length;i++)gbs[i].className=(i===dmg.grade)?'on':'';
+  document.getElementById('dmgBaseVal').textContent=dmg.base;
+  const cb=document.getElementById('dmgCritBtn');
+  cb.className='togglebtn'+(dmg.crit?' on':'');cb.textContent=(dmg.crit?'● ':'○ ')+'Crit +2';
+  let total=dmg.base;const parts=['base '+dmg.base];
+  const gbon=DMG_GRADES[dmg.grade][1];if(gbon){total+=gbon;parts.push(DMG_GRADES[dmg.grade][0]+' +'+gbon);}
+  if(dmg.crit){total+=2;parts.push('crit +2');}
+  (dmg.cfg.addons||[]).forEach(ad=>{
+    const id=ad.id,v=dmg.vals[id]||0;
+    if(ad.type==='toggle'){
+      const btn=document.getElementById('dmgA_'+id);
+      if(btn){btn.className='togglebtn'+(v?' on':'');btn.textContent=(v?'● ':'○ ')+'+'+(ad.amount||0);}
+      if(v){total+=v;parts.push((ad.label||id)+' +'+v);}
+    }else{
+      const el=document.getElementById('dmgAv_'+id);if(el)el.textContent=v;
+      const add=v*(ad.per||1);if(add){total+=add;parts.push((ad.label||id)+' +'+add);}
+    }
+  });
+  document.getElementById('dmgTotal').textContent=total;
+  document.getElementById('dmgBreak').textContent=parts.length>1?('= '+parts.join(' + ')):'';
 }
 
 /* generic dice tab */

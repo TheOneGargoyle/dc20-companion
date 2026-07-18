@@ -68,6 +68,8 @@ DISPLAY_DELTAS = {("xan", "hp"): 2}
 
 # FR-23: Stamina Regen trigger(s), catalog-driven, derived by the shared engine helper.
 _REGEN_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "stamina_regen.yaml").read_text(encoding="utf-8"))
+# FR-25: Damage Calculator per-character add-ons, catalog-driven, shared engine helper.
+_DMG_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "damage_addons.yaml").read_text(encoding="utf-8"))
 
 party_derived = {}
 for _k, _fn in PARTY_LEDGERS.items():
@@ -83,6 +85,7 @@ for _k, _fn in PARTY_LEDGERS.items():
         "pd": _d["PD"], "ad": _d["AD"],
         "dr": _d.get("dr", {}),  # FR-16A: engine-derived Damage Reduction, e.g. {"PDR":["half"],"MDR":["half"]}
         "stamina_regen": _be.stamina_regen(_led, _REGEN_CAT),  # FR-23
+        "damage_addons": _be.damage_addons(_k, _DMG_CAT),  # FR-25
     }
     for (_dk, _f), _delta in DISPLAY_DELTAS.items():
         if _dk == _k:

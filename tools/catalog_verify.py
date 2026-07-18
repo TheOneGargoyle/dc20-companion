@@ -636,6 +636,62 @@ for _fn, _exp in _EXPECT_REGEN.items():
     expect(_got == _exp, f"stamina_regen: {_fn} triggers {_got} != expected {_exp}")
     print(f"  {_fn:16} regen -> {_got or ['None']}")
 
+# ---- (5) Damage add-ons catalog (FR-25) -----------------------------------
+print("\n## (5) Damage add-ons catalog (FR-25)")
+from build_engine import damage_addons as _dmg_addons  # noqa: E402
+_dmg = load("builds/catalog/damage_addons.yaml")
+_defs = _dmg.get("defs", {}) or {}
+_combat_md = read("rules/combat.md")
+_core_md = read("rules/core-rules.md")
+# every character's add-on ids resolve to a def; steppers have per + a cap source, toggles have amount
+_resolved = {}
+for _cid, _ent in (_dmg.get("characters", {}) or {}).items():
+    expect(isinstance(_ent.get("base"), int), f"damage_addons: {_cid} base must be an int")
+    _cfg = _dmg_addons(_cid, _dmg)
+    _resolved[_cid] = {a.get("id") for a in _cfg["addons"]}
+    for _ad in _cfg["addons"]:
+        _id = _ad.get("id")
+        expect(_id in _defs, f"damage_addons: {_cid} references unknown add-on {_id!r}")
+        _ty = _ad.get("type")
+        expect(_ty in ("toggle", "stepper"), f"damage_addons: {_id} bad type {_ty!r}")
+        if _ty == "toggle":
+            expect(isinstance(_ad.get("amount"), int), f"damage_addons: {_id} toggle needs int amount")
+        else:
+            expect(isinstance(_ad.get("per"), int), f"damage_addons: {_id} stepper needs int per")
+            expect(("cap" in _ad) or ("cap_stat" in _ad),
+                   f"damage_addons: {_id} stepper needs cap or cap_stat")
+            if "cap_stat" in _ad:
+                expect(_ad["cap_stat"] in ("sp", "mp"), f"damage_addons: {_id} cap_stat must be sp|mp")
+# rules grounding for the two computed patterns + the UI hit-grade/crit constants
+expect("2 AP worth of AP Enhancements" in _combat_md,
+       "damage_addons: the MP-on-AP-Enhancement rule (1 MP = 2 AP worth) not found in combat.md")
+expect(_defs["mp_to_damage"]["per"] == 2 and _defs["mp_to_damage"]["cap"] == 2,
+       "damage_addons: mp_to_damage should be +2 per MP, cap 2 (Mana Spend Limit at L4)")
+expect(_defs["smite"]["per"] == 2 and _defs["smite"].get("cap_stat") == "sp",
+       "damage_addons: smite should be +2 per SP (bundled Damage enhancement), capped at SP")
+for _kw in ("Heavy Hit", "Brutal Hit", "bypasses Damage Reduction"):
+    expect(_kw in _core_md, f"damage_addons: hit-grade/crit grounding {_kw!r} missing from core-rules.md")
+# per-character assignment (single-target v1)
+_EXPECT_DMG = {
+    "tan":   {"smite", "powerful", "mp_to_damage", "deaths_toll"},
+    "xan":   {"smite", "imbue", "mp_to_damage"},
+    "runt":  {"mp_to_damage", "imbue"},
+    "min":   {"gen_damage", "battlefield"},
+    "bonan": {"rage", "gen_damage", "erupting"},
+    "scale": {"mp_to_damage", "powerful"},
+}
+for _h, _exp in _EXPECT_DMG.items():
+    expect(_resolved.get(_h) == _exp, f"damage_addons: {_h} add-ons {_resolved.get(_h)} != expected {_exp}")
+    print(f"  {_h:6} dmg add-ons -> {sorted(_resolved.get(_h, []))}")
+# Smite is Spellblade-only; Rage is Barbarian(bonan)-only (feature provenance sanity)
+expect("smite" in _resolved["tan"] and "smite" in _resolved["xan"],
+       "damage_addons: both Spellblades must carry Smite")
+expect(not any("smite" in _resolved[_h] for _h in ("runt", "min", "bonan", "scale")),
+       "damage_addons: Smite is Spellblade-only")
+expect("rage" in _resolved["bonan"] and not any("rage" in _resolved[_h] for _h in _resolved if _h != "bonan"),
+       "damage_addons: Rage is Barbarian(bonan)-only")
+print(f"  {len(_resolved)} characters resolve; defs + rules grounding reconcile")
+
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
 if fails:
