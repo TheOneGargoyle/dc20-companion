@@ -101,7 +101,17 @@ FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 # editable skill child picker-slots (one per point). The picks live in granted_skills on a per-plan-
 # level carrier entry (slot 'skills', grants {skills:N}); only add_planned_level emits that carrier,
 # so completed/current levels keep the flat skills.masteries aggregate untouched (the Hybrid split).
-GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill'}
+# FR-17 (2026-07-18): 'trades' joins the backbone too, so a PLANNED level's trade-point budget
+# materialises editable trade child picker-slots exactly like skills (grants {trades:M} on a per-
+# plan-level carrier, picks in granted_trades). Skills AND trades share the point-buy plan model.
+GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade'}
+# FR-17: a planned skill/trade pick can buy a Mastery-Limit raise ("cap+", core-rules.md l.991-1005):
+# it may sit ONE tier above the level cap and costs 2 points (the tier step + the limit raise). The
+# purchase is recorded as a " (cap+)" suffix on the granted value ("Awareness: Expert (cap+)"). A
+# bare CAPARM value marks a slot that is armed for cap+ but not yet filled (so the picker offers the
+# above-cap option before a skill is chosen).
+CAPARM = '(cap+)'
+PLAN_POINTBUY = ('skills', 'trades')   # FR-3/FR-17 plan-level point-buy carriers
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -633,6 +643,30 @@ class BuilderAPI:
             return a.strip(), b.strip()
         return s.strip(), 'Novice'
 
+    def _parse_plan_pick(self, v):
+        # FR-17: a planned skill/trade pick may carry a " (cap+)" suffix (a Mastery-Limit purchase).
+        # Return (name, tier, cap_raised). A bare CAPARM ("(cap+)") = armed-but-empty: no name/tier.
+        s = str(v)
+        cap = False
+        m = re.search(r'\s*\(cap\+\)\s*$', s)
+        if m:
+            cap = True
+            s = s[:m.start()].strip()
+        if not s or s == UNDECIDED:
+            return '', None, cap        # empty / a bare CAPARM sentinel: armed but not yet a pick
+        name, tier = self._parse_skill_pick(s)
+        return name, tier, cap
+
+    @staticmethod
+    def _plan_pick_cost(v):
+        # FR-17: a cap+ pick spends 2 points (tier step + limit raise); a normal pick spends 1.
+        return 2 if re.search(r'\(cap\+\)\s*$', str(v)) else 1
+
+    def _plan_decided(self, v):
+        # a granted skill/trade slot counts as filled only if it names a real skill/trade
+        # (UNDECIDED and a bare CAPARM sentinel are both "not yet picked").
+        return str(v) != UNDECIDED and bool(self._parse_plan_pick(v)[0])
+
     def _mastery_cap_idx(self, level):
         # the DC20 Mastery Limit as a MASTERIES index (None<Novice<Adept<Expert): Novice <L5,
         # Adept L5-9, Expert at L10. The builder ladder tops out at Expert, which is the L10 cap,
@@ -643,13 +677,21 @@ class BuilderAPI:
             return MASTERIES.index('Adept')
         return MASTERIES.index('Novice')
 
-    def _skill_running_state(self, level):
-        # the running mastery of each skill AS OF just before `level`: the flat skills.masteries
-        # aggregate (the character's whole verified/inferred history, kept as source of truth by the
-        # Hybrid decision) plus any raises from PLAN levels strictly below `level`. Within-level picks
-        # do not chain (each of a level's skill slots is a distinct one-step allocation).
+    def _plan_catalog_names(self, kind):
+        # every catalog skill (across governing-attribute lists) or trade for a plan point-buy.
+        stc = self.cat.get('skills_trades') or {}
+        if kind == 'skills':
+            return sorted({n for lst in (stc.get('skills') or {}).values() for n in lst})
+        return sorted(stc.get('trades') or [])
+
+    def _plan_running_state(self, kind, level):
+        # FR-3/FR-17: the running mastery of each skill/trade AS OF just before `level`: the flat
+        # kind.masteries aggregate (kept as source of truth by the Hybrid decision) plus any raises
+        # from PLAN levels strictly below `level`. Within-level picks do not chain (each of a level's
+        # slots is a distinct one-step allocation).
+        gkey = 'granted_%s' % kind
         st = {}
-        for name, m in ((self.ledger.get('skills') or {}).get('masteries') or {}).items():
+        for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
             if m.get('mastery'):
                 st[name] = m.get('mastery')
         cur = self.ledger['current_level']
@@ -657,35 +699,64 @@ class BuilderAPI:
             if L <= cur or L >= level:
                 continue
             for e in self.ledger['levels'][L] or []:
-                for v in e.get('granted_skills') or []:
-                    if str(v) == UNDECIDED:
-                        continue
-                    sk, tier = self._parse_skill_pick(v)
+                for v in e.get(gkey) or []:
+                    sk, tier, _cap = self._parse_plan_pick(v)
                     if sk:
                         st[sk] = tier
         return st
 
-    def _skill_plan_options(self, level):
-        # legal picks for a skill child-slot on a planned `level`: for every catalog skill, offer the
-        # ONE next tier up from its running state (add-new = None->Novice, raise = one tier), but only
-        # if that tier is within the level's Mastery Limit. So the picker can only ever make a legal,
-        # single-step, within-cap pick (FR-13-style: offer only legal options).
-        base = self._skill_running_state(level)
-        cap = self._mastery_cap_idx(level)
-        allsk = sorted({n for lst in ((self.cat.get('skills_trades') or {}).get('skills') or {}).values()
-                        for n in lst})
+    def _plan_running_caps(self, kind, level):
+        # FR-17: per skill/trade, how many Mastery-Limit raises are in effect just before `level`:
+        # +1 for a flat-aggregate limit_raise (a point purchase OR an Expertise cap+level bump, both
+        # lift the ceiling by 1), plus +1 for each cap+ pick in a PLAN level strictly below `level`.
+        gkey = 'granted_%s' % kind
+        caps = {}
+        for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
+            if m.get('limit_raise'):
+                caps[name] = caps.get(name, 0) + 1
+        cur = self.ledger['current_level']
+        for L in sorted(self.ledger.get('levels') or {}):
+            if L <= cur or L >= level:
+                continue
+            for e in self.ledger['levels'][L] or []:
+                for v in e.get(gkey) or []:
+                    sk, _t, capd = self._parse_plan_pick(v)
+                    if sk and capd:
+                        caps[sk] = caps.get(sk, 0) + 1
+        return caps
+
+    # kept for back-compat with any older references
+    def _skill_running_state(self, level):
+        return self._plan_running_state('skills', level)
+
+    def _plan_options(self, kind, level, capraise=False):
+        # FR-3/FR-17: legal picks for a skill/trade child-slot on a planned `level`. For every catalog
+        # name offer the ONE next tier up from its running state (add-new = None->Novice, raise = one
+        # tier). In NORMAL mode the tier must be within the level's Mastery Limit + any carried raises;
+        # in cap+ mode the ceiling is +1 (a new limit purchase) and every option carries the " (cap+)"
+        # marker so selecting it records the 2-point purchase. The picker only ever offers legal options.
+        base = self._plan_running_state(kind, level)
+        capb = self._plan_running_caps(kind, level)
+        lvlcap = self._mastery_cap_idx(level)
+        marker = ' ' + CAPARM if capraise else ''
         out = []
-        for n in allsk:
+        for n in self._plan_catalog_names(kind):
             cur_tier = base.get(n)
             cur_idx = MASTERIES.index(cur_tier) if cur_tier in MASTERIES else 0
             nxt = cur_idx + 1
-            if nxt >= len(MASTERIES) or nxt > cap:
+            eff_cap = lvlcap + capb.get(n, 0) + (1 if capraise else 0)
+            if nxt >= len(MASTERIES) or nxt > eff_cap:
                 continue
             tier = MASTERIES[nxt]
             verb = 'new' if cur_idx == 0 else 'raise from %s' % cur_tier
-            out.append({'name': '%s: %s' % (n, tier), 'group': 'Skills',
+            if capraise:
+                verb += ', cap+'
+            out.append({'name': '%s: %s%s' % (n, tier, marker), 'group': kind.title(),
                         'label': '%s -> %s (%s)' % (n, tier, verb)})
         return out
+
+    def _skill_plan_options(self, level):
+        return self._plan_options('skills', level)
 
     def _options_for(self, slot):
         if slot == 'ancestry_trait':
@@ -726,8 +797,8 @@ class BuilderAPI:
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
             return self._spell_tagged_options()
-        if slot == 'skill':   # FR-3 slice 2 planned-level skill child-slot (options are level-aware, so
-            return []          # _grant_children overrides d['options'] with self._skill_plan_options(level))
+        if slot in ('skill', 'trade'):   # FR-3/FR-17 planned-level skill/trade child-slot: options are
+            return []                      # level-aware, so _grant_children overrides d['options'].
         return []
 
     # ---------- catalog-level legality (the layer the engine does not do) ----------
@@ -806,42 +877,47 @@ class BuilderAPI:
             if req and 'any ' not in str(req).lower() and base_name(req) not in present:
                 probs.append('catalog: %s requires %s, which this character has not taken'
                              % (base_name(nm), req))
-        # FR-3 slice 2: planned-level skill picks legality (the enforcement the engine skips on plans).
-        # Each decided pick must be a known catalog skill, exactly ONE mastery step up from its running
-        # state (aggregate + lower plan levels), within the level's Mastery Limit, and distinct within
-        # the level. The picker only offers legal options, so this defends against stale / hand-authored
-        # values (e.g. a lower pick was later changed, leaving a raise no longer one-step).
-        allsk = {n for lst in ((self.cat.get('skills_trades') or {}).get('skills') or {}).values()
-                 for n in lst}
+        # FR-3 slice 2 / FR-17: planned-level skill AND trade picks legality (the enforcement the engine
+        # skips on plans). Each decided pick must be a known catalog skill/trade, exactly ONE mastery
+        # step up from its running state (aggregate + lower plan levels), within the level's Mastery
+        # Limit PLUS any carried raises PLUS its own cap+ purchase, and distinct within the level. The
+        # picker only offers legal options, so this defends against stale / hand-authored values.
         cur = self.ledger['current_level']
-        for lvl in sorted(self.ledger.get('levels') or {}):
-            if lvl <= cur:
-                continue
-            base = self._skill_running_state(lvl)
-            cap = self._mastery_cap_idx(lvl)
-            seen = set()
-            for e in self.ledger['levels'][lvl] or []:
-                for v in e.get('granted_skills') or []:
-                    if str(v) == UNDECIDED:
-                        continue
-                    sk, tier = self._parse_skill_pick(v)
-                    if sk not in allsk:
-                        probs.append('catalog: planned skill %r (L%d) is not a known skill' % (sk, lvl))
-                        continue
-                    if tier not in MASTERIES or tier is None:
-                        probs.append('catalog: planned skill %s has an invalid tier %r (L%d)'
-                                     % (sk, tier, lvl))
-                        continue
-                    base_idx = MASTERIES.index(base.get(sk)) if base.get(sk) in MASTERIES else 0
-                    if MASTERIES.index(tier) != base_idx + 1:
-                        probs.append('catalog: planned skill %s -> %s (L%d) is not a single step up from %s'
-                                     % (sk, tier, lvl, base.get(sk) or 'none'))
-                    if MASTERIES.index(tier) > cap:
-                        probs.append('catalog: planned skill %s -> %s (L%d) exceeds the level mastery limit %s'
-                                     % (sk, tier, lvl, MASTERIES[cap]))
-                    if sk in seen:
-                        probs.append('catalog: planned skill %s picked twice at L%d' % (sk, lvl))
-                    seen.add(sk)
+        for kind in PLAN_POINTBUY:
+            allnames = set(self._plan_catalog_names(kind))
+            label = 'skill' if kind == 'skills' else 'trade'
+            for lvl in sorted(self.ledger.get('levels') or {}):
+                if lvl <= cur:
+                    continue
+                base = self._plan_running_state(kind, lvl)
+                capb = self._plan_running_caps(kind, lvl)
+                lvlcap = self._mastery_cap_idx(lvl)
+                seen = set()
+                for e in self.ledger['levels'][lvl] or []:
+                    for v in e.get('granted_%s' % kind) or []:
+                        if not self._plan_decided(v):
+                            continue   # UNDECIDED or an armed-but-empty cap+ slot: not yet a pick
+                        sk, tier, capd = self._parse_plan_pick(v)
+                        if sk not in allnames:
+                            probs.append('catalog: planned %s %r (L%d) is not a known %s'
+                                         % (label, sk, lvl, label))
+                            continue
+                        if tier not in MASTERIES or tier is None:
+                            probs.append('catalog: planned %s %s has an invalid tier %r (L%d)'
+                                         % (label, sk, tier, lvl))
+                            continue
+                        base_idx = MASTERIES.index(base.get(sk)) if base.get(sk) in MASTERIES else 0
+                        if MASTERIES.index(tier) != base_idx + 1:
+                            probs.append('catalog: planned %s %s -> %s (L%d) is not a single step up from %s'
+                                         % (label, sk, tier, lvl, base.get(sk) or 'none'))
+                        eff_cap = lvlcap + capb.get(sk, 0) + (1 if capd else 0)
+                        if MASTERIES.index(tier) > eff_cap:
+                            probs.append('catalog: planned %s %s -> %s (L%d) exceeds the mastery limit %s'
+                                         ' (tick cap+ to raise it)'
+                                         % (label, sk, tier, lvl, MASTERIES[min(eff_cap, len(MASTERIES) - 1)]))
+                        if sk in seen:
+                            probs.append('catalog: planned %s %s picked twice at L%d' % (label, sk, lvl))
+                        seen.add(sk)
         return probs
 
     # ---------- builder-level completeness (undecided slots) ----------
@@ -859,6 +935,8 @@ class BuilderAPI:
         for c in cg.get('class_choices') or []:
             cnt('L1 %s' % c['slot'], c.get('picks') or [])
             for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
+                if _res in PLAN_POINTBUY:   # FR-17: skill/trade carriers are points-based, handled below
+                    continue
                 _n = int((c.get('grants') or {}).get(_res, 0) or 0)
                 _lst = c.get('granted_%s' % _res) or []
                 for _k in range(_n):
@@ -875,6 +953,8 @@ class BuilderAPI:
                 if str(e.get('pick')) == UNDECIDED:
                     probs.append('builder: L%d %s undecided' % (lvl, e.get('slot')))
                 for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
+                    if _res in PLAN_POINTBUY:   # FR-17: skill/trade carriers are points-based, handled below
+                        continue
                     _n = int((e.get('grants') or {}).get(_res, 0) or 0)
                     _lst = e.get('granted_%s' % _res) or []
                     for _k in range(_n):
@@ -886,19 +966,28 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d spell (tag) undecided' % lvl)
-        # FR-3 slice 2: planned levels ENFORCE their skill budget (Darryl's call), so an unfilled
-        # planned skill pick is flagged as under-spent. This is the deliberate divergence from Slice
-        # 1's "a plan raises no problems", scoped to skills only: the other plan grant-child slots
-        # (runes / metamagic / tagged spells) stay speculative and are NOT flagged on a plan level.
+        # FR-3 slice 2 / FR-17: planned levels ENFORCE their skill AND trade point budgets (Darryl's
+        # call), POINTS-based rather than per-slot, because a cap+ pick costs 2 points. So a level with
+        # N points is under-spent while decided picks total < N, and over-spent if they total > N (only
+        # reachable by cap+ overshoot). This is the deliberate divergence from Slice 1's "a plan raises
+        # no problems", scoped to the point-buy carriers; runes / metamagic / tagged spells stay
+        # speculative and are NOT flagged on a plan level.
         for lvl in sorted(self.ledger.get('levels') or {}):
             if lvl <= cur:
                 continue
             for e in self.ledger['levels'][lvl] or []:
-                _n = int((e.get('grants') or {}).get('skills', 0) or 0)
-                _lst = e.get('granted_skills') or []
-                for _k in range(_n):
-                    if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
-                        probs.append('builder: L%d planned skill undecided' % lvl)
+                for kind in PLAN_POINTBUY:
+                    _n = int((e.get('grants') or {}).get(kind, 0) or 0)
+                    if _n <= 0:
+                        continue
+                    _lst = e.get('granted_%s' % kind) or []
+                    spent = sum(self._plan_pick_cost(v) for v in _lst if self._plan_decided(v))
+                    if spent < _n:
+                        probs.append('builder: L%d planned %s: %d of %d point(s) unspent'
+                                     % (lvl, kind, _n - spent, _n))
+                    elif spent > _n:
+                        probs.append('builder: L%d planned %s over budget (%d points, %d spent)'
+                                     % (lvl, kind, _n, spent))
         if self.scratch and not str(self.ledger.get('ancestry') or '').strip():
             probs.append('builder: ancestry not chosen')
         return probs
@@ -1024,24 +1113,37 @@ class BuilderAPI:
             if n <= 0:
                 continue
             lst = parent.get('granted_%s' % resource) or []
-            if resource == 'skills':
-                # FR-3 slice 2: skill child-slots get LEVEL-AWARE options (next tier up, within the
-                # level cap) and sibling distinctness (a skill already picked in another slot of THIS
-                # level is hidden, so a level's points go to distinct skills - one step each).
-                base_opts = self._skill_plan_options(level)
-                sib = {self._parse_skill_pick(lst[j])[0]
-                       for j in range(min(n, len(lst))) if str(lst[j]) != UNDECIDED}
+            if resource in PLAN_POINTBUY:
+                # FR-3 slice 2 / FR-17: skill & trade child-slots are POINT-BUY. Each slot offers the
+                # ONE next tier up from the running state (sibling-distinct within the level). A cap+
+                # slot (Mastery-Limit purchase) offers the tier one above the cap and costs 2 points,
+                # so the level's N points are consumed as we go: once spent >= N the trailing empty
+                # slot is dropped (no dangling picker). Cost is 2 per cap+ pick, 1 otherwise.
+                sing = 'skill' if resource == 'skills' else 'trade'
+                sib = {self._parse_plan_pick(lst[j])[0]
+                       for j in range(min(n, len(lst))) if self._plan_decided(lst[j])}
+                spent = 0
                 for k in range(n):
-                    pick = lst[k] if k < len(lst) else UNDECIDED
-                    d = self._dec('GC#%s#skills#%d' % (parentref, k), level, 'skill',
+                    raw = lst[k] if k < len(lst) else UNDECIDED
+                    capd = str(raw) == CAPARM or (self._plan_decided(raw)
+                                                  and self._parse_plan_pick(raw)[2])
+                    decided = self._plan_decided(raw)
+                    if not decided and spent >= n:
+                        continue   # budget exhausted (a cap+ pick ate an extra point): drop empty slot
+                    pick = raw if decided else UNDECIDED   # a bare CAPARM shows as undecided + cap+ on
+                    d = self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, sing,
                                   pick, None, False, editable,
-                                  plan=level > cur,
-                                  plan_editable=editable and level > cur)
-                    mine = self._parse_skill_pick(pick)[0] if str(pick) != UNDECIDED else None
-                    d['options'] = [o for o in base_opts
-                                    if self._parse_skill_pick(o['name'])[0] == mine
-                                    or self._parse_skill_pick(o['name'])[0] not in sib]
+                                  plan=level > cur, plan_editable=editable and level > cur)
+                    d['plan_pointbuy'] = resource   # JS: render the cap+ control on this row
+                    d['capraise'] = bool(capd)
+                    mine = self._parse_plan_pick(pick)[0] if decided else None
+                    opts = self._plan_options(resource, level, capraise=bool(capd))
+                    d['options'] = [o for o in opts
+                                    if self._parse_plan_pick(o['name'])[0] == mine
+                                    or self._parse_plan_pick(o['name'])[0] not in sib]
                     out.append(d)
+                    if decided:
+                        spent += self._plan_pick_cost(raw)
                 continue
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
@@ -1114,6 +1216,36 @@ class BuilderAPI:
         lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
         lst[k] = value
         entry['granted_%s' % resource] = lst
+        return self.state()
+
+    def _grant_child_entry(self, parentref):
+        if parentref.startswith('cg:'):
+            return self.ledger['chargen']['class_choices'][int(parentref.split(':')[1])]
+        lvl, idx = parentref[1:].split(':')
+        return self.ledger['levels'][int(lvl)][int(idx)]
+
+    def set_plan_capraise(self, did, on):
+        # FR-17: toggle the cap+ (Mastery-Limit purchase) on a planned skill/trade child-slot. On an
+        # EMPTY slot this arms cap+ (a bare CAPARM sentinel), which switches the slot's picker to the
+        # cap+ option set (offering the tier one above the level cap). On a DECIDED slot it just adds/
+        # removes the " (cap+)" suffix (the tier itself is fixed by the single-step rule; the marker
+        # records the extra point spent). Only planned skill/trade slots carry this control.
+        _, parentref, resource, k = str(did).split('#')
+        if resource not in PLAN_POINTBUY:
+            return self.state()
+        k = int(k)
+        entry = self._grant_child_entry(parentref)
+        gkey = 'granted_%s' % resource
+        n = int((entry.get('grants') or {}).get(resource, 0) or 0)
+        lst = list(entry.get(gkey) or [])
+        lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
+        want = str(on) in ('1', 'true', 'True', 'on', 'yes')
+        name, tier, _cap = self._parse_plan_pick(lst[k])
+        if name:                       # a real pick: rewrite its marker, keep the tier
+            lst[k] = '%s: %s%s' % (name, tier, ' ' + CAPARM if want else '')
+        else:                          # empty slot: arm / disarm cap+
+            lst[k] = CAPARM if want else UNDECIDED
+        entry[gkey] = lst
         return self.state()
 
     def _alloc(self):
@@ -1685,6 +1817,13 @@ class BuilderAPI:
             add({'slot': 'skills', 'grants': {'skills': sp},
                  'pick': '%d skill point%s' % (sp, '' if sp == 1 else 's'),
                  'note': 'plan: fill the skill picks below. ' + BUILDER_NOTE})
+        # FR-17: a PLAN level also carries its own trade picks, the same way (carrier {trades:M},
+        # M = class-spine trade_points). Skills and trades are the two plan point-buy carriers.
+        tp = int(row.get('trade_points', 0) or 0)
+        if plan and tp:
+            add({'slot': 'trades', 'grants': {'trades': tp},
+                 'pick': '%d trade point%s' % (tp, '' if tp == 1 else 's'),
+                 'note': 'plan: fill the trade picks below. ' + BUILDER_NOTE})
         return ents
 
     def add_level(self):
@@ -2376,7 +2515,12 @@ function render(s){
     const cls = "dec" + (t.editable?" edit":"") + (t.inferred?" inferred":"") + (t.plan?" plan":"") + (isnew?" newlvl":"");
     let body;
     if(t.editable && t.options){
-      body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` +
+      // FR-17: a planned skill/trade slot carries a cap+ toggle - spend 1 extra point to raise this
+      // Mastery Limit by 1, letting the pick sit one tier above the level cap (mirrors the allocator).
+      const capctl = t.plan_pointbuy
+        ? ` <label class="capraise" title="spend 1 extra ${t.plan_pointbuy==='skills'?'Skill':'Trade'} Point to raise this Mastery Limit by 1 (this pick may go one tier above the level cap)"><input type="checkbox" data-plr="${esc(t.id)}" ${t.capraise?'checked':''}> cap+</label>`
+        : "";
+      body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` + capctl +
         ((t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"") +
         (t.was_note ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.was_note)} <a href="#" class="rm" data-dismiss="${esc(t.id)}" title="dismiss this note">&times;</a></span>`:"") +
         (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + ruleTag(t.current) + `</span>`;
@@ -2434,6 +2578,7 @@ function render(s){
   $('decisions').innerHTML = d;
   $('srcinfo').textContent = viaNote;
   document.querySelectorAll('[data-dec]').forEach(el => el.onchange = () => { if(el.value!=="") refresh(api.set_decision(el.dataset.dec, el.value)); });
+  document.querySelectorAll('[data-plr]').forEach(el => el.onchange = () => refresh(api.set_plan_capraise(el.dataset.plr, el.checked)));   // FR-17 plan cap+ toggle
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));
   document.querySelectorAll('[data-rm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_decision(el.dataset.rm)); });
   document.querySelectorAll('[data-dismiss]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.dismiss_note(el.dataset.dismiss)); });

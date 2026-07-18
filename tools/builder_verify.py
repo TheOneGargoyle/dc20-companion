@@ -962,8 +962,9 @@ def check_slice2():
     UND = "(undecided)"
     print()
     print("## (13) FR-8 slice 2: grants -> typed child picker-slots backbone")
-    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills), excludes maneuvers/spells",
-       builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic", "skills": "skill"},
+    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills/trades), excludes maneuvers/spells",
+       builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic",
+                                         "skills": "skill", "trades": "trade"},
        builder_api.GRANT_CHILD_SLOTS)
 
     # No party ledger grants a pickable resource yet (rune/metamagic catalogs land in slices 3/4),
@@ -1273,15 +1274,19 @@ def check_fr3():
     editable = [d for d in l5 if d["editable"] and d["widget"] == "picker"]
     ok("a builder-generated plan is EDITABLE (spine slots are real pickers you can fill in)",
        len(editable) >= 1 and all(d["slot"] in ("attribute", "talent", "path", "subclass",
-                                                 "spell", "maneuver", "ancestry_trait", "skill") for d in editable),
+                                                 "spell", "maneuver", "ancestry_trait",
+                                                 "skill", "trade") for d in editable),
        [(d["slot"], d["widget"]) for d in l5])
-    # FR-3 slice 2 changed the plan contract for SKILLS ONLY (Darryl's call): a plan is engine/catalog
-    # clean and raises no NON-skill builder problems, but its enforced skill picks flag until filled.
+    # FR-3 slice 2 / FR-17 changed the plan contract for the POINT-BUY carriers (skills AND trades):
+    # a plan is engine/catalog clean and raises no OTHER builder problems, but its enforced skill/trade
+    # point budgets flag until spent.
+    def only_pointbuy(b):
+        return all(("planned skill" in p or "planned trade" in p) for p in b)
     e0, c0, b0 = probs(s)
-    ok("an added plan is engine/catalog clean and raises no NON-skill builder problems",
-       not e0 and not c0 and all("planned skill" in p for p in b0), probs(s))
-    # editing a plan pick writes it and the row stays an editable picker (use a non-skill spine row)
-    row = [d for d in editable if d["slot"] != "skill"][0]
+    ok("an added plan is engine/catalog clean and raises only skill/trade point-budget problems",
+       not e0 and not c0 and only_pointbuy(b0), probs(s))
+    # editing a plan pick writes it and the row stays an editable picker (use a non-point-buy spine row)
+    row = [d for d in editable if d["slot"] not in ("skill", "trade")][0]
     val = row["options"][0]["name"]
     s = json.loads(api.set_decision(row["id"], val))
     r2 = find_dec(s, lambda d: d["id"] == row["id"])
@@ -1289,8 +1294,8 @@ def check_fr3():
        r2 and r2["current"] == val and r2["editable"] and r2["widget"] == "picker",
        (r2 or {}).get("current"))
     e1, c1, b1 = probs(s)
-    ok("filling a non-skill plan pick keeps engine/catalog clean (only enforced skill picks remain)",
-       not e1 and not c1 and all("planned skill" in p for p in b1), probs(s))
+    ok("filling a non-point-buy plan pick keeps engine/catalog clean (only skill/trade budgets remain)",
+       not e1 and not c1 and only_pointbuy(b1), probs(s))
     # a second planned level stacks; undo unwinds L6 then L5 (undo link never wrongly gone)
     s = json.loads(api.add_planned_level())
     ok("a second planned level stacks to L6 and the undo link now says L6",
@@ -1378,10 +1383,11 @@ def check_fr3_slice2():
     ok("skill child ids are keyed structurally to the carrier parent (GC#L5:...#skills#k)",
        all(i.startswith("GC#L5:") and "#skills#" in i for i in ids), ids)
 
-    # (c) ENFORCE (Darryl's call): undecided planned skills flag as problems (under-spend).
+    # (c) ENFORCE (Darryl's call): unspent planned skill points flag as ONE aggregate problem
+    # (points-based since FR-17, because a cap+ pick costs 2 points).
     bp = [p for p in s["builder_problems"] if "planned skill" in p]
-    ok("both undecided planned skill picks are flagged (enforced budget, not speculative)",
-       len(bp) == 2 and not s["problems"] and not s["catalog_problems"], probs(s))
+    ok("unspent planned skills flag as an aggregate point-budget problem (enforced, not speculative)",
+       len(bp) == 1 and "2 of 2" in bp[0] and not s["problems"] and not s["catalog_problems"], probs(s))
 
     # (d) options against the real aggregate: an unheld skill is offered add-new at Novice; a
     # held Novice skill is offered as a one-step raise to Adept (L5 cap Adept); a held skill is
@@ -1399,23 +1405,26 @@ def check_fr3_slice2():
     other = [d for d in sk5 if d["id"] != ids[0]][0]
     ok("a skill chosen in one slot is hidden from the sibling slot (points go to distinct skills)",
        not any(x.startswith("Stealth") for x in onames(other)), onames(other)[:4])
-    ok("filling one skill leaves exactly one enforced skill problem remaining",
-       len([p for p in s["builder_problems"] if "planned skill" in p]) == 1, s["builder_problems"])
+    ok("spending one of two skill points reports '1 of 2 unspent'",
+       any("planned skills: 1 of 2" in p for p in s["builder_problems"]), s["builder_problems"])
     s = json.loads(api.set_decision(other["id"], onames(other)[0]))
-    ok("filling both planned skills clears all problems", clean(s), probs(s))
+    ok("filling both planned skills clears the skill budget problem",
+       not any("planned skill" in p for p in s["builder_problems"]), probs(s))
 
-    # (f) RAISE + mastery cap, on Tanrielle (Awareness is Adept in her aggregate).
+    # (f) RAISE + carried Mastery-Limit raise, on Tanrielle. Her Awareness is Adept AND carries a
+    # skill_point_purchase limit raise, so the ceiling for Awareness is +1: at L8 (level cap Adept)
+    # she can raise Awareness to Expert WITHOUT a new cap+ (the purchase carries). A skill with no
+    # carried raise (Athletics, Novice) is capped normally.
     ta = builder_api.BuilderAPI("tanrielle", CATPATHS)
     for _ in range(4):                                  # L7(0 SP), L8(1 SP), L9(0), L10(2 SP)
         ta.add_planned_level()
     s = st(ta)
     o8 = onames(skl(s, 8)[0])
-    ok("at L8 (cap Adept) an Adept skill cannot raise further (Awareness not offered)",
-       not any(x.startswith("Awareness") for x in o8)
-       and "Athletics: Adept" in o8, o8[:6])
-    o10 = onames(skl(s, 10)[0])
-    ok("at L10 (cap Expert) an Adept skill CAN raise to Expert (Awareness: Expert offered)",
-       "Awareness: Expert" in o10, [x for x in o10 if x.startswith("Awareness")])
+    ok("at L8 a carried Mastery-Limit raise lets Awareness go Adept->Expert (no new cap+ needed)",
+       "Awareness: Expert" in o8, [x for x in o8 if x.startswith("Awareness")])
+    ok("at L8 (cap Adept) a skill with no carried raise stops at Adept (Athletics: Expert not offered)",
+       "Athletics: Adept" in o8 and "Athletics: Expert" not in o8,
+       [x for x in o8 if x.startswith("Athletics")])
 
     # (g) running state chains across plan levels (a lower plan raise feeds a higher level's options).
     s = json.loads(ta.set_decision(skl(s, 8)[0]["id"], "Athletics: Adept"))
@@ -1459,6 +1468,81 @@ def check_fr3_slice2():
     sa = st(adv)
     ok("a REAL advance (add_level) creates no skills carrier - completed levels keep the flat aggregate",
        sa["level"] == 5 and not any(d["slot"] == "skills" for d in sa["decisions"]), sa["level"])
+
+
+def check_fr17():
+    print("\n## (20) FR-17: plan skill/trade cap+ (Mastery-Limit purchase above the level cap) + trades in plans")
+
+    def dsl(s, lvl, slot):
+        return [d for d in s["decisions"] if d["slot"] == slot and d["level"] == lvl]
+
+    # --- SKILLS cap+: raise a skill to Expert BELOW L10 via a cap+ purchase. Keep the flat aggregate
+    # legal (the engine validates it at current_level): raise Acrobatics Novice->Adept in the L5 plan
+    # (within cap), then cap+ it Adept->Expert at L6 (level cap still Adept). Commander L5=2SP, L6=1SP.
+    api = builder_api.BuilderAPI("minimus", CATPATHS)
+    api.add_planned_level()                                  # L5 (2 SP, cap Adept)
+    c5 = [e for e in api.ledger["levels"][5] if e.get("slot") == "skills"][0]
+    c5["granted_skills"] = ["Acrobatics: Adept", "Insight: Adept"]   # legal within-cap raises, 2/2
+    api.add_planned_level()                                  # L6 (1 SP, cap Adept)
+    s = st(api)
+    slot6 = dsl(s, 6, "skill")[0]
+    o_norm = [o["name"] for o in slot6["options"]]
+    ok("plan skill slots carry the cap+ control (plan_pointbuy=='skills', capraise off)",
+       slot6.get("plan_pointbuy") == "skills" and slot6.get("capraise") is False, slot6.get("plan_pointbuy"))
+    ok("normal mode does NOT offer an above-cap raise (Acrobatics Adept, cap Adept -> no Expert at L6)",
+       not any(x.startswith("Acrobatics: Expert") for x in o_norm),
+       [x for x in o_norm if x.startswith("Acrobatics")])
+    # arm cap+ on the empty slot -> stores CAPARM, options switch to the cap+ set
+    s = json.loads(api.set_plan_capraise(slot6["id"], True))
+    car6 = [e for e in api.ledger["levels"][6] if e.get("slot") == "skills"][0]
+    ok("arming cap+ on an empty slot stores a bare CAPARM sentinel (armed, not yet a pick)",
+       (car6.get("granted_skills") or [None])[0] == builder_api.CAPARM, car6.get("granted_skills"))
+    slot6 = dsl(s, 6, "skill")[0]
+    o_cap = [o["name"] for o in slot6["options"]]
+    ok("arming cap+ switches the slot to cap+ options (Acrobatics: Expert (cap+) now offered)",
+       slot6["capraise"] is True and "Acrobatics: Expert (cap+)" in o_cap,
+       [x for x in o_cap if x.startswith("Acrobatics")])
+    # pick the above-cap raise
+    s = json.loads(api.set_decision(slot6["id"], "Acrobatics: Expert (cap+)"))
+    car6 = [e for e in api.ledger["levels"][6] if e.get("slot") == "skills"][0]
+    ok("the cap+ pick is stored with its marker in granted_skills",
+       "Acrobatics: Expert (cap+)" in (car6.get("granted_skills") or []), car6.get("granted_skills"))
+    ok("a cap+ pick costs 2 points: at a 1-SP level it reports over budget (1 points, 2 spent)",
+       any("planned skills over budget" in p and "2 spent" in p for p in s["builder_problems"]),
+       [p for p in s["builder_problems"] if "planned skill" in p])
+    ok("the cap+ purchase consumes both points in its one slot (no extra empty skill slot renders)",
+       len(dsl(s, 6, "skill")) == 1, [d.get("current") for d in dsl(s, 6, "skill")])
+    ok("the cap+ pick is engine-clean and catalog-legal (the purchase makes Expert legal below L10)",
+       not s["problems"] and not any("planned skill" in p for p in s["catalog_problems"]), probs(s))
+    # disarming cap+ strips the marker; without the purchase Expert is over the cap -> catalog flags it
+    s = json.loads(api.set_plan_capraise(dsl(s, 6, "skill")[0]["id"], False))
+    car6 = [e for e in api.ledger["levels"][6] if e.get("slot") == "skills"][0]
+    ok("disarming cap+ strips the marker from the stored pick",
+       (car6.get("granted_skills") or [""])[0] == "Acrobatics: Expert", car6.get("granted_skills"))
+    ok("without the cap+ purchase, Expert exceeds the cap -> catalog_problems flags it",
+       any("mastery limit" in p for p in s["catalog_problems"]), s["catalog_problems"])
+
+    # --- TRADES in plans: a plan level materialises a trade carrier + editable trade pickers ---
+    t = builder_api.BuilderAPI("minimus", CATPATHS)
+    t.add_planned_level()                                  # L5 also grants trade points
+    s = st(t)
+    tcar = dsl(s, 5, "trades")
+    tsl = dsl(s, 5, "trade")
+    ok("a plan level materialises a 'trades' carrier + editable trade child pickers",
+       len(tcar) == 1 and len(tsl) >= 1 and all(d["editable"] and d["widget"] == "picker" for d in tsl),
+       (len(tcar), len(tsl)))
+    ok("trade child ids are keyed to the trade carrier (GC#L5:...#trades#k) and carry the cap+ control",
+       all(str(d["id"]).startswith("GC#L5:") and "#trades#" in str(d["id"])
+           and d.get("plan_pointbuy") == "trades" for d in tsl), [d["id"] for d in tsl])
+    ok("an unfilled trade budget is enforced as a points-based problem",
+       any("planned trades:" in p for p in s["builder_problems"]),
+       [p for p in s["builder_problems"] if "planned trade" in p])
+    topt = [o["name"] for o in tsl[0]["options"]]
+    s = json.loads(t.set_decision(tsl[0]["id"], topt[0]))
+    tc = [e for e in t.ledger["levels"][5] if e.get("slot") == "trades"][0]
+    ok("filling a trade pick writes granted_trades and clears the trade budget problem",
+       tc.get("granted_trades") == [topt[0]] and not any("planned trade" in p for p in s["builder_problems"]),
+       (tc.get("granted_trades"), [p for p in s["builder_problems"] if "planned trade" in p]))
 
 
 def check_fr6():
@@ -1554,6 +1638,7 @@ def main():
         check_slice5()
         check_fr3()
         check_fr3_slice2()
+        check_fr17()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
