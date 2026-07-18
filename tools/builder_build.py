@@ -1084,10 +1084,17 @@ class BuilderAPI:
                 ds.append(self._dec('L%d:%d' % (lvl, i), lvl, e.get('slot'), e.get('pick'),
                                     e.get('cost'), bool(e.get('inferred')), editable,
                                     note=e.get('note'), plan=is_plan, plan_editable=plan_edit,
-                                    removable=((e.get('slot') == 'ancestry_trait'
-                                                and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))
-                                               or (e.get('slot') in ('maneuver', 'spell')
-                                                   and BUILDER_NOTE in str(e.get('note', ''))))))
+                                    # BUG-16: maneuver/spell budget slots are NOT removable. They are a
+                                    # fixed-count pool (base class table + path riders + grants) that the
+                                    # engine budgets but does NOT count entry-by-entry, and nothing
+                                    # regenerates a deleted one (there is no "+ maneuver" and re-picking
+                                    # Path/Pact Boon only rebuilds path-rider / grant-child slots). A stray
+                                    # x let a required slot be deleted into a silent, unrecoverable
+                                    # shortfall. They are edit-only now: change the pick via the dropdown.
+                                    # Ancestry traits stay removable - they DO self-heal (FR-9 auto-slot +
+                                    # the "+ ancestry trait" button re-add against the point budget).
+                                    removable=(e.get('slot') == 'ancestry_trait'
+                                               and (self.scratch or BUILDER_NOTE in str(e.get('note', ''))))))
                 ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl,
                                                (lvl <= cur) or bool(e.get('plan_edit'))))   # FR-8 slice 2 / FR-3
         # FR-9: while ancestry points are unspent AND no open slot already exists, show ONE

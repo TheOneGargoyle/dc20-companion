@@ -802,10 +802,10 @@ def check_replace_hatch():
     ok("changing the L1 boon re-aggregates grants from the catalog (Pact Familiar grants none)",
        cc4["picks"][0] == "Pact Familiar" and not cc4.get("grants"), (cc4.get("picks"), cc4.get("grants")))
     mrows = [d for d in st(api2)["decisions"] if d.get("slot") == "maneuver"]
-    ok("all generated maneuver rows are editable pickers (level slots removable)",
+    ok("generated maneuver rows are editable pickers and NOT removable (BUG-16: budget slots edit-only)",
        all(d["widget"] == "picker" and d.get("editable") for d in mrows)
-       and all(d.get("removable") for d in mrows if (d.get("level") or 1) > 1),
-       [(d.get("level"), d.get("current")) for d in mrows])
+       and not any(d.get("removable") for d in mrows),
+       [(d.get("level"), d.get("current"), d.get("removable")) for d in mrows])
     ok("no new problems introduced by the replace (runt is now fully clean; BUG-7 AD closed)",
        s1["problems"] == [], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
@@ -1725,6 +1725,31 @@ def check_fr9():
        "cg:trait:+" in builder_build.API_PY and "_anc_budget" in builder_build.API_PY)
 
 
+# ---------------------------------------------------------------- (23) BUG-16 maneuver/spell edit-only
+def check_bug16():
+    print("\n## (23) BUG-16: maneuver/spell budget slots are edit-only (not removable, no dead-end)")
+    for who in builder_build.CHARS:
+        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        bad = [(d.get("level"), d.get("slot"), d.get("current")) for d in s["decisions"]
+               if d.get("slot") in ("maneuver", "spell") and d.get("removable")]
+        ok("%s: NO maneuver/spell row is removable (was the unrecoverable-delete bug)" % who,
+           not bad, bad)
+    # ancestry-trait removability is deliberately unchanged: a builder-added trait stays removable
+    # because ancestry DOES self-heal (FR-9 auto ready-slot + the "+ ancestry trait" button re-add
+    # against the point budget), so removing one is never a dead-end.
+    api = builder_api.BuilderAPI("runt", CATPATHS)
+    del api.ledger["chargen"]["ancestry_traits"][1]
+    s = st(api)
+    auto = [d for d in s["decisions"] if d.get("auto")][0]
+    owned = {d.get("current") for d in s["decisions"] if d["slot"] == "ancestry_trait"}
+    opt = next(o["name"] for o in auto["options"]
+               if 0 < o.get("cost", 0) <= 1 and o["name"] not in owned and "Attribute" not in o["name"])
+    s2 = json.loads(api.set_decision("cg:trait:+", opt))
+    added = next(d for d in s2["decisions"] if d["slot"] == "ancestry_trait" and d.get("current") == opt)
+    ok("ancestry removability unchanged: a builder-added trait is still removable (safe, self-heals)",
+       added.get("removable") is True, added.get("removable"))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1758,6 +1783,7 @@ def main():
         check_fr17()
         check_fr20()
         check_fr9()
+        check_bug16()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1782,6 +1808,7 @@ def main():
     print("       FR-3 slice 2 planned levels carry their own skill picks (Hybrid, FR-8 backbone, enforced)")
     print("       FR-20 level pickers reorder to chargen flow (attrs->class->ancestry->resources, children glued)")
     print("       FR-9 ancestry-point readout + auto ready-slot (budget-gated, sentinel materialise)")
+    print("       BUG-16 maneuver/spell budget slots edit-only (not removable into an unrecoverable shortfall)")
     sys.exit(0)
 
 
