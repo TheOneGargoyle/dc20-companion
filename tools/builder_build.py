@@ -112,6 +112,25 @@ GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill
 # above-cap option before a skill is chosen).
 CAPARM = '(cap+)'
 PLAN_POINTBUY = ('skills', 'trades')   # FR-3/FR-17 plan-level point-buy carriers
+# FR-20: within a level the decision pickers render in chargen-flow order
+# (Darryl's call 2026-07-18): attributes -> class/subclass -> ancestry -> resources.
+# Each top-level row's slot maps to a category rank; grant-child rows (GC#...) inherit
+# their parent block's rank so they stay glued directly under the parent (see
+# _reorder_decisions). Unknown slots fall to resources (rank 3).
+FR20_CAT = {
+    # 0: attributes (point-buy at chargen; Attribute Increase at a level)
+    'attributes': 0, 'attribute': 0,
+    # 1: class / subclass structure
+    'subclass': 1, 'pact_boon': 1, 'discipline': 1, 'spell_school': 1,
+    'talent': 1, 'path': 1, 'class_feature': 1, 'class_features': 1,
+    'spellblade_disciplines': 1, 'bound_weapon_options': 1,
+    # 2: ancestry
+    'ancestry_trait': 2, 'ancestry_traits': 2,
+    # 3: resources (spells, maneuvers, skill/trade point-buy carriers + their children)
+    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spells': 3, 'maneuvers': 3,
+    'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
+}
+FR20_DEFAULT_RANK = 3
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
@@ -478,6 +497,35 @@ class BuilderAPI:
                 opts.append({'name': row['name'], 'cost': row['cost'], 'group': lst,
                              'label': '%s (%s, cost %s)' % (row['name'], lst, row['cost'])})
         return opts
+
+    def _anc_budget(self):
+        # FR-9: ancestry points spent vs the granted budget, mirroring the engine
+        # (build_engine.py: anc_spent + ANCESTRY_POINTS_L1 (=5) + 2 per "2 Ancestry Points"
+        # class-table feature at L2..current). Feeds the live "Ancestry points: N of M spent"
+        # readout and gates the auto empty-slot in _decisions. Only counts levels <= current
+        # (planned-level ancestry picks, if any, are speculative like the rest of a plan).
+        cg = self.ledger['chargen']
+        cur = self.ledger['current_level']
+        spent = sum(int(t.get('cost', 0) or 0) for t in (cg.get('ancestry_traits') or []))
+        for lvl, es in (self.ledger.get('levels') or {}).items():
+            if int(lvl) > cur:
+                continue
+            for e in es or []:
+                if e.get('slot') == 'ancestry_trait':
+                    spent += int(e.get('cost', 0) or 0)
+        extra = sum(1 for l in sorted(self.ccat['spine'])
+                    if l <= cur and '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or []))
+        return spent, 5 + 2 * extra
+
+    def _anc_has_undecided(self):
+        # FR-9: is there already an open (undecided) ancestry-trait slot anywhere? If so, the
+        # auto empty-slot is suppressed so at most ONE ready slot ever shows. This is also what
+        # keeps the harness safe: every test that builds ancestry adds a real undecided slot via
+        # add_trait() before reading, so the auto slot never appears mid-build.
+        if any(str(t.get('name')) == UNDECIDED for t in self.ledger['chargen'].get('ancestry_traits') or []):
+            return True
+        return any(e.get('slot') == 'ancestry_trait' and str(e.get('pick')) == UNDECIDED
+                   for es in (self.ledger.get('levels') or {}).values() for e in es or [])
 
     def _traits(self):
         for t in self.ledger['chargen'].get('ancestry_traits') or []:
@@ -1042,7 +1090,43 @@ class BuilderAPI:
                                                    and BUILDER_NOTE in str(e.get('note', ''))))))
                 ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl,
                                                (lvl <= cur) or bool(e.get('plan_edit'))))   # FR-8 slice 2 / FR-3
-        return ds
+        # FR-9: while ancestry points are unspent AND no open slot already exists, show ONE
+        # ready empty ancestry-trait picker (id 'cg:trait:+') so the common case (spend your L1
+        # points) needs no button - matching the skills allocator's always-ready feel. It flows
+        # through the normal decision renderer; set_decision materialises a real trait on first
+        # pick. The FR-20 reorder places it in the L1 ancestry block (rank 2). Suppressed when at
+        # budget (the six canon ledgers) or when options can't resolve (scratch, no ancestry yet).
+        spent, budget = self._anc_budget()
+        if spent < budget and not self._anc_has_undecided() and self._anc_options():
+            auto = self._dec('cg:trait:+', 1, 'ancestry_trait', UNDECIDED, None, False, True)
+            auto['auto'] = True
+            ds.append(auto)
+        return self._reorder_decisions(ds)
+
+    def _reorder_decisions(self, ds):
+        # FR-20: reorder the pickers WITHIN each level to chargen flow -
+        # attributes -> class/subclass -> ancestry -> resources (FR20_CAT). Cross-level
+        # order is untouched (levels already ascending). Grant-child rows (GC#...) are
+        # glued to their parent: a child inherits the anchor (preceding non-GC top-level
+        # row)'s category rank AND block sequence, so e.g. a subclass's rune/metamagic
+        # pickers stay directly under the subclass rather than migrating to resources.
+        # Stable within a rank: same-rank blocks keep their original relative order, and
+        # rows within a block keep their original order (the (blk, idx) tie-breakers).
+        meta = []
+        blk_ctr = {}    # per level: running block counter (original block order)
+        anchor = {}     # per level: (rank, block) of the current anchor row
+        for idx, d in enumerate(ds):
+            lvl = d['level']
+            if str(d.get('id') or '').startswith('GC#'):
+                rank, blk = anchor.get(lvl, (FR20_DEFAULT_RANK, 0))
+            else:
+                blk = blk_ctr.get(lvl, 0) + 1
+                blk_ctr[lvl] = blk
+                rank = FR20_CAT.get(d.get('slot'), FR20_DEFAULT_RANK)
+                anchor[lvl] = (rank, blk)
+            meta.append((lvl, rank, blk, idx, d))
+        meta.sort(key=lambda t: (t[0], t[1], t[2], t[3]))
+        return [t[4] for t in meta]
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
              removable=False, plan_editable=False):
@@ -1360,6 +1444,8 @@ class BuilderAPI:
             'can_plan': plan_level <= 10,          # FR-3: room to add a planned level
             'plan_level': plan_level if plan_level <= 10 else None,
             'anc_levels': anc_levels,
+            'anc_spent': self._anc_budget()[0],     # FR-9: live "N of M spent" readout
+            'anc_budget': self._anc_budget()[1],
             'anc_lists_all': sorted(self.cat['ancestries']['ancestries'].keys()),
             'skill_trade_options': self._skill_trade_options(),
             'decisions': self._decisions(),
@@ -1454,6 +1540,14 @@ class BuilderAPI:
         value = str(value)
         if did.startswith('GC#'):
             return self._set_grant_child(did, value)   # FR-8 slice 2 grant-child pick
+        if did == 'cg:trait:+':
+            # FR-9: the auto empty-slot - materialise a real chargen ancestry trait, then set it
+            # (add_trait + _set_trait in one step). Next state() re-derives whether another auto
+            # slot is warranted (still under budget) exactly like the skills allocator chains.
+            self.ledger['chargen'].setdefault('ancestry_traits', []).append(
+                {'name': UNDECIDED, 'cost': 0, 'note': BUILDER_NOTE})
+            self._set_trait(self.ledger['chargen']['ancestry_traits'][-1], value)
+            return self.state()
         if did.startswith('cg:'):
             parts = did.split(':')
             kind = parts[1]
@@ -2099,7 +2193,7 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
       <div id="decisions"></div>
       <div class="addrow"><select class="select" id="tradd-lvl" style="max-width:80px"></select>
         <button class="exportbtn small" id="tradd">+ ancestry trait</button>
-        <span class="src">extra trait slot (the engine keeps the point budget honest)</span></div>
+        <span class="src" id="ancpts"></span></div>
     </div>
     <div class="card">
       <h3 class="sec">Skills &amp; Trades <span class="wlabel">skill/trade allocator</span></h3>
@@ -2505,7 +2599,7 @@ function render(s){
   // count undecided picks that a player still has to make: current-and-below rows, plus
   // FR-3 editable plan rows (a builder-generated plan you can fill in). Locked plan rows
   // (Tanrielle) are fixed, so they never count and never force a group open.
-  for(const t of s.decisions) if((!t.plan || t.editable) && String(t.pick)==="(undecided)") undecAt[t.level]=(undecAt[t.level]||0)+1;
+  for(const t of s.decisions) if((!t.plan || t.editable) && String(t.pick)==="(undecided)" && !t.auto) undecAt[t.level]=(undecAt[t.level]||0)+1;
   const rowHTML = t => {
     if(t.widget === "pointbuy"){
       const sel = a => { let o=""; for(let v=-2; v<=t.limit; v++) o += `<option value="${v}" ${t.attrs[a]===v?'selected':''}>${v}</option>`; return o; };
@@ -2590,6 +2684,15 @@ function render(s){
   // + ancestry trait control
   $('tradd-lvl').innerHTML = s.anc_levels.map(l=>`<option value="${l}">L${l}</option>`).join("");
   $('tradd').onclick = () => refresh(api.add_trait($('tradd-lvl').value));
+  // FR-9: live ancestry-point readout, mirroring the skills allocator's budget line
+  if($('ancpts')){
+    const sp=s.anc_spent, bu=s.anc_budget;
+    let col='var(--muted)', tail='';
+    if(sp>bu){ col='var(--bad)'; tail=' &mdash; over budget'; }
+    else if(sp<bu){ col='var(--warn)'; tail=` &mdash; ${bu-sp} to spend`; }
+    else { col='var(--ok)'; tail=' &mdash; balanced'; }
+    $('ancpts').innerHTML = `Ancestry points: <b style="color:${col}">${sp} of ${bu} spent</b>${tail}`;
+  }
   // skills / trades allocator
   $('alloc').innerHTML = s.alloc.map(a => {
     const capctl = a.purchasable

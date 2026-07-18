@@ -1608,6 +1608,123 @@ def check_fr6():
        (R.get("lt_known"), R.get("lt_unknown")))
 
 
+# ---------------------------------------------------------------- (21) FR-20 picker order
+FR20_RANK = {
+    'attributes': 0, 'attribute': 0,
+    'subclass': 1, 'pact_boon': 1, 'discipline': 1, 'spell_school': 1,
+    'talent': 1, 'path': 1, 'class_feature': 1, 'class_features': 1,
+    'spellblade_disciplines': 1, 'bound_weapon_options': 1,
+    'ancestry_trait': 2, 'ancestry_traits': 2,
+    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spells': 3, 'maneuvers': 3,
+    'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
+}
+
+
+def check_fr20():
+    print("\n## (21) FR-20: level pickers render in chargen flow "
+          "(attrs -> class/subclass -> ancestry -> resources), children glued")
+    from collections import defaultdict
+
+    def rank(slot):
+        return FR20_RANK.get(slot, 3)
+
+    for who in builder_build.CHARS:
+        api = builder_api.BuilderAPI(who, CATPATHS)
+        s = st(api)
+        byl = defaultdict(list)
+        for d in s["decisions"]:
+            byl[d["level"]].append(d)
+        for lvl in sorted(byl):
+            rows = byl[lvl]
+            # (a) top-level (non-child) picker ranks must be non-decreasing within the level
+            top = [d for d in rows if not str(d.get("id") or "").startswith("GC#")]
+            ranks = [rank(d["slot"]) for d in top]
+            ok("%s L%d top-level ranks non-decreasing" % (who, lvl),
+               ranks == sorted(ranks), [d["slot"] for d in top])
+            # (b) every grant-child row is glued directly under its block: the row above it is
+            #     either its parent (a top-level row) or a sibling child with the same parent ref
+            for i, d in enumerate(rows):
+                did = str(d.get("id") or "")
+                if not did.startswith("GC#"):
+                    continue
+                ref = did.split("#")[1]
+                prev = rows[i - 1] if i > 0 else None
+                pid = str((prev or {}).get("id") or "")
+                glued = prev is not None and (
+                    (pid.startswith("GC#") and pid.split("#")[1] == ref)   # sibling child
+                    or not pid.startswith("GC#"))                          # its parent row
+                ok("%s L%d GC child %s glued under its parent block" % (who, lvl, did), glued, pid)
+
+    # (c) the two cross-category glue cases are the strongest evidence: a class-rank parent
+    #     with resource-flavoured children keeps its children directly under it, NOT migrated
+    #     to the resources section (Xanwyn Rune Knight -> 2 runes; Scaletrix Meta Magic -> 2 metamagic)
+    def slot_seq(who, lvl):
+        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        return [d["slot"] for d in s["decisions"] if d["level"] == lvl]
+    ok("Xanwyn L3 = attribute, subclass, its 2 runes, then resources (spell, maneuver)",
+       slot_seq("xanwyn", 3) == ["attribute", "subclass", "rune", "rune", "spell", "maneuver"],
+       slot_seq("xanwyn", 3))
+    ok("Scaletrix L4 = talent, its 2 metamagic, then path, ancestry (no resources this level)",
+       slot_seq("scaletrix", 4) == ["talent", "metamagic", "metamagic", "path", "ancestry_trait"],
+       slot_seq("scaletrix", 4))
+    ok("Runt L1 = attributes -> class (schools+boon) -> ancestry -> resources (spells, maneuvers)",
+       slot_seq("runt", 1) == ["attributes", "spell_school", "spell_school", "spell_school", "pact_boon"]
+       + ["ancestry_trait"] * 7 + ["spell"] * 4 + ["maneuver"] * 2,
+       slot_seq("runt", 1))
+
+
+# ---------------------------------------------------------------- (22) FR-9 ancestry slots/budget
+def check_fr9():
+    print("\n## (22) FR-9: ancestry-trait budget readout + auto ready-slot (polish + lock)")
+    # (a) all six canon ledgers are at budget -> anc_spent == anc_budget, no auto slot, no problem
+    for who in builder_build.CHARS:
+        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        autos = [d for d in s["decisions"] if d.get("auto")]
+        anc_probs = [p for p in s["problems"] if "Ancestry point" in p]
+        ok("%s at budget: anc_spent==anc_budget, no auto slot, no ancestry problem" % who,
+           s["anc_spent"] == s["anc_budget"] and not autos and not anc_probs,
+           (s["anc_spent"], s["anc_budget"], len(autos), anc_probs))
+    # (b) under budget -> exactly one auto ready-slot, full options, ancestry problem raised
+    api = builder_api.BuilderAPI("runt", CATPATHS)
+    del api.ledger["chargen"]["ancestry_traits"][1]   # drop Brute (cost 1): 7 -> 6 spent vs 7
+    s = st(api)
+    autos = [d for d in s["decisions"] if d.get("auto")]
+    ok("under budget: exactly one auto ready-slot", len(autos) == 1, len(autos))
+    ok("auto slot is an ancestry_trait picker (id cg:trait:+, undecided, full options)",
+       autos and autos[0]["id"] == "cg:trait:+" and autos[0]["slot"] == "ancestry_trait"
+       and autos[0]["current"] == "(undecided)" and len(autos[0].get("options") or []) > 10,
+       autos[:1])
+    ok("under budget: readout numbers (6 of 7) + engine ancestry problem raised",
+       s["anc_spent"] == 6 and s["anc_budget"] == 7
+       and any("Ancestry points: 6 spent vs 7 budget" in p for p in s["problems"]), s["anc_spent"])
+    # (c) picking via the auto slot materialises a real trait; back at budget -> no auto slot
+    opt = next(o["name"] for o in autos[0]["options"] if 0 < o.get("cost", 0) <= 1)
+    s2 = json.loads(api.set_decision("cg:trait:+", opt))
+    ok("picking the auto slot materialises a real trait and rebalances the budget",
+       s2["anc_spent"] == 7 and not [p for p in s2["problems"] if "Ancestry point" in p]
+       and not [d for d in s2["decisions"] if d.get("auto")], (s2["anc_spent"],))
+    ok("the materialised trait is now a real editable ancestry_trait row (not auto)",
+       any(d["slot"] == "ancestry_trait" and d.get("current") == opt and not d.get("auto")
+           for d in s2["decisions"]), opt)
+    # (d) guard: an existing UNDECIDED real slot suppresses the auto slot (this is what keeps
+    #     the trips/scratch harness safe: they add a real undecided slot before reading)
+    api3 = builder_api.BuilderAPI("runt", CATPATHS)
+    del api3.ledger["chargen"]["ancestry_traits"][1]
+    s3 = json.loads(api3.add_trait(1))
+    ok("an existing undecided slot suppresses the auto slot (never two open slots)",
+       not [d for d in s3["decisions"] if d.get("auto")]
+       and any(d["slot"] == "ancestry_trait" and d["current"] == "(undecided)" for d in s3["decisions"]))
+    # (e) page furniture: readout element, undecAt skips auto rows, sentinel handled
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html has the ancestry readout element (#ancpts) + 'Ancestry points:' label",
+       'id="ancpts"' in html and "Ancestry points:" in html)
+    ok("undecAt counter skips auto rows (&& !t.auto)", "&& !t.auto)" in html)
+    # the sentinel + budget helper live in API_PY (base64-baked into the page; check_page's
+    # "api blob == builder_build.API_PY" already proves the bake matches this source)
+    ok("auto-slot sentinel 'cg:trait:+' handled in set_decision (API_PY source)",
+       "cg:trait:+" in builder_build.API_PY and "_anc_budget" in builder_build.API_PY)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1639,6 +1756,8 @@ def main():
         check_fr3()
         check_fr3_slice2()
         check_fr17()
+        check_fr20()
+        check_fr9()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1661,6 +1780,8 @@ def main():
     print("       FR-6 rule text on a chosen option (baked corpus + linkify + rule panel)")
     print("       FR-3 Add Planned Level for every PC (editable plans, no ledger reshape) + undo")
     print("       FR-3 slice 2 planned levels carry their own skill picks (Hybrid, FR-8 backbone, enforced)")
+    print("       FR-20 level pickers reorder to chargen flow (attrs->class->ancestry->resources, children glued)")
+    print("       FR-9 ancestry-point readout + auto ready-slot (budget-gated, sentinel materialise)")
     sys.exit(0)
 
 
