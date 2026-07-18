@@ -570,7 +570,7 @@ function render(s){
   const canon = !s.scratch && CHARS.includes(s.handle);
   if(canon && dirty){
     $('canonbar').style.display = "block";
-    $('canonbar').innerHTML = `&#9888; EDITING CANON &mdash; these changes touch <b>${esc(s.character)}</b>'s canonical
+    $('canonbar').innerHTML = `&#9888; EDITING CANON: these changes touch <b>${esc(s.character)}</b>'s canonical
       ledger in-memory only. Nothing is saved until you export; a <b>respec export</b>
       (<code>${esc(s.handle)}.respec.yaml</code>) can never replace the party version, only the confirm-gated
       canon export can.`;
