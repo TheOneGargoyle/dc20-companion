@@ -16,6 +16,29 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 ## At a glance
 
+Two tables: open work first, completed work below. An item moves from To Do to Done when its status becomes `done`/`DONE`.
+
+### To Do
+
+| ID | Title | Type | Area | Pri | Status |
+|----|-------|------|------|-----|--------|
+| FR-9 | Expand ancestry traits into slots (like maneuvers) | feature | builder | P2 | ready (Runt data resolved) |
+| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | ready (epic) |
+| FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | ready |
+| FR-33 | Rules > Ancestries: split the one big page / add dividers | feature | companion | P3 | ready |
+| FR-34 | Rules > Character Creation > Class Talents: merge the many tiny pages | feature | companion | P3 | ready |
+| FR-4 | Rename a char / file | feature | builder+data | P3 | needs-clarification |
+| FR-20 | Reorder a level's decision pickers to match chargen flow | feature | builder | P2 | needs-clarification |
+| FR-21 | Nested collapsibles for long level sections (Runt L1) | feature | builder | P3 | needs-clarification |
+| FR-23 | Stamina Regen display (own class + Martial Expansion / Martial-path rules), builder + companion | feature | builder+companion+catalog | P2 | needs-clarification |
+| FR-25 | Damage Calculator section (epic) | feature | companion | P2 | needs-clarification |
+| FR-32 | Rules > Spells: drop PDF-scan subcategory + split the giant spells page | feature | companion | P2 | needs-clarification |
+| FR-35 | Rules > Tables: move class tables into class pages; armour examples with armour | feature | companion | P3 | needs-clarification |
+| FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
+| FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | parked |
+
+### Done
+
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
 | BUG-1 | Xanwyn Elven fluency wrong (Fluent should be Limited) | bug | data | P2 | done (2026-07-16) |
@@ -29,48 +52,34 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-9 | Character-sheet button not pinned top-right (wraps below-left) | bug | builder | P3 | done (2026-07-16) |
 | BUG-10 | Pact-boon / discipline picker labels show the raw grants dict | bug | builder | P3 | done (2026-07-16) |
 | BUG-11 | Chained point conversion (SP->TP->LP) mis-read as over-spent | bug | engine | P2 | done (2026-07-18, found by CH-1) |
+| BUG-12 | Runt's granted Psychic spell renders as "Spell_Tagged" + missing from the char-sheet spell list | bug | builder | P1 | DONE (2026-07-18; sheet() now pulls granted_spells via the spell_tagged slot so Tendrils from Beyond lists; slot label maps to "spell"; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| BUG-13 | Dice roller drop-N highlights only the first kept die | bug | companion | P3 | DONE (2026-07-18; diceRow/dropLowest mark every kept die + strike the dropped, both drop-N and d20 ADV/DisADV; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| BUG-15 | Condition pills on the char sheet lack a pointer cursor on hover | bug | companion | P3 | DONE (2026-07-18; cursor:pointer on .pill, used only by condition pills; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| BUG-14 | Rules search results not ordered by rulebook section | bug | companion | P2 | DONE (2026-07-18, Wave B pass 1; top-30 by score then rendered in document order, _results kept in score order for the searchFor fallback; awaiting push) |
 | FR-1 | Sort the builder character picker alphabetically | feature | builder | P3 | done (2026-07-16) |
 | FR-2 | Finish DR (PDR/EDR/MDR) for the rest of the party + rules references | feature | engine | P2 | done (2026-07-16) |
 | FR-3 | Level-up plans for all PCs (like Tan) | feature | builder+data | P2 | DONE - Slice 1 + Slice 2 both pushed + live-verified 2026-07-17 (origin `6c02db2`) - planned levels carry their own enforced skill picks (Hybrid, FR-8 backbone). Cap-raise follow-up split to FR-17 |
-| FR-4 | Rename a char / file | feature | builder+data | P3 | needs-clarification |
 | FR-5 | Unsaved-changes guard when switching character | feature | builder | P2 | done (2026-07-16) |
 | FR-6 | Show rules text for a chosen trait/ability (link or hover) | feature | builder | P2 | DONE - pushed + live-verified 2026-07-17 (baked rules corpus + linkify + rule panel) |
 | FR-7 | Refilter dropdowns to hide already-chosen options | feature | builder | P2 | done (2026-07-16, spell/maneuver/talent/spell_school; ancestry/pact_boon/discipline later) |
 | FR-8 | Choice-bearing talents/subclasses need pickers/slots (epic) | feature | engine+catalog+builder | P1 | DONE - all 5 slices pushed + live-verified 2026-07-17; FR-8 EPIC COMPLETE |
-| FR-9 | Expand ancestry traits into slots (like maneuvers) | feature | builder | P2 | ready (Runt data resolved) |
 | FR-10 | Echo each level's grants into the level's section header (all levels, all PCs) | feature | builder | P3 | done (2026-07-17; generalised from Tanrielle-L5-only to all levels/chars 2026-07-17) |
-| FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
-| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | ready (epic) |
-| FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | ready |
 | FR-14 | Recent Files list in the picker + auto-add on deeplink | feature | builder | P2 | done (2026-07-16, incl. Level A) |
 | FR-15 | Trades on the character sheet show a numeric mastery bonus | feature | builder | P3 | done (2026-07-16) |
 | FR-16 | Show DR (PDR/MDR/EDR) on the Companion character page | feature | companion | P3 | done (Part A 2026-07-16; Part B toggle-aware 2026-07-17) |
 | FR-17 | Plan skill/trade picks can raise a Mastery Limit (cap+) above the level cap + trades in plans | feature | builder | P3 | DONE (2026-07-18; cap+ toggle for skill AND trade plan picks; trades now planned like skills; PUSHED + LIVE-VERIFIED, origin `33a9119`) |
+| FR-18 | Replace the "Rung 3 - Step 5" top-left pill (-> "v0.10.5") | feature | builder | P3 | DONE (2026-07-18; badge now "v0.10.5", text-transform:none to keep the casing; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-19 | Refresh the "Decisions: Point-Buy..." subtitle for current accuracy | feature | builder | P3 | DONE (2026-07-18; three cryptic wlabel pills replaced with one "every level-up choice"; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-22 | Remove the "sources: N fetched, N baked" footer note | feature | builder | P3 | DONE (2026-07-18; #srcinfo element + its population removed; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-27 | Line dividers in Maneuvers (and any other long list) | feature | companion | P3 | DONE (2026-07-18; rules-doc Maneuver entries get the spelldiv divider, 29 entries, keyed on the Cost line; other long lists left for review; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-28 | Dice roller reset-to-defaults button | feature | companion | P3 | DONE (2026-07-18; Reset button clears Count/Drop/Mod/ADV, leaves history; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-30 | Char-sheet Skills & Trades section collapsible | feature | companion | P3 | DONE (2026-07-18; Skills & Trades is now a <details> like the accordions; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-31 | Default collapse state for Maneuvers & Trades (-> collapse all, consistent) | feature | companion | P3 | DONE (2026-07-18; all <details open> flipped to closed in template + TAN_ACCORDIONS in build.py; Skills & Trades collapsed too; PUSHED + LIVE-VERIFIED, head 7018b69) |
+| FR-24 | AP tracker: "AP avail:" label + left-to-right depletion | feature | companion | P2 | DONE (2026-07-18, Wave B pass 1; label "AP avail: N" + pips deplete leftmost-first; awaiting push) |
+| FR-29 | Capture Android hardware back button in Search view | feature | companion | P2 | DONE (2026-07-18, Wave B pass 1; pushState on openDoc + popstate closes the rule doc instead of leaving the app; awaiting push) |
 | CH-1 | Re-audit all six ledgers' languages/skills/trades vs paper sheets | chore | data | P2 | DONE (2026-07-18; 5 of 6 clean, minimus filled from sheet; surfaced BUG-11) |
 | CH-2 | Standardise Elven / Elvish / Elvan spelling | chore | data+catalog | P3 | DONE (2026-07-18; language = "Elvish" per RAW, adjective = "Elven"; "Elvan" gone) |
 | CH-3 | Drop the vestigial tracked root index.html | chore | repo | P3 | DONE (2026-07-18; runs as `git rm --cached index.html` in Darryl's clone with this thread's commit) |
-| BUG-12 | Runt's granted Psychic spell renders as "Spell_Tagged" + missing from the char-sheet spell list | bug | builder | P1 | DONE (2026-07-18; sheet() now pulls granted_spells via the spell_tagged slot so Tendrils from Beyond lists; slot label maps to "spell"; awaiting push) |
-| BUG-13 | Dice roller drop-N highlights only the first kept die | bug | companion | P3 | DONE (2026-07-18; diceRow/dropLowest mark every kept die + strike the dropped, both drop-N and d20 ADV/DisADV; awaiting push) |
-| BUG-14 | Rules search results not ordered by rulebook section | bug | companion | P2 | ready |
-| BUG-15 | Condition pills on the char sheet lack a pointer cursor on hover | bug | companion | P3 | DONE (2026-07-18; cursor:pointer on .pill, used only by condition pills; awaiting push) |
-| FR-18 | Replace the "Rung 3 - Step 5" top-left pill (-> "v0.10.5") | feature | builder | P3 | DONE (2026-07-18; badge now "v0.10.5", text-transform:none to keep the casing; awaiting push) |
-| FR-19 | Refresh the "Decisions: Point-Buy..." subtitle for current accuracy | feature | builder | P3 | DONE (2026-07-18; three cryptic wlabel pills replaced with one "every level-up choice"; awaiting push) |
-| FR-20 | Reorder a level's decision pickers to match chargen flow | feature | builder | P2 | needs-clarification |
-| FR-21 | Nested collapsibles for long level sections (Runt L1) | feature | builder | P3 | needs-clarification |
-| FR-22 | Remove the "sources: N fetched, N baked" footer note | feature | builder | P3 | DONE (2026-07-18; #srcinfo element + its population removed; awaiting push) |
-| FR-23 | Stamina Regen display (own class + Martial Expansion / Martial-path rules), builder + companion | feature | builder+companion+catalog | P2 | needs-clarification |
-| FR-24 | AP tracker: "AP avail:" label + left-to-right depletion | feature | companion | P2 | ready |
-| FR-25 | Damage Calculator section (epic) | feature | companion | P2 | needs-clarification |
-| FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | parked |
-| FR-27 | Line dividers in Maneuvers (and any other long list) | feature | companion | P3 | DONE (2026-07-18; rules-doc Maneuver entries get the spelldiv divider, 29 entries, keyed on the Cost line; other long lists left for review; awaiting push) |
-| FR-28 | Dice roller reset-to-defaults button | feature | companion | P3 | DONE (2026-07-18; Reset button clears Count/Drop/Mod/ADV, leaves history; awaiting push) |
-| FR-29 | Capture Android hardware back button in Search view | feature | companion | P2 | ready |
-| FR-30 | Char-sheet Skills & Trades section collapsible | feature | companion | P3 | DONE (2026-07-18; Skills & Trades is now a <details> like the accordions; awaiting push) |
-| FR-31 | Default collapse state for Maneuvers & Trades (-> collapse all, consistent) | feature | companion | P3 | DONE (2026-07-18; all <details open> flipped to closed in template + TAN_ACCORDIONS in build.py; Skills & Trades collapsed too; awaiting push) |
-| FR-32 | Rules > Spells: drop PDF-scan subcategory + split the giant spells page | feature | companion | P2 | needs-clarification |
-| FR-33 | Rules > Ancestries: split the one big page / add dividers | feature | companion | P3 | ready |
-| FR-34 | Rules > Character Creation > Class Talents: merge the many tiny pages | feature | companion | P3 | ready |
-| FR-35 | Rules > Tables: move class tables into class pages; armour examples with armour | feature | companion | P3 | needs-clarification |
 
 ---
 
@@ -114,7 +123,9 @@ Worked top to bottom. Wave 1 is designed to verify in a single regression cycle.
 
 Starting with Wave A (Darryl's call 2026-07-18).
 
-**Wave A SHIPPED + VERIFIED 2026-07-18 (built on baseline origin head `33a9119`; AWAITING PUSH).** All ten items done in two passes. Builder pass (`tools/builder_build.py` -> regenerated `builds/builder.html`): **BUG-12** the one real correctness item - `sheet()` now includes granted spells from the `spell_tagged` slot (Runt's Psychic Tendrils from Beyond now lists on his sheet, verified via a staged BuilderAPI call returning 6 spells) and the decision-row label maps `spell_tagged` -> "spell" so the internal kind no longer leaks; **FR-18** badge is now "v0.10.5" (inline `text-transform:none` so the lowercase v survives the badge's uppercase rule); **FR-19** the three cryptic wlabel pills replaced by one "every level-up choice"; **FR-22** the `#srcinfo` "sources: N fetched, N baked" footer element and its population removed. Companion pass (`companion-src/template.html` + `build.py`, auto-deploys via the Pages Action on push): **BUG-13** a new `diceRow()`/`dropLowest()` marks EVERY kept die (radiant) and strikes the dropped ones, for both drop-N and d20 ADV/DisADV (tie-safe, verified in node: 4d6-drop-1 on [3,3,6,5] drops one 3, keeps 14); **BUG-15** `cursor:pointer` on `.pill` (used only by condition pills); **FR-27** the rules-browser Maneuver entries now get the same `spelldiv` divider as spells (29 entries, keyed on the `<li>Cost:` cue; the one non-costed "Heroic Pass Through" enhancement is correctly skipped; other long lists left for a later review); **FR-28** a Reset button clears Count/Drop/Mod/ADV back to defaults (leaves history, which Clear handles); **FR-30** Skills & Trades is now a `<details>` matching the accordions; **FR-31** every `<details open>` flipped closed (5 in template + TAN_ACCORDIONS in build.py) so all collapsible sheet sections, Skills & Trades included, start collapsed. Verified in a fresh `/tmp` clone: catalog_verify **90/90 zero deltas**, builder_verify **PASS exit 0**, builder inline JS `node --check` OK, regenerated builder.html cp'd clone->mount **sha256 MATCH**; player Companion build ends `</html>`, inline JS `node --check` OK, no `data:image/jpeg;base64`, `gm files: 0` (no GM leak). **Files to push (sync-to-repo.bat first):** `tools/builder_build.py`, `builds/builder.html`, `companion-src/template.html`, `companion-src/build.py`, `builds/BACKLOG.md`. Note: this commit also carries the earlier uncommitted 2026-07-18 backlog-intake doc (the standing "pending doc flip"). **Remaining:** Wave B (FR-24, BUG-14, FR-29, FR-20, FR-9), Wave C, Wave D epics.
+**Wave A SHIPPED + PUSHED + LIVE-VERIFIED 2026-07-18 (built on baseline `33a9119`; origin head now `7018b69 "Wave A: BUG-12 granted-spell on sheet + 9 quick wins"`; Darryl ran sync/commit/push + Chrome live-verify).** All ten items done in two passes. Builder pass (`tools/builder_build.py` -> regenerated `builds/builder.html`): **BUG-12** the one real correctness item - `sheet()` now includes granted spells from the `spell_tagged` slot (Runt's Psychic Tendrils from Beyond now lists on his sheet, verified via a staged BuilderAPI call returning 6 spells) and the decision-row label maps `spell_tagged` -> "spell" so the internal kind no longer leaks; **FR-18** badge is now "v0.10.5" (inline `text-transform:none` so the lowercase v survives the badge's uppercase rule); **FR-19** the three cryptic wlabel pills replaced by one "every level-up choice"; **FR-22** the `#srcinfo` "sources: N fetched, N baked" footer element and its population removed. Companion pass (`companion-src/template.html` + `build.py`, auto-deploys via the Pages Action on push): **BUG-13** a new `diceRow()`/`dropLowest()` marks EVERY kept die (radiant) and strikes the dropped ones, for both drop-N and d20 ADV/DisADV (tie-safe, verified in node: 4d6-drop-1 on [3,3,6,5] drops one 3, keeps 14); **BUG-15** `cursor:pointer` on `.pill` (used only by condition pills); **FR-27** the rules-browser Maneuver entries now get the same `spelldiv` divider as spells (29 entries, keyed on the `<li>Cost:` cue; the one non-costed "Heroic Pass Through" enhancement is correctly skipped; other long lists left for a later review); **FR-28** a Reset button clears Count/Drop/Mod/ADV back to defaults (leaves history, which Clear handles); **FR-30** Skills & Trades is now a `<details>` matching the accordions; **FR-31** every `<details open>` flipped closed (5 in template + TAN_ACCORDIONS in build.py) so all collapsible sheet sections, Skills & Trades included, start collapsed. Verified in a fresh `/tmp` clone: catalog_verify **90/90 zero deltas**, builder_verify **PASS exit 0**, builder inline JS `node --check` OK, regenerated builder.html cp'd clone->mount **sha256 MATCH**; player Companion build ends `</html>`, inline JS `node --check` OK, no `data:image/jpeg;base64`, `gm files: 0` (no GM leak). **Pushed in `7018b69`:** `tools/builder_build.py`, `builds/builder.html`, `companion-src/template.html`, `companion-src/build.py`, `builds/BACKLOG.md` (which also carried the earlier uncommitted 2026-07-18 backlog-intake doc). The Pages Action rebuilt the Companion; Darryl Chrome-verified. NOTE: this very status-flip (awaiting-push -> pushed 7018b69, across the table cells + this note) is a fresh uncommitted doc edit on the mount and will ride the NEXT commit, per the usual pending-doc-flip pattern. **Remaining:** Wave B (FR-24, BUG-14, FR-29, FR-20, FR-9), Wave C (FR-32/33/34/35), Wave D epics (FR-25, FR-23, FR-12+FR-13, FR-21).
+
+**Wave B pass 1 (the Companion three) SHIPPED - AWAITING PUSH 2026-07-18 (built on origin head `7018b69`).** Split Wave B along the app boundary (Darryl's call): a Companion pass first (FR-24, BUG-14, FR-29), then a builder pass (FR-20 after its design call, FR-9) later. All three are `companion-src/template.html`-only, so the deploy Action rebuilds the Companion from source on push and no built HTML is committed; `builds/builder.html` is untouched. **FR-24** the AP tracker now labels "AP avail: N" (N = unused AP, in gold) and the pips deplete leftmost-first (spent iff `i < 4-ap`; click sets `ap = i<4-ap ? 4-i : 3-i`), matching the ticket's "deplete left-to-right"; New turn still refills all 4. **BUG-14** rules search now takes the top 30 by score then renders them in rulebook (document) order (`display=top.slice().sort((a,b)=>a[1]-b[1])`) so hits from the same area group together, while `_results` stays score-ordered so the `searchFor` fallback still opens the best match. **FR-29** opening a rule doc does `history.pushState`, and a new `popstate` listener closes the doc (returns to the search list, or to the origin sheet when the ↩ Sheet path is taken) instead of the Android/browser Back button leaving the app; the on-screen ← Search / ↩ Sheet buttons route through `history.back()` so the pushed entry stays in sync. Verified in a fresh `/tmp` clone at `7018b69`: catalog_verify **90/90 zero deltas**, builder_verify **PASS exit 0** (builder untouched), rebuilt Companion ends `</html>`, inline JS `node --check` OK, `gm files: 0`, no `data:image/jpeg;base64`; canaries present in the built HTML; node behavioural checks confirm the pip depletion/toggle and the doc-order-vs-score-order split. **Files to push:** `companion-src/template.html` + `builds/BACKLOG.md` (this status flip + the earlier at-a-glance table split ride the same commit). **One judgment call:** the numeric AP count is shown in gold `<b>` beside the "AP avail:" label (the ticket said "followed by the count of unused AP" without specifying styling). **Remaining Wave B:** FR-20 (needs a picker-order design call), FR-9 (ancestry-trait slots, the meaty engine/ledger item) - the builder pass.
 
 ---
 
@@ -148,7 +159,7 @@ Starting with Wave A (Darryl's call 2026-07-18).
 
 **BUG-13. Dice roller drop-N highlights only the first kept die.** Rolling "4d6 drop 1" totals correctly but the keep/drop highlight marks only the first kept die, not all of the kept dice. Fix the highlight loop to mark every kept die. Companion, dice tab.
 
-**BUG-14. Rules search results not ordered by section.** Search results return in an apparently arbitrary order. Sort them by rulebook section (document order) so related hits group sensibly. Companion, rules browser.
+**BUG-14. Rules search results not ordered by section.** Search results return in an apparently arbitrary order. Sort them by rulebook section (document order) so related hits group sensibly. Companion, rules browser. **DONE 2026-07-18 (Wave B pass 1, awaiting push):** `doSearch` still selects the top 30 by relevance score, but the rendered list is then sorted by `RULES_DATA` index (document order) so same-area hits group; `_results` is left in score order so the `searchFor` fallback (`_results[0]`) still opens the best match.
 
 **BUG-15. Condition pills lack a hover cursor.** The condition pills on the character sheet are clickable but do not switch to a pointer cursor on hover the way the other clickable elements do. Add `cursor:pointer`. Companion, char sheet. Trivial.
 
@@ -252,7 +263,7 @@ Builder and Companion items from Darryl's list. Grouped by surface for readabili
 
 ### Companion
 
-**FR-24. AP tracker relabel + left-to-right depletion.** The AP tracker is ambiguous (is a solid pip used or available?) and depletes right-to-left, against expectation. Change: label the left as "AP avail:" followed by the count of unused AP; deplete the pips left-to-right; "New turn" refills all 4; pips empty as AP is spent. Direction decided.
+**FR-24. AP tracker relabel + left-to-right depletion.** The AP tracker is ambiguous (is a solid pip used or available?) and depletes right-to-left, against expectation. Change: label the left as "AP avail:" followed by the count of unused AP; deplete the pips left-to-right; "New turn" refills all 4; pips empty as AP is spent. Direction decided. **DONE 2026-07-18 (Wave B pass 1, awaiting push):** label reads "AP avail: N" (N = unused AP, gold); a pip is spent iff `i < 4-ap` (leftmost empties first); clicking a pip sets `ap = i<4-ap ? 4-i : 3-i` (fills-to or spends-through, toggle-consistent); `newRound()` unchanged (refills to 4).
 
 **FR-25. Damage Calculator section (epic).** A new section between "Roll" and "Skills & Trades" that totals a hit's damage. Inputs: base weapon damage (1-3, ideally looked up from the character's weapon as a default), a hit-grade chooser (Normal / Heavy / Brutal / Brutal+ / Brutal++), a Crit yes/no toggle, and per-character option add-ons (Rage, Smite, Spellstrike, +1 martial enhancement, SP / MP spent, etc), with a running total. Optional auto-fill from the Roll section: grade from a filled-in "vs Def", Crit from a natural 20. Large: treat as an epic and design first (which add-ons apply per class and how each computes, and the Roll -> calculator auto-fill wiring).
 
@@ -262,7 +273,7 @@ Builder and Companion items from Darryl's list. Grouped by surface for readabili
 
 **FR-28. Dice roller reset button.** Add a reset control to the dice tab that clears Count / Drop / Mod (and any other fields) back to defaults.
 
-**FR-29. Capture the Android back button in Search.** When viewing a rule opened from Search on Android, the hardware / browser Back button currently exits the Companion page entirely; make it behave like the in-app "<- Search" (pop back to the results first). History / popstate handling. Mobile.
+**FR-29. Capture the Android back button in Search.** When viewing a rule opened from Search on Android, the hardware / browser Back button currently exits the Companion page entirely; make it behave like the in-app "<- Search" (pop back to the results first). History / popstate handling. Mobile. **DONE 2026-07-18 (Wave B pass 1, awaiting push):** `openDoc` now does `history.pushState` (once per doc session), and a `popstate` listener closes the doc when one is active (back to the results, or to the origin sheet on the ↩ Sheet path) instead of leaving the app; the on-screen ← Search / ↩ Sheet buttons call `history.back()` so the pushed entry stays in sync (no dangling history). Wrapped in try/catch for `file://`. Scope = the rule-doc view (the stated failure mode); a back press from the bare results list is left as-is.
 
 **FR-30. Skills & Trades section collapsible.** Make the character sheet's Skills & Trades section collapsible like Maneuvers and Trades. Pairs with FR-31.
 

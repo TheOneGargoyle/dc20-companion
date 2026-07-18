@@ -194,7 +194,7 @@ details .inner{padding:0 12px 12px}
   </div>
   <div class="small" id="gritHint" style="text-align:center;margin:-2px 4px 6px">Grit — reduce damage taken, or gain ADV on a Save</div>
   <div class="tracker">
-    <span class="name">AP</span>
+    <span class="name" style="width:auto;white-space:nowrap">AP avail: <b id="apNum" style="color:var(--gold)"></b></span>
     <div class="appips" id="apPips"></div>
     <button style="width:auto;font-size:13px;padding:6px 10px" onclick="newRound()">New turn</button>
   </div>
@@ -603,8 +603,10 @@ function renderParty(){
   if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
   document.getElementById('roundNote').innerHTML=c.roundnote;
   const pips=document.getElementById('apPips');pips.innerHTML='';
-  for(let i=0;i<4;i++){const b=document.createElement('button');b.className='appip'+(i>=S.ap?' spent':'');
-    b.onclick=()=>{S.ap=(i>=S.ap)?i+1:i;saveS();renderParty();};pips.appendChild(b);}
+  // FR-24: deplete pips left-to-right (leftmost empties first); spent count = 4 - available AP.
+  for(let i=0;i<4;i++){const b=document.createElement('button');b.className='appip'+(i<4-S.ap?' spent':'');
+    b.onclick=()=>{S.ap=(i<4-S.ap)?(4-i):(3-i);saveS();renderParty();};pips.appendChild(b);}
+  document.getElementById('apNum').textContent=S.ap;
   const tr=document.getElementById('togRow');tr.innerHTML='';
   c.toggles.forEach(x=>{const b=document.createElement('button');
     b.className='togglebtn'+(S.t[x.k]?' on':'');
@@ -706,8 +708,8 @@ function genRoll(n){
 
 /* ==================== rules search ==================== */
 function norm(s){return s.toLowerCase();}
-let curTab='tan',ruleOrigin=null,_results=[];
-function backToSheet(){go(ruleOrigin||'tan');}
+let curTab='tan',ruleOrigin=null,_results=[],_docBackPushed=false,_pendingSheet=false;
+function backToSheet(){if(_docBackPushed){_pendingSheet=true;history.back();return;}var o=ruleOrigin;_hideDoc();go(o||'tan');}
 function highlightIn(el,q){q=String(q).trim();if(q.length<2)return;function esc(t){return t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}function run(rx){var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null);var nodes=[],n;while(n=w.nextNode())nodes.push(n);var marks=[];nodes.forEach(function(node){rx.lastIndex=0;if(!rx.test(node.nodeValue))return;var span=document.createElement('span');span.innerHTML=node.nodeValue.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(rx,'<mark>$1<\/mark>');node.parentNode.replaceChild(span,node);span.querySelectorAll('mark').forEach(function(mk){marks.push(mk);});});return marks;}var marks=run(new RegExp('(\\b'+esc(q.toLowerCase())+'\\b)','ig'));if(!marks.length){var terms=q.toLowerCase().split(/\s+/).filter(function(t){return t.length>2;}).map(esc);if(terms.length)marks=run(new RegExp('\\b('+terms.join('|')+')\\b','ig'));}if(!marks.length)return;var target=null,kk=q.toLowerCase();function _exact(sel){for(var j=0;j<marks.length;j++){var a=marks[j].closest&&marks[j].closest(sel);if(a){var tt=a.textContent.toLowerCase().replace(/\s+x$/,'').replace(/[:.,;]+$/,'').trim();if(tt===kk)return marks[j];}}return null;}target=_exact('h1,h2,h3,h4,h5,h6')||_exact('strong,b');if(!target)for(var i2=0;i2<marks.length;i2++){if(marks[i2].closest&&marks[i2].closest('strong,b,h1,h2,h3,h4,h5,h6')){target=marks[i2];break;}}if(!target)target=marks[0];setTimeout(function(){target.scrollIntoView({block:'center',behavior:'smooth'});},80);}
 function doSearch(q){
   const res=document.getElementById('searchResults');
@@ -732,9 +734,12 @@ function doSearch(q){
     if(score>0)scored.push([score,i]);
   }
   scored.sort((a,b)=>b[0]-a[0]);
-  _results=scored.slice(0,30).map(a=>a[1]);
+  const top=scored.slice(0,30);
+  _results=top.map(a=>a[1]); // score order (best first) for the searchFor fallback
+  // BUG-14: render results in rulebook (document) order so hits from the same area group together
+  const display=top.slice().sort((a,b)=>a[1]-b[1]);
   res.innerHTML='';
-  scored.slice(0,30).forEach(([sc,i])=>{
+  display.forEach(([sc,i])=>{
     const sec=RULES_DATA[i];
     const div=document.createElement('div');div.className='result';
     const idx=sec.x.indexOf(norm(terms[0]));
@@ -759,12 +764,20 @@ function openDoc(i,hl){
   document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
   window.scrollTo(0,0);
   if(hl)highlightIn(el,hl);
+  if(!_docBackPushed){try{history.pushState({dc20doc:1},'');}catch(e){}_docBackPushed=true;} // FR-29: intercept Android Back
 }
-function closeDoc(){
+function _hideDoc(){
   document.getElementById('rulesList').style.display='block';
   document.getElementById('ruleDoc').classList.remove('active');
   var lb=document.getElementById('ruleListBack');if(lb)lb.style.display=ruleOrigin?'':'none';
 }
+function closeDoc(){if(_docBackPushed){history.back();return;}_hideDoc();} // FR-29: unwind our pushed entry; popstate re-hides
+window.addEventListener('popstate',function(){ // FR-29: Android/browser Back closes the open rule doc instead of leaving the app
+  var dv=document.getElementById('ruleDoc');
+  if(dv&&dv.classList.contains('active')){_docBackPushed=false;
+    if(_pendingSheet){_pendingSheet=false;var o=ruleOrigin;_hideDoc();go(o||'tan');}
+    else _hideDoc();}
+});
 function _esc(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function _wc(x,k){return (x.match(new RegExp('\\b'+_esc(k)+'\\b','g'))||[]).length;}
 function _boldHasWord(html,k){return new RegExp('<(strong|b|h[1-6])[^>]*>[^<]*\\b'+_esc(k)+'\\b','i').test(html);}
