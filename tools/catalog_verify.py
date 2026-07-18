@@ -667,29 +667,45 @@ expect("2 AP worth of AP Enhancements" in _combat_md,
        "damage_addons: the MP-on-AP-Enhancement rule (1 MP = 2 AP worth) not found in combat.md")
 expect(_defs["mp_to_damage"]["per"] == 2 and _defs["mp_to_damage"]["cap"] == 2,
        "damage_addons: mp_to_damage should be +2 per MP, cap 2 (Mana Spend Limit at L4)")
-expect(_defs["smite"]["per"] == 2 and _defs["smite"].get("cap_stat") == "sp",
-       "damage_addons: smite should be +2 per SP (bundled Damage enhancement), capped at SP")
+# Smite = +1 Bound damage per SP; the single free Damage enhancement is a SEPARATE one-shot
+# toggle (smite_free), NOT +1 per SP (Darryl ruling 2026-07-19).
+expect(_defs["smite"]["per"] == 1 and _defs["smite"].get("cap_stat") == "sp",
+       "damage_addons: smite should be +1 Bound dmg per SP, capped at SP")
+expect(_defs["smite_free"]["type"] == "toggle" and _defs["smite_free"]["amount"] == 1,
+       "damage_addons: smite_free should be a one-shot +1 toggle (the single free enhancement)")
+# generic Damage enhancement is single-target, capped at the Stamina Spend Limit (2 at L4).
+expect(_defs["gen_damage"]["per"] == 1 and _defs["gen_damage"]["cap"] == 2,
+       "damage_addons: gen_damage should be +1 per AP/SP, cap 2 (Stamina Spend Limit at L4)")
 for _kw in ("Heavy Hit", "Brutal Hit", "bypasses Damage Reduction"):
     expect(_kw in _core_md, f"damage_addons: hit-grade/crit grounding {_kw!r} missing from core-rules.md")
 # per-character assignment (single-target v1)
 _EXPECT_DMG = {
-    "tan":   {"smite", "powerful", "mp_to_damage", "deaths_toll"},
-    "xan":   {"smite", "imbue", "mp_to_damage"},
+    "tan":   {"smite", "smite_free", "mp_to_damage", "deaths_toll", "spellstrike"},
+    "xan":   {"smite", "smite_free", "imbue", "mp_to_damage", "spellstrike"},
     "runt":  {"mp_to_damage", "imbue"},
     "min":   {"gen_damage", "battlefield"},
-    "bonan": {"rage", "gen_damage", "erupting"},
+    "bonan": {"rage", "gen_damage"},
     "scale": {"mp_to_damage", "powerful"},
 }
 for _h, _exp in _EXPECT_DMG.items():
     expect(_resolved.get(_h) == _exp, f"damage_addons: {_h} add-ons {_resolved.get(_h)} != expected {_exp}")
     print(f"  {_h:6} dmg add-ons -> {sorted(_resolved.get(_h, []))}")
-# Smite is Spellblade-only; Rage is Barbarian(bonan)-only (feature provenance sanity)
-expect("smite" in _resolved["tan"] and "smite" in _resolved["xan"],
-       "damage_addons: both Spellblades must carry Smite")
-expect(not any("smite" in _resolved[_h] for _h in ("runt", "min", "bonan", "scale")),
-       "damage_addons: Smite is Spellblade-only")
+# Smite / smite_free / Spellstrike are Spellblade-only; Rage is Barbarian(bonan)-only.
+for _sb in ("smite", "smite_free", "spellstrike"):
+    expect(_sb in _resolved["tan"] and _sb in _resolved["xan"],
+           f"damage_addons: both Spellblades must carry {_sb}")
+    expect(not any(_sb in _resolved[_h] for _h in ("runt", "min", "bonan", "scale")),
+           f"damage_addons: {_sb} is Spellblade-only")
 expect("rage" in _resolved["bonan"] and not any("rage" in _resolved[_h] for _h in _resolved if _h != "bonan"),
        "damage_addons: Rage is Barbarian(bonan)-only")
+# Spellstrike bolt damage: Tan's Radiant Bolt = 2 (incl. Powerful focus), Xan's Umbral Bolt = 1.
+_tan_ss = next(a for a in _dmg_addons("tan", _dmg)["addons"] if a["id"] == "spellstrike")
+_xan_ss = next(a for a in _dmg_addons("xan", _dmg)["addons"] if a["id"] == "spellstrike")
+expect(_tan_ss["amount"] == 2, "damage_addons: Tan Spellstrike (Radiant Bolt) should be +2")
+expect(_xan_ss["amount"] == 1, "damage_addons: Xan Spellstrike (Umbral Bolt) should be +1")
+# base-damage defaults Darryl corrected 2026-07-19
+expect(_dmg["characters"]["min"]["base"] == 3, "damage_addons: Minimus crossbow base should be 3")
+expect(_dmg["characters"]["runt"]["base"] == 2, "damage_addons: Runt Lightning Bolt base should be 2 (incl. Powerful)")
 print(f"  {len(_resolved)} characters resolve; defs + rules grounding reconcile")
 
 # ---- verdict --------------------------------------------------------------

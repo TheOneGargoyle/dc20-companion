@@ -24,16 +24,24 @@ ruleset: DC20 0.10.5
 source: rules/core-rules.md l.2376 (Adding Damage Order) + rules/combat.md l.1807 (MP on AP Enhancements) + build files 08-16
 
 # --- Reusable add-on definitions ------------------------------------------------------
-# The DC20 "Adding Damage Order" puts AP-spent bonuses before situational ones; the
-# calculator lists them in the character's assignment order, which follows that spirit.
 defs:
   smite:
-    label: "Smite"
+    label: "Smite (Bound dmg)"
     type: stepper
-    per: 2            # 1 SP = +2 (Smite bundles a free Damage enhancement); Bound Weapon
+    per: 1            # +1 Bound damage per SP spent (the free enhancement is separate, see smite_free)
     cap_stat: sp
     unit: SP
-    note: "single target; 1 SP = +2 dmg (bundled free Damage enhancement)"
+    note: "single target; +1 Bound damage per SP"
+  smite_free:
+    label: "Smite free enhancement"
+    type: toggle
+    amount: 1
+    note: "the ONE free Damage enhancement Smite grants (once, no matter how many SP spent)"
+  spellstrike:
+    label: "Spellstrike"
+    type: toggle
+    amount: 1        # default; per-character bolt damage set as an override below
+    note: "folds the Bound-Weapon spell into the hit"
   mp_to_damage:
     label: "MP to damage"
     type: stepper
@@ -45,9 +53,9 @@ defs:
     label: "Damage enhancement"
     type: stepper
     per: 1
-    cap: 3
+    cap: 2           # Stamina Spend Limit at L4
     unit: AP/SP
-    note: "single target; +1 per AP or SP spent"
+    note: "single target; +1 per AP or SP spent (cap = Stamina Spend Limit)"
   powerful:
     label: "Powerful focus"
     type: toggle
@@ -63,11 +71,6 @@ defs:
     type: toggle
     amount: 1
     note: "+1 vs Bloodied targets (Radiant Bolt pact rider)"
-  erupting:
-    label: "Erupting Elements"
-    type: toggle
-    amount: 1
-    note: "+1 Fire while Raging and the target is in your aura"
   battlefield:
     label: "Battlefield Tactics"
     type: toggle
@@ -82,33 +85,40 @@ defs:
 # --- Per-character assignment (L4) -----------------------------------------------------
 # base      = the Damage Calculator's default Base Damage (editable per hit).
 # base_note = shown beside the base stepper.
-# addons    = ordered list; an id from defs, or {id, ...overrides} (e.g. imbue's type/label).
+# addons    = ordered list; an id from defs, or {id, ...overrides} (e.g. spellstrike's amount/label).
 characters:
   tan:
     base: 2
-    base_note: "Greatsword of the Keepers (swap to 1 for Radiant Bolt)"
-    addons: [smite, powerful, mp_to_damage, deaths_toll]
-  xan:
-    base: 1
-    base_note: "Light Short Sword (Death Bolt folds in via Spellstrike)"
+    base_note: "Greatsword of the Keepers"
     addons:
       - smite
+      - smite_free
+      - mp_to_damage
+      - deaths_toll
+      - {id: spellstrike, label: "Spellstrike (Radiant Bolt)", amount: 2, note: "folds in Radiant Bolt (2 dmg, incl. Powerful focus)"}
+  xan:
+    base: 1
+    base_note: "Light Short Sword"
+    addons:
+      - smite
+      - smite_free
       - {id: imbue, label: "Umbral Imbued"}
       - mp_to_damage
+      - {id: spellstrike, label: "Spellstrike (Umbral Bolt)", amount: 1, note: "folds in Umbral Bolt (1 dmg)"}
   runt:
-    base: 1
-    base_note: "Lightning Bolt (staff swings are minor)"
+    base: 2
+    base_note: "Lightning Bolt (incl. Powerful focus +1)"
     addons:
       - mp_to_damage
       - {id: imbue, label: "Lightning Imbued", note: "+1 per MARTIAL hit (slams/staff), not on bolts"}
   min:
-    base: 1
-    base_note: "Crossbow (his real value is granting allies attacks, not a big own-hit)"
+    base: 3
+    base_note: "Crossbow"
     addons: [gen_damage, battlefield]
   bonan:
     base: 2
     base_note: "Mace (shown un-Raged; toggle Rage below)"
-    addons: [rage, gen_damage, erupting]
+    addons: [rage, gen_damage]
   scale:
     base: 1
     base_note: "Fire Bolt (AoE Fireball/Breath are a v2 item)"
