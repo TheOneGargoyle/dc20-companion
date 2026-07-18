@@ -1849,6 +1849,29 @@ def check_fr4():
        "display name</span>" in html and "Renames the display name only" in html)
 
 
+# ---------------------------------------------------------------- (27) FR-23 Stamina Regen
+def check_fr23():
+    print("\n## (27) FR-23: Stamina Regen trigger(s) on the character sheet, catalog-driven")
+    expect_labels = {
+        "tanrielle": ["Spellblade"], "xanwyn": ["Spellblade"],
+        "minimus": ["Commander"], "bonan": ["Barbarian"],
+        "runt": ["Spellcaster", "Monk"], "scaletrix": [],
+    }
+    for who, exp in expect_labels.items():
+        sh = json.loads(builder_api.BuilderAPI(who, CATPATHS).sheet())
+        got = [t["label"] for t in sh.get("stamina_regen", [])]
+        ok("%-10s sheet stamina_regen -> %s" % (who, got or ["None"]), got == exp, (got, exp))
+    # Spellblade shows the errata wording, not the classes.md l.2829 'Spell Attack' text.
+    ttxt = json.loads(builder_api.BuilderAPI("tanrielle", CATPATHS).sheet())["stamina_regen"][0]["text"]
+    ok("Spellblade trigger uses the errata (Bound Weapon / Weapon tag) wording",
+       "Bound Weapon" in ttxt and "Weapon tag" in ttxt and "Spell Attack" not in ttxt, ttxt)
+    # the built page renders the sheet row + the multi-trigger 1-benefit/round cue.
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html renders a Stamina Regen sheet row", "Stamina Regen</span>" in html)
+    ok("builder.html carries the 1-benefit/round note for multi-trigger PCs",
+       "Only 1 Stamina Regen benefit per Round." in html)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1886,6 +1909,7 @@ def main():
         check_fr36()
         check_fr21()
         check_fr4()
+        check_fr23()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1912,6 +1936,7 @@ def main():
     print("       FR-9 ancestry-point readout + auto ready-slot (budget-gated, sentinel materialise)")
     print("       BUG-16 maneuver/spell budget slots edit-only (not removable into an unrecoverable shortfall)")
     print("       FR-4 display-name rename for canon/loaded characters (set_meta, handle/deeplink unchanged)")
+    print("       FR-23 Stamina Regen trigger(s) on the sheet, catalog-driven (errata Spellblade; Runt two triggers)")
     sys.exit(0)
 
 

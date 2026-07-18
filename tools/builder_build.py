@@ -54,7 +54,7 @@ from rules_corpus import build_rules_data, corpus_embed  # FR-6: shared rules co
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
-           "talents", "skills_trades", "languages", "metamagic"]
+           "talents", "skills_trades", "languages", "metamagic", "stamina_regen"]
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 
@@ -1544,6 +1544,8 @@ class BuilderAPI:
                         'dr': eder.get('dr', {})},
             'skills': skills, 'trades': trades, 'languages': s['languages'],
             'abilities': groups, 'spells': spells, 'equipment': equipment,
+            # FR-23: Stamina Regen trigger(s), derived catalog-driven by the shared engine helper.
+            'stamina_regen': eng.stamina_regen(self.ledger, self.cat.get('stamina_regen') or {}),
         })
 
     # ---------- edits ----------
@@ -2308,6 +2310,11 @@ function shBuild(d){
     return `<div class="sh-kv"><span class="lbl">${a}</span><span class="val">${v===undefined?'\u2014':sign+v}</span></div>`;}).join('');
   const dr=der.dr||{}; const drKeys=Object.keys(dr);
   const drStr=drKeys.length?drKeys.map(k=>`${k} ${dr[k].join(', ')}`).join(' &middot; '):'\u2014';
+  // FR-23: Stamina Regen trigger(s), engine-derived (empty => no regen).
+  const sr=d.stamina_regen||[];
+  const srStr=sr.length
+    ? sr.map(t=>`<b>${t.label}:</b> ${t.text}`).join('<br>')+(sr.length>1?'<br><span class="sh-note">Only 1 Stamina Regen benefit per Round.</span>':'')
+    : 'None (no Stamina Regen)';
   const order=['Prime','Might','Agility','Charisma','Intelligence'];
   const byAttr={};
   d.skills.forEach(s=>{(byAttr[s.attr]=byAttr[s.attr]||[]).push(s);});
@@ -2372,6 +2379,7 @@ function shBuild(d){
           <div class="sh-kv"><span class="lbl">Mana (MP)</span><span class="val">${c['MP']}</span></div>
           <div class="sh-kv"><span class="lbl">Grit</span><span class="val">${c['Grit']}</span></div>
           <div class="sh-kv"><span class="lbl">Rest points</span><span class="val">${der.rest_points}</span></div>
+          <div class="sh-kv" style="display:block"><span class="lbl">Stamina Regen</span><div style="font-weight:400;font-size:11px;margin-top:2px">${srStr}</div></div>
         </div>
       </div>
       <div>
@@ -2509,7 +2517,7 @@ async function boot(){
     "    'spell_schools':'spell_schools.yaml','spell_sources':'spell_sources.yaml',\n" +
     "    'maneuvers':'maneuvers.yaml','talents':'talents.yaml',\n" +
     "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml',\n" +
-    "    'metamagic':'metamagic.yaml'}\n" +
+    "    'metamagic':'metamagic.yaml','stamina_regen':'stamina_regen.yaml'}\n" +
     "def make_api(handle):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS)\n" +
     "def make_api_new(cls):\n" +

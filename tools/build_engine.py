@@ -438,6 +438,51 @@ def replay(ledger, level):
     return rep
 
 
+def stamina_regen(ledger, regen_cat):
+    """Return a character's Stamina Regen trigger(s) as [{'label','text'}] (FR-23).
+
+    Data-driven from regen_cat (builds/catalog/stamina_regen.yaml):
+      - a class with a NATIVE trigger (regen_cat['classes']) gets it from level 1;
+      - a class WITHOUT one gets the Spellcaster trigger only once it has taken a
+        Martial Path (character-creation.md l.741-744); until then: no regen;
+      - a Martial Expansion talent adds the chosen source's trigger (its `regen_source`
+        slot field: a class name or 'Spellcaster'), capped at 1 benefit/Round.
+    An empty list means the character has no Stamina Regen (e.g. a spellcaster who
+    never took a Martial Path). The engine is catalog-agnostic: the data is passed in.
+    """
+    classes = (regen_cat or {}).get("classes", {}) or {}
+    spellcaster_txt = (regen_cat or {}).get("spellcaster")
+    cls = ledger.get("class")
+    out, seen = [], set()
+
+    def add(label, text):
+        if label and text and label not in seen:
+            seen.add(label)
+            out.append({"label": label, "text": text})
+
+    decisions = []
+    for _lvl, lst in (ledger.get("levels") or {}).items():
+        decisions.extend(lst or [])
+    took_martial_path = any(d.get("slot") == "path" and d.get("pick") == "Martial"
+                            for d in decisions)
+
+    if cls in classes:
+        add(cls, classes[cls])
+    elif took_martial_path:
+        add("Spellcaster", spellcaster_txt)
+
+    for d in decisions:
+        if d.get("slot") == "talent" and "Martial Expansion" in str(d.get("pick", "")):
+            src = d.get("regen_source")
+            if not src:
+                continue
+            if src in classes:
+                add(src, classes[src])
+            elif str(src).lower() == "spellcaster":
+                add("Spellcaster", spellcaster_txt)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("ledger")

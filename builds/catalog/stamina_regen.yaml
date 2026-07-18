@@ -1,0 +1,27 @@
+# CURATED - hand-maintained. Stamina Regen triggers per class + the Spellcaster Path fallback.
+# Displayed as-is in the builder character sheet + the Companion (FR-23). Verified by
+# tools/catalog_verify.py against:
+#   - rules/classes.md          (each class's Martial Path "Stamina Regen" line)
+#   - rules/character-creation.md l.741-744 (the Spellcaster Path rider)
+#   - rules/_INDEX.md           (the Spellblade errata, which SUPERSEDES the classes.md
+#                                l.2829 text - Darryl authoritative, 2026-06-20)
+catalog_version: 1
+ruleset: DC20 0.10.5
+source: rules/classes.md + rules/character-creation.md l.741-744 + rules/_INDEX.md (Spellblade errata)
+
+# Native class triggers. A class listed here has its Stamina Regen from level 1.
+classes:
+  Barbarian: "Once per Round, regain up to half your max SP when you score a Heavy or Critical Hit against a creature, or one is scored against you."
+  Champion: "Once per Round, regain up to half your max SP when you perform a Maneuver."
+  Commander: "Once per Round, regain up to half your max SP when you grant a creature a Help Die."
+  Monk: "Once per Round, regain up to half your max SP when you succeed on an Athletics or Acrobatics Check, or Hit on a Martial Attack."
+  Spellblade: "Once per Round, regain up to half your max SP when you Hit an Attack with your Bound Weapon, make a Spell Check, or cast a Spell with the Weapon tag."
+
+# The Spellcaster Path fallback (character-creation.md l.743-744). A class that has NO native
+# trigger above (Warlock, Druid, ...) gains this ONLY when it first chooses the Martial Path;
+# until then it has no Stamina Regen at all.
+spellcaster: "Once per Round, regain up to half your max SP when you use a Spell Enhancement."
+
+# Martial Expansion (a General Talent) grants the Stamina Regen of a Class of the player's
+# choice OR the Spellcaster one, capped at 1 Stamina Regen benefit per Round. The chosen
+# source is recorded as `regen_source:` on the talent's ledger slot (only Runt uses it: Monk).

@@ -188,6 +188,7 @@ details .inner{padding:0 12px 12px}
     <span class="name" style="width:auto" id="spLab">SP</span>
     <button id="spMinus" onclick="chg('sp',-1)">−</button><div class="val" id="spVal"></div><button id="spPlus" onclick="chg('sp',1)">+</button>
   </div>
+  <div class="small" id="staminaRegen" style="text-align:center;margin:-2px 4px 6px"></div>
   <div class="tracker" id="gritRow" style="justify-content:center;gap:16px">
     <span class="name">Grit</span>
     <button onclick="chg('grit',-1)">−</button><div class="val" id="gritVal"></div><button onclick="chg('grit',1)">+</button>
@@ -492,6 +493,7 @@ const PARTY_DERIVED=__PARTY_DERIVED__;
 Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c)return;
   ['hp','mp','sp','grit','pd','ad'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});
   if(d.dr!==undefined)c.dr=d.dr;  // FR-16A: overwrite DR from the engine-derived bake
+  if(d.stamina_regen!==undefined)c.stamina_regen=d.stamina_regen;  // FR-23: baked trigger(s)
   c.sub=c.sub.replace(/<b>L\d+<\/b>/,'<b>L'+d.level+'<\/b>').replace(/CM \d+/,'CM '+d.cm);
   c.stats=c.stats.map(p=>{const v=p[0],l=p[1];
     if(l==='Attack')return[sgn(d.attack),l];
@@ -599,6 +601,10 @@ function renderParty(){
   document.getElementById('spVal').textContent=S.sp+' / '+c.sp;
   ['mpLab','mpMinus','mpVal','mpPlus'].forEach(id=>document.getElementById(id).style.display=c.mp?'':'none');
   ['spLab','spMinus','spVal','spPlus'].forEach(id=>document.getElementById(id).style.display=c.sp?'':'none');
+  // FR-23: Stamina Regen trigger(s), baked from the catalog. Shown only when the PC has SP + a trigger.
+  {const sr=c.stamina_regen||[],srEl=document.getElementById('staminaRegen');
+   if(c.sp&&sr.length){srEl.style.display='';srEl.innerHTML=sr.map(t=>'<b>'+t.label+' Stamina Regen:</b> '+t.text).join('<br>')+(sr.length>1?'<br><i>Only 1 Stamina Regen benefit per Round.</i>':'');}
+   else{srEl.style.display='none';srEl.innerHTML='';}}
   document.getElementById('gritRow').style.display=c.grit?'':'none';document.getElementById('gritHint').style.display=c.grit?'':'none';
   if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
   document.getElementById('roundNote').innerHTML=c.roundnote;

@@ -80,6 +80,7 @@ levels:
     pick: Martial Expansion
     grants:
       maneuvers: 2
+    regen_source: Monk  # FR-23: Martial Expansion Stamina Regen choice = Monk (Ath/Acro/Martial hit). Plus the Warlock Martial-path Spellcaster rider = two triggers, 1 benefit/round.
     note: +2 maneuvers, weapon training; Stamina-regen trigger = Monk option (Ath/Acro/Martial hit). Runt runs two regen triggers, 1 benefit/round (ruling 2026-07-04).
   - slot: maneuver
     pick: Slam

@@ -593,6 +593,49 @@ for grp, lst in lang_cat["languages"].items():
         n_lang += 1
 print(f"  languages: {n_lang} curated names (Mortal/Exotic/Divine/Outer) match core-rules.md")
 
+# ---- (4) Stamina Regen catalog (FR-23) ------------------------------------
+print("\n## (4) Stamina Regen catalog (FR-23)")
+from build_engine import stamina_regen as _stam_regen  # noqa: E402
+_regen = load("builds/catalog/stamina_regen.yaml")
+_classes_md = read("rules/classes.md")
+_cc_md = read("rules/character-creation.md")
+_index_md = read("rules/_INDEX.md")
+# native class triggers: a distinctive phrase from each must appear in its rules source AND
+# survive into the catalog trigger text (catches transcription drift).
+_REGEN_KEYS = {
+    "Barbarian": ("Heavy or Critical Hit", _classes_md),
+    "Champion": ("perform a Maneuver", _classes_md),
+    "Commander": ("grant a creature a Help Die", _classes_md),
+    "Monk": ("Acrobatics", _classes_md),
+    "Spellblade": ("Bound Weapon", _index_md),  # errata source (_INDEX.md), NOT classes.md
+}
+for _cls, (_kw, _src) in _REGEN_KEYS.items():
+    expect(_cls in _regen["classes"], f"stamina_regen: {_cls} missing from catalog")
+    expect(_kw in _src, f"stamina_regen: {_cls} keyword {_kw!r} not found in its rules source")
+    expect(_kw in _regen["classes"].get(_cls, ""),
+           f"stamina_regen: {_cls} catalog trigger lost its {_kw!r} phrase")
+# Spellblade must carry the errata wording (Weapon tag), not the superseded classes.md l.2829 text.
+expect("Weapon tag" in _regen["classes"]["Spellblade"],
+       "stamina_regen: Spellblade must use the errata (Weapon-tag) wording")
+expect("Spell Attack" not in _regen["classes"]["Spellblade"],
+       "stamina_regen: Spellblade should not carry the superseded 'Spell Attack' wording")
+expect("Spell Enhancement" in _regen["spellcaster"],
+       "stamina_regen: Spellcaster trigger must mention Spell Enhancement")
+expect("Spell Enhancement" in _cc_md,
+       "stamina_regen: Spellcaster trigger keyword not in character-creation.md")
+print(f"  {len(_regen['classes'])} native triggers + Spellcaster fallback reconcile with "
+      f"classes.md / _INDEX.md / character-creation.md")
+# reconcile the six ledgers -> expected trigger labels (the shared engine helper)
+_EXPECT_REGEN = {
+    "tanrielle.yaml": ["Spellblade"], "xanwyn.yaml": ["Spellblade"],
+    "minimus.yaml": ["Commander"], "bonan.yaml": ["Barbarian"],
+    "runt.yaml": ["Spellcaster", "Monk"], "scaletrix.yaml": [],
+}
+for _fn, _exp in _EXPECT_REGEN.items():
+    _got = [t["label"] for t in _stam_regen(LEDGERS[_fn], _regen)]
+    expect(_got == _exp, f"stamina_regen: {_fn} triggers {_got} != expected {_exp}")
+    print(f"  {_fn:16} regen -> {_got or ['None']}")
+
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
 if fails:
