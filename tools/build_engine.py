@@ -331,11 +331,15 @@ def replay(ledger, level):
         # Subclass/feature-granted languages are free regardless of fluency (e.g. Eldritch
         # grants Fluent Deep Speech, classes.md l.3432): a `granted: true` language costs 0 LP.
         spent_lp = sum(l.get("cost", 0) for l in langs if not l.get("granted"))
-        # conversions: TP deficit funded by SP (1->2), LP deficit funded by TP (1->2)
-        tp_deficit = max(0, spent_tp - earned_tp)
-        conv_sp = math.ceil(tp_deficit / 2)
+        # conversions: TP deficit funded by SP (1->2), LP deficit funded by TP (1->2).
+        # BUG-11 (CH-1 2026-07-18): compute the LP-funding conversion FIRST and include it
+        # in the TP deficit, so a CHAINED conversion (SP->TP->LP) is funded too. Previously
+        # conv_sp only saw the trade-mastery deficit, so a build whose TP deficit came from
+        # funding languages (minimus at L5+) wrongly read OVER-SPENT despite spare SP.
         lp_deficit = max(0, spent_lp - BACKGROUND_LANG)
         conv_tp = math.ceil(lp_deficit / 2)
+        tp_deficit = max(0, spent_tp + conv_tp - earned_tp)
+        conv_sp = math.ceil(tp_deficit / 2)
         total_sp = spent_sp + conv_sp
         total_tp_ok = spent_tp + conv_tp <= earned_tp + conv_sp * 2
         # BUG-3: symmetric, clear verdicts. Under-spend after whole 2-for-1 conversions

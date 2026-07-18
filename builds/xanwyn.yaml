@@ -6,7 +6,7 @@ character: "Xanwyn Andaaras"
 player: Jesse
 class: Spellblade
 subclass: "Rune Knight"  # FR-8 slice 3: runes de-bundled from the name into the L3 subclass entry's granted_runes (Flame + Water)
-ancestry: "Elvan (Elf + Beast trait lists)"
+ancestry: "Elven (Elf + Beast trait lists)"
 background: "Clandestine Alchemist"
 current_level: 4
 
@@ -72,7 +72,7 @@ trades:
   knowledge_trades: [Arcana, History]
 languages:
   - {name: Common, fluency: Fluent, cost: 0}
-  - {name: Elvan, fluency: Limited, cost: 1}  # BUG-1 fix 2026-07-16: sheet shows Elven at 1 dot (Limited), was wrongly recorded Fluent (same-total swap, slipped past budget checks)
+  - {name: Elvish, fluency: Limited, cost: 1}  # BUG-1 fix 2026-07-16: Limited not Fluent (same-total swap). CH-2 2026-07-18: "Elvan" -> "Elvish", the RAW language name (core-rules.md); paper sheet still says Elvan
   - {name: Fey, fluency: Limited, cost: 1}
 
 equipment:

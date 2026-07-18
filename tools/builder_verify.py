@@ -870,12 +870,19 @@ def check_wave2():
                                     for b in blines), blines)
         ok("%-10s no budget line still reads the old 'UNDER-SPENT'" % c,
            not any("UNDER-SPENT" in b for b in s["budgets"]), s["budgets"])
-    # BUG-8 (2026-07-16) added Xanwyn's missing History trade, so his trade budget now
-    # balances; the "legal SPARE" example moves to minimus (6 unspent skill points).
-    s = st(builder_api.BuilderAPI("minimus", CATPATHS))
-    ok("BUG-3 minimus spare SP reads SPARE (legal) in advisories, not a problem",
+    # BUG-8 (2026-07-16) balanced Xanwyn; CH-1 (2026-07-18) filled minimus's skills from
+    # his L4 paper sheet, so NO baseline character carries a spare any more. Keep the
+    # SPARE-wording coverage with a synthetic: unset one minimus skill in memory (not
+    # exported), which frees 1 SP and must read as a legal SPARE advisory, not a problem.
+    api = builder_api.BuilderAPI("minimus", CATPATHS)
+    api.set_mastery("skills:Acrobatics", "None")
+    s = st(api)
+    ok("BUG-3 synthetic spare SP (minimus minus one skill) reads SPARE (legal) in advisories",
        any("SPARE" in a and "Skill points" in a for a in s["advisories"])
        and not any("SPARE" in p for p in s["problems"]), (s["advisories"], s["problems"]))
+    s = st(builder_api.BuilderAPI("minimus", CATPATHS))
+    ok("CH-1 minimus baseline is balanced (no advisories) after the sheet-audit skill fill",
+       s["advisories"] == [] and s["problems"] == [], (s["advisories"], s["problems"]))
     s = st(builder_api.BuilderAPI("tanrielle", CATPATHS))
     ok("BUG-3 language line is symmetric (prints -> balanced even when balanced)",
        any(b.startswith("Language points") and "-> balanced" in b for b in s["budgets"]),
@@ -1359,7 +1366,8 @@ def check_fr3_slice2():
     ok("no ledger has a skills carrier at rest; all six baselines stay clean (Hybrid: no reshape)", allclean)
 
     # (b) a plan level's spine skill_points materialise N editable skill child-slots on a carrier.
-    api = builder_api.BuilderAPI("minimus", CATPATHS)   # Commander L4, empty aggregate; L5 grants 2 SP
+    api = builder_api.BuilderAPI("minimus", CATPATHS)   # Commander L4; L5 grants 2 SP. Aggregate
+    # holds 5 Novice skills since the CH-1 sheet fill (2026-07-18), so options mix add-new + raises.
     s = json.loads(api.add_planned_level())
     carrier = [d for d in s["decisions"] if d["slot"] == "skills" and d["level"] == 5]
     sk5 = skl(s, 5)
@@ -1375,17 +1383,22 @@ def check_fr3_slice2():
     ok("both undecided planned skill picks are flagged (enforced budget, not speculative)",
        len(bp) == 2 and not s["problems"] and not s["catalog_problems"], probs(s))
 
-    # (d) add-new options: empty aggregate -> every skill offered at Novice, none as a raise.
+    # (d) options against the real aggregate: an unheld skill is offered add-new at Novice; a
+    # held Novice skill is offered as a one-step raise to Adept (L5 cap Adept); a held skill is
+    # never re-offered at its current tier.
     o0 = onames(sk5[0])
-    ok("add-new offers skills at Novice (e.g. 'Acrobatics: Novice') and no raises for an empty aggregate",
-       "Acrobatics: Novice" in o0 and all(x.endswith(": Novice") for x in o0), o0[:4])
+    ok("an unheld skill is offered add-new at Novice ('Stealth: Novice')",
+       "Stealth: Novice" in o0, o0[:6])
+    ok("a held Novice skill is offered as a one-step raise ('Acrobatics: Adept'), not at Novice",
+       "Acrobatics: Adept" in o0 and "Acrobatics: Novice" not in o0,
+       [x for x in o0 if x.startswith("Acrobatics")])
 
     # (e) sibling distinctness: a skill picked in one slot is hidden from the other slot of the level.
-    s = json.loads(api.set_decision(sk5[0]["id"], "Acrobatics: Novice"))
+    s = json.loads(api.set_decision(sk5[0]["id"], "Stealth: Novice"))
     sk5 = skl(s, 5)
     other = [d for d in sk5 if d["id"] != ids[0]][0]
     ok("a skill chosen in one slot is hidden from the sibling slot (points go to distinct skills)",
-       "Acrobatics: Novice" not in onames(other), onames(other)[:4])
+       not any(x.startswith("Stealth") for x in onames(other)), onames(other)[:4])
     ok("filling one skill leaves exactly one enforced skill problem remaining",
        len([p for p in s["builder_problems"] if "planned skill" in p]) == 1, s["builder_problems"])
     s = json.loads(api.set_decision(other["id"], onames(other)[0]))
@@ -1420,12 +1433,12 @@ def check_fr3_slice2():
     # (i) export/reload: granted_skills round-trips and the slots stay editable.
     ap = builder_api.BuilderAPI("minimus", CATPATHS)
     ap.add_planned_level()
-    ap.set_decision(skl(st(ap), 5)[0]["id"], "Acrobatics: Novice")
+    ap.set_decision(skl(st(ap), 5)[0]["id"], "Stealth: Novice")
     y = ap.export_yaml()
     ok("an exported plan carries granted_skills", "granted_skills" in y, None)
     ar = builder_api.BuilderAPI("minimus-x", CATPATHS, ledger_text=y)
     sr = st(ar)
-    keep = [d for d in skl(sr, 5) if d.get("current") == "Acrobatics: Novice"]
+    keep = [d for d in skl(sr, 5) if d.get("current") == "Stealth: Novice"]
     ok("a reloaded plan skill persists and stays editable (round-trips)",
        bool(keep) and all(d["editable"] for d in skl(sr, 5)), None)
 

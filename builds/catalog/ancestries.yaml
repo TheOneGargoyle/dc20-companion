@@ -13,7 +13,7 @@
 #   Bonan      Halfling Beastborn  -> Halfling + Beastborn
 #   Scaletrix  Redemption Fiendborn + Dragonborn -> Fiendborn + Dragonborn (+ Angelborn via
 #              the Redeemed trait: "you can now spend your Ancestry Points on Angelborn Traits")
-#   Xanwyn     Elvan (Elf + Beast) -> Elf + Beastborn
+#   Xanwyn     Elven (Elf + Beast) -> Elf + Beastborn
 #
 # source_aliases: ledger `source:` names that map onto a curated list here.
 # aliases on a trait: ledger names for the same rules-text trait (e.g. Scaletrix's "Arcane

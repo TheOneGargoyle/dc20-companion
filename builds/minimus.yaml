@@ -45,15 +45,25 @@ levels:
     - {slot: spell, pick: Close Wounds, inferred: true, source: "Spellcaster path +1 spell"}
 
 skills:
-  allocation_confidence: unknown
-  masteries: {}
-  # Sheet gives only "(5,6)" point totals with no per-skill breakdown; engine will show
-  # under-spent skill points until Kristian's sheet is refreshed. ASK KRISTIAN.
+  allocation_confidence: sheet
+  masteries:
+    Awareness: {mastery: Novice}
+    Acrobatics: {mastery: Novice}
+    Influence: {mastery: Novice}
+    Insight: {mastery: Novice}
+    Survival: {mastery: Novice}
+  # CH-1 sheet re-audit 2026-07-18: filled from the L4 paper sheet's mastery checkboxes
+  # (Minimus L4 (v0.10.5).pdf). 6 SP earned = 5 Novice skills + 1 SP converted to 2 TP
+  # (the History + Nature knowledge trades below), so the old "6 SPARE" advisory clears.
+  # Retires the old "ASK KRISTIAN" placeholder (sheet had per-skill checkboxes after all).
 trades:
   masteries:
     Disguise: {mastery: Novice}
     Gaming: {mastery: Novice}
     Theatre: {mastery: Novice}
+    History: {mastery: Novice}
+    Nature: {mastery: Novice}
+  knowledge_trades: [History, Nature]
 languages:
   - {name: Common, fluency: Fluent, cost: 0}
   - {name: Halfling, fluency: Fluent, cost: 2}
