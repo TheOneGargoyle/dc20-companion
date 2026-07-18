@@ -2056,9 +2056,11 @@ h3.sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(
 /* FR-36: colour the left accent by category (FR20_CAT rank). Replaces the old amber
    'Added in builder' border - that cue now rides the amber note text in the row body.
    Placed after .edit/.plan so the coloured left border wins on those rows too. Colour-
-   blind-safe set: attributes blue, class purple, ancestry teal, resources amber. */
+   blind-safe set: attributes blue, class coral, ancestry teal, resources amber. Class is a
+   warm coral (not a blue-family purple) so it never blurs against the adjacent blue attributes
+   accent (Darryl live-verify 2026-07-18). */
 .dec.cat0{border-left:4px solid #185FA5}
-.dec.cat1{border-left:4px solid #534AB7}
+.dec.cat1{border-left:4px solid #C2410C}
 .dec.cat2{border-left:4px solid #1D9E75}
 .dec.cat3{border-left:4px solid #BA7517}
 /* FR-21: light category sub-headers inside a long level section (no extra collapse layer) */
@@ -2630,8 +2632,10 @@ function render(s){
         Object.keys(t.attrs).map(a=>`<label>${a} <select class="select" style="max-width:70px" data-attr="${a}">${sel(a)}</select></label>`).join("") +
         `<span class="spent${bad}">point buy: ${t.spent}/${t.budget}</span></span></div>`;
     }
-    // FR-36: the left accent is now the category colour (cat0..cat3 from FR20_CAT), not the
-    // old amber 'Added in builder' border; the builder-touched cue rides the amber note text.
+    // FR-36: the left accent is now the category colour (cat0..cat3 from FR20_CAT). The old
+    // amber 'Added in builder' border is dropped entirely - it was dev bookkeeping, not player
+    // UI, and the ledger notes it flagged are noise on the pickers (Darryl live-verify 2026-07-18);
+    // fixed/inferred rows still surface their note in the else branch, editable pickers do not.
     const cls = "dec" + (t.editable?" edit":"") + (t.inferred?" inferred":"") + (t.plan?" plan":"") + " cat" + (t.cat==null?3:t.cat);
     let body;
     if(t.editable && t.options){
@@ -2643,7 +2647,6 @@ function render(s){
       body = `<span class="pick"><select class="select" data-dec="${esc(t.id)}">${optHTML(t.options, t.current, t.current_group)}</select>` + capctl +
         ((t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"") +
         (t.was_note ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.was_note)} <a href="#" class="rm" data-dismiss="${esc(t.id)}" title="dismiss this note">&times;</a></span>`:"") +
-        ((!t.was_note && t.note) ? ` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:"") +
         (t.removable ? ` <a href="#" class="rm" data-rm="${esc(t.id)}" title="remove this slot">&times;</a>`:"") + ruleTag(t.current) + `</span>`;
     } else {
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
@@ -2680,7 +2683,7 @@ function render(s){
     let rows;
     if(dl.length >= 5){
       const CATLBL = {0:'Attributes',1:'Class',2:'Ancestry',3:'Resources'};
-      const CATCOL = {0:'#185FA5',1:'#534AB7',2:'#1D9E75',3:'#BA7517'};
+      const CATCOL = {0:'#185FA5',1:'#C2410C',2:'#1D9E75',3:'#BA7517'};
       let out = "", lastCat = null;
       for(const t of dl){
         const c = (t.cat==null?3:t.cat);

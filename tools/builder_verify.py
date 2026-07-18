@@ -1776,7 +1776,7 @@ def check_fr36():
                (d.get("cat"), (parent or {}).get("cat")))
     # (b) the built page carries the four category accent rules and NO longer the amber .newlvl
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
-    for cls, col in (("cat0", "#185FA5"), ("cat1", "#534AB7"), ("cat2", "#1D9E75"), ("cat3", "#BA7517")):
+    for cls, col in (("cat0", "#185FA5"), ("cat1", "#C2410C"), ("cat2", "#1D9E75"), ("cat3", "#BA7517")):
         ok("builder.html has .dec.%s left accent %s" % (cls, col),
            ".dec.%s{border-left:4px solid %s}" % (cls, col) in html)
     ok("the old amber .dec.newlvl border rule is gone (replaced by category colour)",
@@ -1784,8 +1784,16 @@ def check_fr36():
     # (c) rowHTML tags the row with its category class, and the builder-touched note now rides
     #     the amber note text in the editable branch (its old signal was only the amber border)
     ok('rowHTML adds the category class (" cat" + t.cat)', '" cat" + (t.cat==null?3:t.cat)' in html)
-    ok("editable rows now render their note text (builder-touched cue survives)",
-       "(!t.was_note && t.note) ?" in html)
+    # FR-36 declutter (Darryl live-verify 2026-07-18): editable pickers must NOT dump the ledger
+    # notes (they were dev bookkeeping - "Added in builder", "ASK PHIL", catalog-model prose - and
+    # cluttered every picker). The old amber border is gone; the builder-touched cue is simply not
+    # surfaced. Guard: Runt has editable rows that carry notes, and the editable branch does not
+    # render t.note (only the fixed/else branch does).
+    ed_noted = [(d.get("level"), d.get("slot")) for d in st(builder_api.BuilderAPI("runt", CATPATHS))["decisions"]
+                if d.get("editable") and d.get("note")]
+    ok("Runt has editable rows carrying (now-hidden) ledger notes", len(ed_noted) >= 5, len(ed_noted))
+    ok("editable pickers do NOT dump ledger notes (declutter; the reverted note-span is gone)",
+       "(!t.was_note && t.note) ?" not in html)
 
 
 # ---------------------------------------------------------------- (25) FR-21 category sub-headers
