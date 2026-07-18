@@ -40,7 +40,7 @@ nav button.on{color:var(--gold)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grid{display:grid;gap:8px}
 .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
-  border-radius:999px;padding:3px 10px;font-size:13px;margin:2px}
+  border-radius:999px;padding:3px 10px;font-size:13px;margin:2px;cursor:pointer}
 .pill.on{background:var(--gmred);border-color:#c96a4a;color:#ffe9dd}
 .pmenu{position:fixed;z-index:2000;background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px;min-width:190px;max-width:80vw}
 .pmenu-hd{font-size:12px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
@@ -82,6 +82,8 @@ details .inner{padding:0 12px 12px}
 .rollout .crit{color:#ffd54d;font-weight:700}
 .rollout .miss{color:var(--red)}
 .rollout .dice{color:var(--dim);font-size:13px}
+.rollout .dice .dkeep{color:var(--radiant);font-weight:700}
+.rollout .dice .ddrop{opacity:.4;text-decoration:line-through}
 .rlink{color:var(--radiant);border-bottom:1px dotted var(--radiant);cursor:pointer}
 .spelldiv{border:0;border-top:2px solid var(--radiant);opacity:.45;margin:26px 0 4px}
 .rbtn{font-size:14px;padding:9px 10px}
@@ -221,11 +223,10 @@ details .inner{padding:0 12px 12px}
     <div class="small">Bench: at +5 vs an equal-level foe you hit on 8+ (65%), Heavy on 13+, crit on 20. Crit = auto-hit, +2 dmg, bypasses DR. Heavy +1 / Brutal +2 / every +5 beyond adds +1.</div>
   </div>
 
-  <div class="card">
-    <h3>Skills &amp; Trades</h3>
+  <details><summary>Skills &amp; Trades</summary><div class="inner">
     <div class="skgrid" id="skGrid"></div>
     <div class="small" style="margin-top:6px" id="skNote"></div>
-  </div>
+  </div></details>
 
 
   <div id="tanAccordions"></div>
@@ -242,6 +243,7 @@ details .inner{padding:0 12px 12px}
       <button onclick="dDrop(-1)">−</button><span id="diceDrop" style="font-size:18px;min-width:24px;text-align:center">0</span><button onclick="dDrop(1)">+</button>
       <label class="small">Mod</label>
       <input id="diceMod" type="number" inputmode="numeric" value="0" style="width:64px">
+      <button onclick="resetDice()" title="reset Count, Drop, Mod and ADV/DisADV to defaults">Reset</button>
     </div>
     <div class="advctl" style="margin-top:8px">
       <button onclick="gAdvStep(-1)">−</button>
@@ -667,7 +669,13 @@ function dCount(x){dc=Math.max(1,Math.min(20,dc+x));document.getElementById('dic
 function dDrop(x){ddrop=Math.max(0,Math.min(Math.max(0,dc-1),ddrop+x));document.getElementById('diceDrop').textContent=ddrop;}
 function gAdvStep(x){gadv=Math.max(-3,Math.min(3,gadv+x));document.getElementById('gAdvLab').textContent=gadv===0?'Normal':(gadv>0?'ADV +'+gadv:'DisADV '+gadv);}
 function preset(cnt,sides,mod,a,drop){dc=cnt;document.getElementById('diceCount').textContent=dc;ddrop=drop;document.getElementById('diceDrop').textContent=ddrop;gadv=a;document.getElementById('gAdvLab').textContent=gadv===0?'Normal':(gadv>0?'ADV +'+gadv:'DisADV '+gadv);document.getElementById('diceMod').value=mod;genRoll(sides);}
+/* FR-28: reset the dice controls (Count/Drop/Mod/ADV) back to defaults; leaves history intact (Clear handles that). */
+function resetDice(){dc=1;ddrop=0;gadv=0;document.getElementById('diceCount').textContent='1';document.getElementById('diceDrop').textContent='0';document.getElementById('gAdvLab').textContent='Normal';document.getElementById('diceMod').value='0';document.getElementById('diceOut').innerHTML='<span class="small">Roll something. ADV/DisADV applies to d20.</span>';}
 function critSpan(v,n){var st=v===n?' style="color:#ffd54d;font-weight:700"':(v===1?' style="color:var(--red)"':'');return '<span'+st+'>'+v+'</span>';}
+/* BUG-13: mark EVERY kept die and strike the dropped ones. dropSet holds the
+   original indices that were dropped; each remaining die is flagged as kept. */
+function diceRow(rolls,n,dropSet){return rolls.map(function(v,i){var s=critSpan(v,n);return '<span class="'+(dropSet.has(i)?'ddrop':'dkeep')+'">'+s+'</span>';}).join(', ');}
+function dropLowest(rolls,nd){var order=rolls.map(function(v,i){return [v,i];}).sort(function(a,b){return a[0]-b[0];});var s=new Set();for(var i=0;i<nd&&i<order.length;i++)s.add(order[i][1]);return s;}
 function genRoll(n){
   const mod=parseInt(document.getElementById('diceMod').value)||0;
   const out=document.getElementById('diceOut');const h=document.getElementById('diceHist');
@@ -675,16 +683,20 @@ function genRoll(n){
   const mtxt=mod?(mod>0?' +'+mod:' '+mod):'';const mlbl=mod?(mod>0?'+'+mod:''+mod):'';
   if(n===20&&gadv!==0){
     const k=Math.abs(gadv)+1;const dice=[];for(let i=0;i<k;i++)dice.push(d(20));
-    const kept=gadv>0?Math.max.apply(null,dice):Math.min.apply(null,dice);
+    // keep the single highest (ADV) or lowest (DisADV); drop the rest
+    let keptIdx=0;for(let i=1;i<dice.length;i++){if(gadv>0?dice[i]>dice[keptIdx]:dice[i]<dice[keptIdx])keptIdx=i;}
+    const dropSet=new Set();for(let i=0;i<dice.length;i++)if(i!==keptIdx)dropSet.add(i);
+    const kept=dice[keptIdx];
     sum=kept+mod;
-    detail=(gadv>0?'ADV':'DisADV')+' d20 ['+dice.map(function(v){return critSpan(v,20);}).join(', ')+'] keep '+kept+mtxt;
+    detail=(gadv>0?'ADV':'DisADV')+' d20 ['+diceRow(dice,20,dropSet)+'] keep '+kept+mtxt;
     label=(gadv>0?'d20 ADV':'d20 DisADV')+mlbl;
   }else{
     const rolls=[];for(let i=0;i<dc;i++)rolls.push(d(n));
     const nd=Math.min(ddrop,dc-1);
-    const kept=rolls.slice().sort(function(a,b){return a-b;}).slice(nd);
+    const dropSet=dropLowest(rolls,nd);
+    const kept=rolls.filter(function(v,i){return !dropSet.has(i);});
     sum=kept.reduce(function(a,b){return a+b;},0)+mod;
-    detail=dc+'d'+n+(nd?' drop '+nd:'')+mtxt+' → ['+rolls.map(function(v){return critSpan(v,n);}).join(', ')+']';
+    detail=dc+'d'+n+(nd?' drop '+nd:'')+mtxt+' → ['+diceRow(rolls,n,dropSet)+']';
     label=dc+'d'+n+(nd?'-drop'+nd:'')+mlbl;
   }
   out.innerHTML='<div class="dice">'+detail+'</div><span class="big">'+sum+'</span>';
@@ -740,6 +752,9 @@ function openDoc(i,hl){
   const el=document.getElementById('ruleDocBody');
   var body='<h2>'+RULES_DATA[i].t+'</h2><div class="f small" style="color:var(--blue)">'+RULES_DATA[i].f+'</div>'+RULES_DATA[i].h;
   body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(\s*<p><strong>(?:Spell List|Source))/g,'<hr class="spelldiv">$1$2');
+  // FR-27: same dividers between Maneuver entries (each costed maneuver is a name paragraph
+  // followed by an optional description then a <ul> opening with a Cost line).
+  body=body.replace(/(<p><strong>[^<]{2,40}<\/strong><\/p>)(?=\s*(?:<p>(?:(?!<\/p>)[\s\S]){0,500}<\/p>\s*)?<ul>\s*<li>Cost:)/g,'<hr class="spelldiv">$1');
   el.innerHTML=body;
   document.getElementById('ruleDocNav').innerHTML='<button onclick="closeDoc()">← Search</button>'+(ruleOrigin?'<button onclick="backToSheet()">↩ Sheet</button>':'');
   window.scrollTo(0,0);
@@ -831,7 +846,7 @@ function fallbackCopy(txt,done){const ta=document.createElement('textarea');ta.v
 
 /* ==================== party accordions ==================== */
 CHARS.min.acc=`
-<details open><summary>Maneuvers (3) &amp; Spells (2)</summary><div class="inner">
+<details><summary>Maneuvers (3) &amp; Spells (2)</summary><div class="inner">
 <div class="card"><h3>Maneuvers</h3><b>Volley</b> — ranged multi-shot line for the Arcane Crossbow.<br><b>Parry</b> — Reaction, protect PD.<br><b>Heroic Taunt</b> — force attention onto him (and away from the squishy).</div>
 <div class="card"><h3>Spells</h3><b>Grease</b> — area control, knock ’em down.<br><b>Close Wounds</b> — the party’s backup heal.<br><span class="small">Spell Check +5. MP 6 from Caster path ×2.</span></div>
 </div></details>
@@ -844,7 +859,7 @@ CHARS.min.acc=`
 <div class="card"><b>Commander’s Helm of Telepathy</b> — the party channel: range 10, no need to see/hear the target.<br><b>Arcane Crossbow</b> — light crossbow, Arcane ammo, no reload (3P, 15/45, Deft, 2H).<br><b>Longpole</b> — 1B, Guard, Impact, Reach 1.<br><b>Defensive Light Armour</b> (+1 PD, +1 AD).<br><b>Pearl of Water Breathing</b> <span class="small">(01 ledger)</span>.<br>Short sword, 5× daggers, long staff, adventuring pack.</div>
 </div></details>`;
 CHARS.runt.acc=`
-<details open><summary>Spells (6) &amp; maneuvers (8)</summary><div class="inner">
+<details><summary>Spells (6) &amp; maneuvers (8)</summary><div class="inner">
 <div class="card"><h3>Spells <span class="small">(Elemental · Invocation · Nullification)</span></h3><b>Lightning Torrent</b> · <b>Heal</b> · <b>Vampiric Touch</b> · <b>Wild Guard</b> · <b>Psychic Imbued</b> (the +1 on his weapons) · <b>Tendrils from Beyond</b>.</div>
 <div class="card"><h3>Maneuvers</h3>Attack: <b>Cleave</b>, <b>Pathcarver</b>.<br>Defence: <b>Brace</b>, <b>Side Step</b> <span class="small">(the defensive pair rides Pact Armor)</span>.<br>General: <b>Slam</b>, <b>Body Block</b>, <b>Throw Creature</b>, <b>Heroic Intimidate</b>.</div>
 </div></details>
@@ -857,7 +872,7 @@ CHARS.runt.acc=`
 <div class="card"><b>Ancestral Dwarven Heavy Armor</b> — +2 PD, PDR (Half).<br><b>Steadfast Boots</b> — Reaction: reduce forced movement by 3.<br><b>Brass Knuckles</b> — 1B, Impact, Concealable (ADV on first attack/creature), free hand while grappling. <span class="small">(The old “+1 vs grappled” rider is retired — previous-version rules.)</span><br><b>Pact Staff</b> — 1B, 2H, Guard, Reach, Impact, +1 psychic imbue.<br><span class="small">01 ledger also lists a <b>Staff of Lightning</b> (Spellcasting 2; Lightning spells gain Impact) — not on the sheet; confirm which is current.</span></div>
 </div></details>`;
 CHARS.scale.acc=`
-<details open><summary>Spells (10 listed)</summary><div class="inner">
+<details><summary>Spells (10 listed)</summary><div class="inner">
 <div class="card"><h3>Primal</h3><b>Wild Guard</b> · <b>Primal Hide</b> · <b>Fireball</b> · <b>Fire Bolt</b> · <b>Regenerate</b>.</div>
 <div class="card"><h3>Arcane</h3><b>Command</b> · <b>Disintegrating Beam</b> · <b>Gravity Well</b> · <b>Dispel Magic</b> · <b>Telekinesis</b>.<br><span class="small">Staff: Powerful (+1 dmg on all spells), Impact. Meta Magic: Quickened / Vicious.</span></div>
 </div></details>
@@ -871,7 +886,7 @@ CHARS.scale.acc=`
 <div class="card"><b>Druidic Light Armour +1</b> (+3 PD total).<br><b>Mage Staff of Impact</b> — Powerful, Impact.<br><b>Amulet of Minor General Resilience</b> — +1 to all Saves.<br><span class="small">01 ledger also lists a <b>Wand of Impact</b>.</span></div>
 </div></details>`;
 CHARS.bonan.acc=`
-<details open><summary>Maneuvers (4) &amp; Spells (3)</summary><div class="inner">
+<details><summary>Maneuvers (4) &amp; Spells (3)</summary><div class="inner">
 <div class="card"><h3>Maneuvers</h3><b>Whirlwind</b> — hit everything adjacent.<br><b>Side Step</b> — Reaction, attacker gets DisADV.<br><b>Heroic Intimidate</b> — weaponised Intimidation +7.<br><b>Recovery</b> — self-heal maneuver.</div>
 <div class="card"><h3>Spells <span class="small">(MC Bard — Auditory expression)</span></h3><b>Command</b> · <b>Charm</b> · <b>Frost Bolt</b>.<br><span class="small">Remarkable Repertoire talent: +2 skill pts, 2 spells. The angry musician casts by playing.</span></div>
 </div></details>
@@ -886,7 +901,7 @@ CHARS.bonan.acc=`
 </div></details>`;
 
 CHARS.xan.acc=`
-<details open><summary>Spells (5) &amp; Maneuvers (4)</summary><div class="inner">
+<details><summary>Spells (5) &amp; Maneuvers (4)</summary><div class="inner">
 <div class="card"><h3>Spells <span class="small">(Nullification · Invocation · Transmutation + Weapon/Ward tags)</span></h3><b>Umbral Imbued</b> — Bound Weapon +1 Umbral (the Round-1 cast).<br><b>Primal Hide</b> — +2 PD (the toggle above).<br><b>Vampiric Touch</b> — Umbral drain.<br><b>Death Bolt</b> — Umbral bolt.<br><b>Regenerate</b> — sustained healing.<br><span class="small">Signature School (Transmutation): −1 MP, once per Long Rest, back on Initiative.</span></div>
 <div class="card"><h3>Maneuvers</h3><b>Swift Strike</b> — extra fast attack.<br><b>Cleave</b> · <b>Pathcarver</b> — multi-target/mobile attack lines.<br><b>Resolve</b> — defensive save maneuver.</div>
 </div></details>

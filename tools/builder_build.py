@@ -1423,7 +1423,12 @@ class BuilderAPI:
             if not any(x['pick'] == pick for x in lst):
                 lst.append({'level': lv, 'pick': pick})
         spells = []
-        for e in groups.get('spell', []):
+        # BUG-12(b): tag-constrained granted spells (FR-8 slice 5, e.g. Runt's Psychic
+        # Tendrils from Beyond) live under the 'spell_tagged' slot, so pull those in too or
+        # they drop off the sheet's spell list. Skip any still-undecided grant.
+        for e in groups.get('spell', []) + groups.get('spell_tagged', []):
+            if str(e['pick']) == UNDECIDED:
+                continue
             m = self.meta.get(e['pick']) or {}
             spells.append({'name': e['pick'], 'school': m.get('school'), 'tags': m.get('tags') or []})
         equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods')}
@@ -2072,7 +2077,7 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 </style></head>
 <body><div class="wrap">
 <div class="apphead">
-<h1>DC20 Character Builder</h1> <span class="badge">rung 3 - step 5</span>
+<h1>DC20 Character Builder</h1> <span class="badge" style="text-transform:none">v0.10.5</span>
 <select id="charsel"></select>
 <label class="loadlbl">or load a YAML: <input type="file" id="loadyaml" accept=".yaml,.yml"></label>
 <button id="sheetbtn" class="sheetbtn" type="button">Character sheet</button>
@@ -2090,12 +2095,11 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
   <div>
     <div class="card" id="metacard" style="display:none"></div>
     <div class="card">
-      <h3 class="sec">Decisions <span class="wlabel">point-buy</span> <span class="wlabel">option-picker</span> <span class="wlabel">ancestry-spend</span></h3>
+      <h3 class="sec">Decisions <span class="wlabel">every level-up choice</span></h3>
       <div id="decisions"></div>
       <div class="addrow"><select class="select" id="tradd-lvl" style="max-width:80px"></select>
         <button class="exportbtn small" id="tradd">+ ancestry trait</button>
         <span class="src">extra trait slot (the engine keeps the point budget honest)</span></div>
-      <div class="src" id="srcinfo"></div>
     </div>
     <div class="card">
       <h3 class="sec">Skills &amp; Trades <span class="wlabel">skill/trade allocator</span></h3>
@@ -2536,7 +2540,8 @@ function render(s){
         : '';
       body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
     }
-    return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(t.slot)}</span>${body}</div>`;
+    const slotLabel = t.slot==='spell_tagged' ? 'spell' : t.slot;  // BUG-12(a): don't leak the internal slot kind
+    return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;
   // keep whatever the user opened/closed: snapshot the open states before the
@@ -2576,7 +2581,6 @@ function render(s){
     d += `<details class="lvlgrp${plan?' plan':''}" data-lvl="${lvl}" ${open?'open':''}><summary>${label}${lvlPrev}</summary>${rows}</details>`;
   }
   $('decisions').innerHTML = d;
-  $('srcinfo').textContent = viaNote;
   document.querySelectorAll('[data-dec]').forEach(el => el.onchange = () => { if(el.value!=="") refresh(api.set_decision(el.dataset.dec, el.value)); });
   document.querySelectorAll('[data-plr]').forEach(el => el.onchange = () => refresh(api.set_plan_capraise(el.dataset.plr, el.checked)));   // FR-17 plan cap+ toggle
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));

@@ -102,7 +102,7 @@ print("party derived: " + ", ".join(
 
 # ---------- Tan accordions (hand-crafted from 08/07, cited facts only) ----------
 TAN_ACCORDIONS = """
-<details open><summary>Spells (3) &amp; Pact riders</summary><div class="inner">
+<details><summary>Spells (3) &amp; Pact riders</summary><div class="inner">
 <div class="card"><h3>Radiant Bolt <span class="small">(Invocation · standing Pact Spell · vs PD)</span></h3>
 Her spine spell — usually folded into a greatsword swing via <b>Spellstrike</b> (1 AP less, one combined attack; crit/Heavy applies once to the package).<br>
 <b>Pact riders:</b> Death's Toll (+1 dmg vs Bloodied) · Range Increase · <b>Patron's Favor</b> (free ADV to cast it, 1/round).<br>
