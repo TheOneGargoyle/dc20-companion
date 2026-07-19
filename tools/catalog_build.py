@@ -56,8 +56,8 @@ SPELLBLADE_DISCIPLINES = {
 # Pact Weapon: "You learn 2 Attack Maneuvers of your choice"; Pact Armor: "You learn 2
 # Defensive Maneuvers of your choice" (+1 AD & MDR are conditional, worn-only - not a grant).
 WARLOCK_PACT_BOONS = {
-    "Pact Weapon": {"grants": {"maneuvers": 2}, "note": "2 Attack Maneuvers; Weapon Training; Spell Focus property"},
-    "Pact Armor": {"grants": {"maneuvers": 2}, "note": "2 Defensive Maneuvers; Armor Training; +1 AD & MDR while worn (contextual, not a grant)"},
+    "Pact Weapon": {"grants": {"maneuvers": 2}, "maneuver_type": "Attack", "note": "2 Attack Maneuvers of your choice (classes.md l.3244); Weapon Training; Spell Focus property"},
+    "Pact Armor": {"grants": {"maneuvers": 2}, "maneuver_type": "Defense", "note": "2 Defensive Maneuvers of your choice (classes.md l.3269); Armor Training; +1 AD & MDR while worn (contextual, not a grant)"},
     "Pact Spell": {"note": "an existing known Spell becomes the Pact Spell (no resource delta)"},
     "Pact Familiar": {"note": "summons a familiar (no resource delta)"},
 }

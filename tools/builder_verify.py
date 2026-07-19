@@ -1901,6 +1901,21 @@ def check_grants_only():
     ok("Runt: every maneuver row is an editable picker; no maneuver name is duplicated",
        bool(flat_man) and all(d["widget"] == "picker" and d.get("editable") for d in mrows)
        and len(mrows) == len({d.get("current") for d in mrows}), [d.get("current") for d in mrows])
+    # the boon constrains maneuver TYPE (Pact Weapon = Attack, Pact Armor = Defense, l.3244/3269):
+    # each grant-child picker offers only that type (plus its own current pick).
+    import yaml as _yaml
+    _mc = _yaml.safe_load(open(os.path.join(REPO, "builds", "catalog", "maneuvers.yaml")))["maneuvers"]
+    _mtype = {m: t for t, lst in _mc.items() for m in lst}
+    pw = [d for d in boon_man if d.get("current") in ("Cleave", "Pathcarver")]
+    pa = [d for d in boon_man if d.get("current") in ("Brace", "Side Step")]
+    ok("Pact Weapon maneuver pickers offer ATTACK maneuvers only (+ current)",
+       bool(pw) and all(all(_mtype.get(o["name"]) == "Attack" or o["name"] == d.get("current")
+                            for o in d["options"]) for d in pw),
+       [(d.get("current"), sorted({_mtype.get(o["name"], "?") for o in d["options"]})) for d in pw])
+    ok("Pact Armor maneuver pickers offer DEFENSE maneuvers only (+ current)",
+       bool(pa) and all(all(_mtype.get(o["name"]) == "Defense" or o["name"] == d.get("current")
+                            for o in d["options"]) for d in pa),
+       [(d.get("current"), sorted({_mtype.get(o["name"], "?") for o in d["options"]})) for d in pa])
     # off-list current value stays selectable: a picker's <select> must contain its own current
     # value or the browser renders it blank (Scaletrix's inferred "Dispel Magic" is not in her
     # school-filtered list, so it is prepended as an off-list option).

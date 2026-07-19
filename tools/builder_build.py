@@ -1353,11 +1353,23 @@ class BuilderAPI:
         if parent.get('slot') in ('pact_boon', 'pact_boons'):
             n = int(grants.get('maneuvers', 0) or 0)
             lst = parent.get('granted_maneuvers') or []
+            # the boon constrains the maneuver TYPE (Pact Weapon = Attack, Pact Armor = Defense,
+            # classes.md l.3244/3269), sourced from the catalog boon's maneuver_type. Each option
+            # carries its type in 'group' (from _maneuver_options), so filter to that type - keeping
+            # the current pick selectable even if off-type (mirrors the _dec off-list guard).
+            bname = base_name(parent.get('pick')
+                              or (parent.get('picks') or [''])[0] or '')
+            brow = next((b for b in (self.ccat.get('pact_boons') or []) if b.get('name') == bname), {})
+            mtype = brow.get('maneuver_type')
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
-                out.append(self._dec('GC#%s#maneuvers#%d' % (parentref, k), level, 'maneuver',
-                                     pick, None, False, editable,
-                                     plan=level > cur, plan_editable=editable and level > cur))
+                d = self._dec('GC#%s#maneuvers#%d' % (parentref, k), level, 'maneuver',
+                              pick, None, False, editable,
+                              plan=level > cur, plan_editable=editable and level > cur)
+                if mtype and d.get('options'):
+                    d['options'] = [o for o in d['options']
+                                    if o.get('group') == mtype or o.get('name') == d.get('current')]
+                out.append(d)
         return out
 
     def _apply_grants(self, entry, grants, changed):

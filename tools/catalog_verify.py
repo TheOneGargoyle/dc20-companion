@@ -550,6 +550,21 @@ for typ, lst in maneuvers_cat["maneuvers"].items():
         expect(m in m_region, f"maneuver {m} ({typ}) not found in combat.md maneuvers chapter")
     print(f"  maneuvers {typ}: {len(lst)} names found in combat.md")
 
+# grants-only (2026-07-19): a pact boon that grants maneuvers constrains their TYPE
+# (Pact Weapon = Attack of your choice l.3244, Pact Armor = Defensive of your choice l.3269),
+# so the builder can offer a type-filtered picker. Assert the catalog carries a valid maneuver_type.
+_wl = load("builds/catalog/warlock.yaml")
+_man_types = set(maneuvers_cat["maneuvers"].keys())
+_boon_type = {"Pact Weapon": "Attack", "Pact Armor": "Defense"}
+for _b in _wl.get("pact_boons", []):
+    if (_b.get("grants") or {}).get("maneuvers"):
+        mt = _b.get("maneuver_type")
+        expect(mt in _man_types,
+               f"pact boon {_b['name']} grants maneuvers but maneuver_type {mt!r} is not a catalog type")
+        expect(_boon_type.get(_b["name"]) == mt,
+               f"pact boon {_b['name']} maneuver_type {mt!r} != expected {_boon_type.get(_b['name'])!r}")
+        print(f"  pact boon {_b['name']} maneuver_type {mt} OK")
+
 # talent names: general/multiclass/class talents in character-creation.md; mc_features in classes.md
 cc = read("rules/character-creation.md")
 classes = read("rules/classes.md")

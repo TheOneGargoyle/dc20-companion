@@ -83,11 +83,14 @@ pact_boons:
 - name: Pact Weapon
   grants:
     maneuvers: 2
-  note: 2 Attack Maneuvers; Weapon Training; Spell Focus property
+  maneuver_type: Attack
+  note: 2 Attack Maneuvers of your choice (classes.md l.3244); Weapon Training; Spell Focus property
 - name: Pact Armor
   grants:
     maneuvers: 2
-  note: 2 Defensive Maneuvers; Armor Training; +1 AD & MDR while worn (contextual, not a grant)
+  maneuver_type: Defense
+  note: 2 Defensive Maneuvers of your choice (classes.md l.3269); Armor Training; +1 AD & MDR while worn
+    (contextual, not a grant)
 - name: Pact Spell
   note: an existing known Spell becomes the Pact Spell (no resource delta)
 - name: Pact Familiar
