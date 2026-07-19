@@ -36,7 +36,10 @@ levels:
        note: "2 Skill Points, 2 Spells, Expression (Auditory)"}
     - {slot: path, pick: Spellcaster, inferred: true,
        note: "Both paths rank 1 on sheet, not level-tagged; Spellcaster assumed L2 (pairs with the Bard talent). ASK ED."}
-    - {slot: spell, pick: "Command, Charm, Frost Bolt (3 across L2 sources, order unknown)", inferred: true}
+    # grants-only unification (2026-07-19): de-bundled the composite "Command, Charm, Frost Bolt (order unknown)" into three named flat picks. These are CHOICE-grant spells (MC Bard: Remarkable Repertoire {spells:2} + class table), so they belong in the free pool; order is immaterial in a flat pool.
+    - {slot: spell, pick: Command, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
+    - {slot: spell, pick: Charm, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
+    - {slot: spell, pick: Frost Bolt, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
   3:
     - {slot: subclass, pick: "Elemental Fury (Raging Elements: Fire)", note: "Elemental Affinity, Elemental Blast, Erupting Elements"}
     - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed (C2->3 assumed). ASK ED."}

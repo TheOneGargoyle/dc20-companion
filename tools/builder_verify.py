@@ -764,21 +764,10 @@ def check_replace_hatch():
     man4 = find(s1c, "maneuver", 2)
     ok("dismiss_note clears the 'was:' note but keeps a normal editable picker",
        not man4.get("was_note") and man4.get("widget") == "picker" and man4.get("current") == "Body Block", man4)
-    # expand = character-wide reconcile: every granting level (incl. L1 chargen) gets its slots
-    api2 = precon()
-    comp = find(st(api2), "maneuver", 2)
-    ok("multi-item composite is expandable; expand_n = total maneuvers granted (8)",
-       comp.get("expandable") is True and comp.get("expand_n") == 8, (comp.get("expandable"), comp.get("expand_n")))
-    api2.expand_composite(comp["id"])
-    L1 = api2.ledger["chargen"]["maneuvers"]
-    L2 = [e["pick"] for e in api2.ledger["levels"][2] if e.get("slot") == "maneuver"]
-    L4 = [e["pick"] for e in api2.ledger["levels"][4] if e.get("slot") == "maneuver"]
-    ok("reconcile sizes each level to its grant (L1=2, L2=3, L4=3)",
-       len(L1) == 2 and len(L2) == 3 and len(L4) == 3, (L1, L2, L4))
-    ok("captured boon names pre-fill the slots (L1 Cleave/Pathcarver, L4 has Brace/Side Step) - no blanks",
-       L1 == ["Cleave", "Pathcarver"] and L2 == ["Slam", "Body Block", "Throw Creature"]
-       and set(L4) == {"Heroic Intimidate", "Brace", "Side Step"} and UND not in (L1 + L2 + L4),
-       (L1, L2, L4))
+    # (The one-click "expand into per-level slots" reconcile was RETIRED 2026-07-19 with the
+    # grants-only unification - it flattened FIXED grants into the flat pool. Missing slots now
+    # self-heal via the auto ready-slot; see the grants-only section below. The single-value
+    # replace dropdown above is retained for a genuine composite.)
     # Expanded Boon's Pact Boon is now a first-class, catalog-driven pick (de-conflated from the talent)
     api3 = builder_api.BuilderAPI("runt", CATPATHS)
     boon = next((d for d in st(api3)["decisions"] if d.get("slot") == "pact_boon" and d.get("level") == 4), None)
@@ -801,19 +790,27 @@ def check_replace_hatch():
     cc4 = next(c for c in api4.ledger["chargen"]["class_choices"] if c["slot"] == "pact_boon")
     ok("changing the L1 boon re-aggregates grants from the catalog (Pact Familiar grants none)",
        cc4["picks"][0] == "Pact Familiar" and not cc4.get("grants"), (cc4.get("picks"), cc4.get("grants")))
-    mrows = [d for d in st(api2)["decisions"] if d.get("slot") == "maneuver"]
-    ok("generated maneuver rows are editable pickers and NOT removable (BUG-16: budget slots edit-only)",
-       all(d["widget"] == "picker" and d.get("editable") for d in mrows)
+    apiR = builder_api.BuilderAPI("runt", CATPATHS)
+    mrows = [d for d in st(apiR)["decisions"] if d.get("slot") == "maneuver"]
+    free = [d for d in mrows if not d.get("granted")]
+    granted = [d for d in mrows if d.get("granted")]
+    ok("free maneuver rows are editable pickers and NOT removable (BUG-16: budget slots edit-only)",
+       bool(free) and all(d["widget"] == "picker" and d.get("editable") for d in free)
        and not any(d.get("removable") for d in mrows),
-       [(d.get("level"), d.get("current"), d.get("removable")) for d in mrows])
+       [(d.get("current"), d.get("widget"), d.get("removable")) for d in mrows])
+    ok("grants-only: fixed pact-boon maneuvers show as read-only granted rows (Cleave/Pathcarver/Brace/Side Step)",
+       {d.get("pick") for d in granted} == {"Cleave", "Pathcarver", "Brace", "Side Step"}
+       and all(d["widget"] == "fixed" and not d.get("removable") for d in granted),
+       [d.get("pick") for d in granted])
     ok("no new problems introduced by the replace (runt is now fully clean; BUG-7 AD closed)",
        s1["problems"] == [], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("page JS carries the replace-picker furniture",
        "t.replaceable" in html and "&mdash; replace &mdash;" in html
        and 'class="select repl"' in html and "t.was_note" in html
-       and "data-dismiss" in html and "data-expand" in html and "t.expandable" in html
-       and "!t.expandable" in html)   # replace dropdown suppressed on expandable rows
+       and "data-dismiss" in html)
+    ok("retired reconcile furniture is gone from the page JS (data-expand / t.expandable)",
+       "data-expand" not in html and "t.expandable" not in html)
 
 
 # ---------------------------------------------------------------- (12) Wave 2 UX
@@ -1667,9 +1664,12 @@ def check_fr20():
     ok("Scaletrix L4 = talent, its 2 metamagic, then path, ancestry (no resources this level)",
        slot_seq("scaletrix", 4) == ["talent", "metamagic", "metamagic", "path", "ancestry_trait"],
        slot_seq("scaletrix", 4))
-    ok("Runt L1 = attributes -> class (schools+boon) -> ancestry -> resources (spells, maneuvers)",
+    # grants-only (2026-07-19): the 2 fixed Pact Weapon maneuvers now render as read-only granted
+    # rows (emitted with the boon's grant children) instead of duplicated flat picks, so within the
+    # resources block they precede the 4 free chargen spells.
+    ok("Runt L1 = attributes -> class (schools+boon) -> ancestry -> resources (granted maneuvers, spells)",
        slot_seq("runt", 1) == ["attributes", "spell_school", "spell_school", "spell_school", "pact_boon"]
-       + ["ancestry_trait"] * 7 + ["spell"] * 4 + ["maneuver"] * 2,
+       + ["ancestry_trait"] * 7 + ["maneuver"] * 2 + ["spell"] * 4,
        slot_seq("runt", 1))
 
 
@@ -1679,7 +1679,7 @@ def check_fr9():
     # (a) all six canon ledgers are at budget -> anc_spent == anc_budget, no auto slot, no problem
     for who in builder_build.CHARS:
         s = st(builder_api.BuilderAPI(who, CATPATHS))
-        autos = [d for d in s["decisions"] if d.get("auto")]
+        autos = [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "ancestry_trait"]
         anc_probs = [p for p in s["problems"] if "Ancestry point" in p]
         ok("%s at budget: anc_spent==anc_budget, no auto slot, no ancestry problem" % who,
            s["anc_spent"] == s["anc_budget"] and not autos and not anc_probs,
@@ -1740,7 +1740,7 @@ def check_bug16():
     api = builder_api.BuilderAPI("runt", CATPATHS)
     del api.ledger["chargen"]["ancestry_traits"][1]
     s = st(api)
-    auto = [d for d in s["decisions"] if d.get("auto")][0]
+    auto = [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "ancestry_trait"][0]
     owned = {d.get("current") for d in s["decisions"] if d["slot"] == "ancestry_trait"}
     opt = next(o["name"] for o in auto["options"]
                if 0 < o.get("cost", 0) <= 1 and o["name"] not in owned and "Attribute" not in o["name"])
@@ -1872,6 +1872,78 @@ def check_fr23():
        "Only 1 Stamina Regen benefit per Round." in html)
 
 
+def check_grants_only():
+    print("\n## (28) grants-only unification + maneuver/spell auto-heal (BUG-16 full fix)")
+    UND = "(undecided)"
+    # (a) every canon ledger is internally consistent: named flat picks + fixed grants == the
+    #     engine budget, EXCEPT Scaletrix, whose 4 genuinely-unrecorded Arcane spells are known.
+    for who in builder_build.CHARS:
+        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        gap_m = s["man_budget"] - s["man_have"]
+        gap_s = s["spell_budget"] - s["spell_have"]
+        exp = {"scaletrix": (0, 4)}.get(who, (0, 0))
+        ok("%-10s no maneuver/spell over-fill; gaps == expected %s" % (who, exp),
+           gap_m >= 0 and gap_s >= 0 and (gap_m, gap_s) == exp, (gap_m, gap_s))
+    # (b) Runt: the 4 fixed pact-boon maneuvers are read-only granted rows (not free pickers,
+    #     not duplicated into the flat pool), and the free maneuvers stay editable pickers.
+    sr = st(builder_api.BuilderAPI("runt", CATPATHS))
+    mrows = [d for d in sr["decisions"] if d.get("slot") == "maneuver"]
+    granted = {d["pick"] for d in mrows if d.get("granted")}
+    free = [d for d in mrows if not d.get("granted")]
+    ok("Runt: fixed pact-boon maneuvers are read-only granted rows (Cleave/Pathcarver/Brace/Side Step)",
+       granted == {"Cleave", "Pathcarver", "Brace", "Side Step"}
+       and all(d["widget"] == "fixed" and not d.get("removable") for d in mrows if d.get("granted")),
+       sorted(granted))
+    ok("Runt: free maneuvers are editable pickers; no maneuver row is duplicated",
+       bool(free) and all(d["widget"] == "picker" and d.get("editable") for d in free)
+       and len(mrows) == len({d["pick"] for d in mrows}), [d["pick"] for d in mrows])
+    # (c) Scaletrix: the gap surfaces as exactly ONE auto spell ready-slot (chaining, FR-9 style),
+    #     it is a real spell picker, and it raises NO problem (advisory, baseline stays clean).
+    api = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    s = st(api)
+    sp_autos = [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+    ok("Scaletrix: exactly one auto spell ready-slot (id cg:spell:+, undecided, has options)",
+       len(sp_autos) == 1 and sp_autos[0]["id"] == "cg:spell:+"
+       and sp_autos[0]["current"] == UND and len(sp_autos[0].get("options") or []) > 5, sp_autos[:1])
+    ok("Scaletrix: no maneuver auto-slot (budget 0) and the gap raises no builder/engine problem",
+       not [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "maneuver"]
+       and not s["builder_problems"] and not s["catalog_problems"], s["builder_problems"])
+    ok("Scaletrix: readout meta reports 6 of 10 spells recorded",
+       s["spell_have"] == 6 and s["spell_budget"] == 10, (s["spell_have"], s["spell_budget"]))
+    # (d) picking the auto slot materialises a real chargen spell, then the NEXT ready slot appears
+    #     (chaining one at a time) until the gap closes.
+    pick = next(o["name"] for o in sp_autos[0]["options"] if o["name"] != UND)
+    s2 = json.loads(api.set_decision("cg:spell:+", pick))
+    ok("picking the auto slot materialises a real editable spell and re-derives the readout (7 of 10)",
+       s2["spell_have"] == 7
+       and any(d["slot"] == "spell" and d.get("current") == pick and not d.get("auto")
+               for d in s2["decisions"])
+       and len([d for d in s2["decisions"] if d.get("auto") and d.get("slot") == "spell"]) == 1,
+       s2["spell_have"])
+    # fill the remaining 3 -> gap closes, no more auto spell slot
+    for _ in range(3):
+        a = [d for d in json.loads(api.state())["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+        api.set_decision("cg:spell:+", next(o["name"] for o in a[0]["options"] if o["name"] != UND))
+    sf = json.loads(api.state())
+    ok("after filling all 4, the gap closes (10 of 10, no auto spell slot, still no problem)",
+       sf["spell_have"] == 10
+       and not [d for d in sf["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+       and not sf["builder_problems"], (sf["spell_have"],))
+    # (e) an existing undecided flat slot suppresses the auto slot (one ready slot at a time)
+    api2 = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    api2.ledger["chargen"].setdefault("spells", []).append(UND)
+    s3 = st(api2)
+    ok("an existing undecided spell slot suppresses the auto slot (never two open at once)",
+       not [d for d in s3["decisions"] if d.get("auto") and d.get("slot") == "spell"], None)
+    # (f) page furniture: the readout element + the retired-reconcile absence
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html has the maneuver/spell readout element (#resreadout) + sentinels in API_PY",
+       'id="resreadout"' in html and "cg:spell:+" in builder_build.API_PY
+       and "cg:man:+" in builder_build.API_PY and "_res_have" in builder_build.API_PY)
+    ok("expand_composite is gone from API_PY (reconcile retired)",
+       "def expand_composite" not in builder_build.API_PY)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -1910,6 +1982,7 @@ def main():
         check_fr21()
         check_fr4()
         check_fr23()
+        check_grants_only()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1937,6 +2010,7 @@ def main():
     print("       BUG-16 maneuver/spell budget slots edit-only (not removable into an unrecoverable shortfall)")
     print("       FR-4 display-name rename for canon/loaded characters (set_meta, handle/deeplink unchanged)")
     print("       FR-23 Stamina Regen trigger(s) on the sheet, catalog-driven (errata Spellblade; Runt two triggers)")
+    print("       grants-only unification + maneuver/spell auto-heal (read-only fixed grants; ready-slot chaining; reconcile retired)")
     sys.exit(0)
 
 

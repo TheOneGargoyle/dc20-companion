@@ -65,9 +65,7 @@ chargen:
   - Heal
   - Vampiric Touch
   - Wild Guard
-  maneuvers:
-  - Cleave
-  - Pathcarver
+  maneuvers: []  # grants-only unification (2026-07-19): Cleave & Pathcarver are FIXED grants of the L1 Pact Weapon boon (class_choices.granted_maneuvers), not free picks. Removed from the flat pool to end the double-count; the boon's granted_maneuvers is now the single source.
   combat_training:
   - Heavy Armor
 
@@ -132,14 +130,7 @@ levels:
     pick: Heroic Intimidate
     source: reconciled slots
     note: Added in builder (reconciled per-level slots).
-  - slot: maneuver
-    pick: Brace
-    source: reconciled slots
-    note: Added in builder (reconciled per-level slots).
-  - slot: maneuver
-    pick: Side Step
-    source: reconciled slots
-    note: Added in builder (reconciled per-level slots).
+  # grants-only unification (2026-07-19): Brace & Side Step removed from the flat pool - they are the FIXED grants of the L4 Pact Armor boon (class_choices/L4 pact_boon granted_maneuvers), not free picks. The boon's granted_maneuvers is the single source.
 
 skills:
   allocation_confidence: inferred

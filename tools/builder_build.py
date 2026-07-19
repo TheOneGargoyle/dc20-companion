@@ -527,6 +527,56 @@ class BuilderAPI:
         return any(e.get('slot') == 'ancestry_trait' and str(e.get('pick')) == UNDECIDED
                    for es in (self.ledger.get('levels') or {}).values() for e in es or [])
 
+    # ---------- grants-only maneuver/spell auto-heal (2026-07-19) ----------
+    # The maneuver/spell analog of the FR-9 ancestry ready-slot. Model: the engine derives
+    # "Maneuvers/Spells known" as a BUDGET (class table + path + all grants); the flat pool
+    # (free-choice picks) + the granted_<resource> lists (FIXED grants, e.g. pact-boon
+    # maneuvers) must supply that many NAMED picks. When fewer are named than the budget, a
+    # gap exists (e.g. Scaletrix's unrecorded Arcane spells) and self-heals via a ready slot.
+    def _res_slot(self, resource):
+        return 'maneuver' if resource == 'maneuvers' else 'spell'
+
+    def _res_budget(self, resource):
+        # engine-derived known count = single source of truth for the budget.
+        cur = self.ledger['current_level']
+        lbl = 'Maneuvers known' if resource == 'maneuvers' else 'Spells known'
+        try:
+            return int(eng.replay(self.ledger, cur).derived.get(lbl) or 0)
+        except Exception:
+            return 0
+
+    def _res_have(self, resource):
+        # named picks filling the budget: decided flat free picks (chargen + per-level, at/below
+        # current) + the fixed-grant names in granted_<resource> lists. Undecided / composite
+        # entries do not count as filled.
+        cur = self.ledger['current_level']
+        gkey = 'granted_%s' % resource
+        slot = self._res_slot(resource)
+        have = sum(1 for x in (self.ledger['chargen'].get(resource) or [])
+                   if str(x) != UNDECIDED and not is_composite(x))
+        for c in (self.ledger['chargen'].get('class_choices') or []):
+            have += sum(1 for g in (c.get(gkey) or []) if str(g) != UNDECIDED)
+        for lvl, es in (self.ledger.get('levels') or {}).items():
+            if int(lvl) > cur:
+                continue
+            for e in es or []:
+                if e.get('slot') == slot and str(e.get('pick')) != UNDECIDED and not is_composite(e.get('pick')):
+                    have += 1
+                have += sum(1 for g in (e.get(gkey) or []) if str(g) != UNDECIDED)
+        return have
+
+    def _res_has_undecided(self, resource):
+        # an already-open undecided flat slot suppresses the auto slot, so at most ONE ready
+        # slot ever shows (chaining on each pick, the FR-9 pattern) and the trips/scratch
+        # harness stays safe.
+        cur = self.ledger['current_level']
+        slot = self._res_slot(resource)
+        if any(str(x) == UNDECIDED for x in (self.ledger['chargen'].get(resource) or [])):
+            return True
+        return any(e.get('slot') == slot and str(e.get('pick')) == UNDECIDED
+                   for lvl, es in (self.ledger.get('levels') or {}).items() if int(lvl) <= cur
+                   for e in es or [])
+
     def _traits(self):
         for t in self.ledger['chargen'].get('ancestry_traits') or []:
             yield t
@@ -1108,6 +1158,20 @@ class BuilderAPI:
             auto = self._dec('cg:trait:+', 1, 'ancestry_trait', UNDECIDED, None, False, True)
             auto['auto'] = True
             ds.append(auto)
+        # grants-only auto-heal (2026-07-19): the maneuver/spell analog of the FR-9 ready-slot.
+        # When fewer NAMED picks fill the budget than the engine derives (e.g. Scaletrix's
+        # unrecorded Arcane spells), show ONE ready picker so the gap self-heals on pick,
+        # chaining one at a time. Advisory only - being under the known count is legal-but-
+        # unfinished (surfaced by the readout + this row), not an illegal state, so it raises
+        # no problem and leaves the baseline clean.
+        for resource in ('maneuvers', 'spells'):
+            if self._res_have(resource) < self._res_budget(resource) \
+                    and not self._res_has_undecided(resource) \
+                    and self._options_for(self._res_slot(resource)):
+                sid = 'cg:man:+' if resource == 'maneuvers' else 'cg:spell:+'
+                auto = self._dec(sid, 1, self._res_slot(resource), UNDECIDED, None, False, True)
+                auto['auto'] = True
+                ds.append(auto)
         return self._reorder_decisions(ds)
 
     def _reorder_decisions(self, ds):
@@ -1161,13 +1225,11 @@ class BuilderAPI:
                 and str(pick) != UNDECIDED and is_composite(pick):
             d['replaceable'] = True
             d['options'] = self._options_for(slot)
-            if slot in ('maneuver', 'spell') and str(did).startswith('L'):
-                head = str(pick).split('(')[0]
-                nms = [x.strip() for x in re.split(r',|\s\+\s', head) if x.strip()]
-                known = {o['name'] for o in d['options']}
-                if sum(1 for x in nms if x in known) >= 2:
-                    d['expandable'] = True
-                    d['expand_n'] = self._total_granted('maneuvers' if slot == 'maneuver' else 'spells')
+            # (The old one-click "expand into per-level slots" reconcile that lived here was
+            # RETIRED 2026-07-19: it flattened FIXED grants (pact-boon maneuvers) into the flat
+            # pool alongside their granted_ list, which is exactly the double-count the grants-only
+            # unification removed. Missing maneuver/spell slots now self-heal via the auto ready-slot
+            # in _decisions, and a genuine composite still gets the single-value replace dropdown.)
         if d['widget'] == 'picker':
             opts = self._options_for(slot)
             if slot in FR7_FILTER_SLOTS:  # FR-7: hide options already taken elsewhere
@@ -1261,6 +1323,23 @@ class BuilderAPI:
                                      pick, None, False, editable,
                                      plan=level > self.ledger['current_level'],
                                      plan_editable=editable and level > self.ledger['current_level']))
+        # grants-only display (2026-07-19): FIXED maneuver/spell grants (e.g. a pact boon's
+        # specific maneuvers) live in granted_maneuvers/granted_spells and are determined by
+        # the parent pick, not free-choice picks - so they are read-only rows glued under the
+        # parent, not editable free pickers. This keeps the granted names visible after the
+        # unification removed them from the flat pool. (granted_spells handled by slice 5 above
+        # is skipped so it is not rendered twice.)
+        pname = (parent.get('pick')
+                 or ', '.join(str(x) for x in (parent.get('picks') or [])) or 'grant')
+        for resource, singular in (('maneuvers', 'maneuver'), ('spells', 'spell')):
+            if resource == 'spells' and self._spell_grant_tag(parent):
+                continue
+            for k, nm in enumerate(parent.get('granted_%s' % resource) or []):
+                out.append({'id': 'GG#%s#%s#%d' % (parentref, resource, k), 'level': level,
+                            'slot': singular, 'pick': nm, 'cost': None, 'inferred': False,
+                            'editable': False, 'plan': level > cur, 'widget': 'fixed',
+                            'removable': False, 'granted': True,
+                            'note': 'granted (fixed) by %s' % base_name(pname)})
         return out
 
     def _apply_grants(self, entry, grants, changed):
@@ -1458,6 +1537,9 @@ class BuilderAPI:
             'anc_levels': anc_levels,
             'anc_spent': self._anc_budget()[0],     # FR-9: live "N of M spent" readout
             'anc_budget': self._anc_budget()[1],
+            # grants-only auto-heal: live "N of M recorded" readout for maneuvers/spells
+            'man_have': self._res_have('maneuvers'), 'man_budget': self._res_budget('maneuvers'),
+            'spell_have': self._res_have('spells'), 'spell_budget': self._res_budget('spells'),
             'anc_lists_all': sorted(self.cat['ancestries']['ancestries'].keys()),
             'skill_trade_options': self._skill_trade_options(),
             'decisions': self._decisions(),
@@ -1561,6 +1643,14 @@ class BuilderAPI:
             self.ledger['chargen'].setdefault('ancestry_traits', []).append(
                 {'name': UNDECIDED, 'cost': 0, 'note': BUILDER_NOTE})
             self._set_trait(self.ledger['chargen']['ancestry_traits'][-1], value)
+            return self.state()
+        if did in ('cg:man:+', 'cg:spell:+'):
+            # grants-only auto-heal: materialise a real chargen maneuver/spell from the ready
+            # slot (mirrors cg:trait:+). Next state() re-derives whether another ready slot is
+            # warranted (still under the known count), chaining one at a time.
+            key = 'maneuvers' if did == 'cg:man:+' else 'spells'
+            if value != UNDECIDED:
+                self.ledger['chargen'].setdefault(key, []).append(value)
             return self.state()
         if did.startswith('cg:'):
             parts = did.split(':')
@@ -1697,88 +1787,11 @@ class BuilderAPI:
             ents.append({'slot': 'pact_boon', 'pick': UNDECIDED,
                          'source': 'talent rider (Expanded Boon)', 'note': BUILDER_NOTE})
 
-    def _granted_at_level(self, lvl, resource):
-        # how many of a resource ('maneuvers'/'spells') this level grants: class-spine
-        # count + a Martial/Spellcaster path picked here + any maneuvers/spells grant on
-        # this level's talents/boons/choices. Sizes composite expansion.
-        n = int(self.ccat['spine'].get(lvl, {}).get(resource, 0) or 0)
-        for e in self.ledger['levels'].get(lvl, []) or []:
-            p = str(e.get('pick', ''))
-            if e.get('slot') == 'path':
-                if resource == 'maneuvers' and p.startswith('Martial'):
-                    n += 1
-                elif resource == 'spells' and p.startswith('Spellcaster'):
-                    n += 1
-            n += int((e.get('grants') or {}).get(resource, 0) or 0)
-        return n
-
-    def _parse_picks(self, pk):
-        # names from a composite / single pick (before any parenthetical), minus (undecided)
-        head = str(pk).split('(')[0]
-        return [x.strip() for x in re.split(r',|\s\+\s', head)
-                if x.strip() and x.strip() != UNDECIDED]
-
-    def _total_granted(self, resource):
-        # every slot of a resource the character is granted: L1 (spine + chargen boon/choice
-        # grants) + each later level's grant.
-        n = int(self.ccat['spine'].get(1, {}).get(resource, 0) or 0)
-        for c in (self.ledger['chargen'].get('class_choices') or []):
-            n += int((c.get('grants') or {}).get(resource, 0) or 0)
-        for L in (self.ledger.get('levels') or {}):
-            n += self._granted_at_level(L, resource)
-        return n
-
-    def expand_composite(self, did):
-        # one-click RECONCILE (triggered from a composite row): rebuild the whole character's
-        # maneuver/spell enumeration so every granting level - L1 chargen included - shows
-        # exactly the slots it grants. Each level keeps its own recorded names (up to its
-        # grant); surplus cascades forward to the next granting level; gaps become (undecided).
-        did = str(did)
-        if not did.startswith('L'):
-            return self.state()
-        lvl, idx = (int(x) for x in did[1:].split(':'))
-        slot = self.ledger['levels'][lvl][idx].get('slot')
-        if slot not in ('maneuver', 'spell'):
-            return self.state()
-        resource = 'maneuvers' if slot == 'maneuver' else 'spells'
-        # L1 grant (class spine + chargen boon/choice grants, e.g. Pact Weapon)
-        l1g = int(self.ccat['spine'].get(1, {}).get(resource, 0) or 0)
-        for c in (self.ledger['chargen'].get('class_choices') or []):
-            l1g += int((c.get('grants') or {}).get(resource, 0) or 0)
-        # ordered plan of (level_key, granted, recorded_names); key 1 == chargen/L1
-        gkey = 'granted_maneuvers' if resource == 'maneuvers' else 'granted_spells'
-        l1_names = [n for m in (self.ledger['chargen'].get(resource) or [])
-                    for n in self._parse_picks(m)]
-        for c in (self.ledger['chargen'].get('class_choices') or []):
-            l1_names += list(c.get(gkey) or [])
-        plan = [(1, l1g, l1_names)]
-        for L in sorted(self.ledger.get('levels') or {}):
-            names = [n for e in self.ledger['levels'][L] if e.get('slot') == slot
-                     for n in self._parse_picks(e.get('pick'))]
-            for e in self.ledger['levels'][L]:
-                names += list(e.get(gkey) or [])
-            plan.append((L, self._granted_at_level(L, resource), names))
-        # distribute names into per-level slots, cascading surplus forward
-        carry, result = [], {}
-        for (L, g, names) in plan:
-            pool = carry + names
-            result[L] = (pool[:g] + [UNDECIDED] * (g - len(pool)))[:g] if g > 0 else []
-            carry = pool[g:]
-        # write back: L1 -> chargen list; each level -> regenerated maneuver/spell entries
-        self.ledger['chargen'][resource] = list(result.get(1, []))
-        base = '%s (reconciled per-level slots).' % BUILDER_NOTE
-        last = None
-        for L in sorted(self.ledger.get('levels') or {}):
-            ents = self.ledger['levels'][L]
-            ents[:] = [e for e in ents if e.get('slot') != slot]
-            for pk in result.get(L, []):
-                ents.append({'slot': slot, 'pick': pk, 'source': 'reconciled slots', 'note': base})
-                last = L
-        if carry and last is not None and self.ledger['levels'][last]:
-            self.ledger['levels'][last][-1]['note'] = (
-                '%s Overflow - more recorded than any level grants (confirm): %s'
-                % (base, ', '.join(carry)))
-        return self.state()
+    # (The reconcile cluster _granted_at_level / _parse_picks / _total_granted / expand_composite
+    # was RETIRED 2026-07-19 with the grants-only unification. Its one-click "expand into per-level
+    # slots" flattened FIXED grants into the flat pool alongside their granted_ lists, which is the
+    # double-count this change removed. Missing maneuver/spell slots now self-heal via the auto
+    # ready-slot in _decisions; a genuine composite still gets the single-value replace dropdown.)
 
     def set_attr(self, name, value):
         self.ledger['chargen']['attributes'][str(name)] = int(value)
@@ -2218,7 +2231,8 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
       <div id="decisions"></div>
       <div class="addrow"><select class="select" id="tradd-lvl" style="max-width:80px"></select>
         <button class="exportbtn small" id="tradd">+ ancestry trait</button>
-        <span class="src" id="ancpts"></span></div>
+        <span class="src" id="ancpts"></span>
+        <span class="src" id="resreadout" style="margin-left:.75rem"></span></div>
     </div>
     <div class="card">
       <h3 class="sec">Skills &amp; Trades <span class="wlabel">skill/trade allocator</span></h3>
@@ -2666,13 +2680,10 @@ function render(s){
       const cost = (t.cost!==null && t.cost!==undefined) ? ` <span style="font-size:.72rem;color:var(--warn)">(cost ${t.cost})</span>`:"";
       const allocHint = (!t.plan && (t.slot==='skill'||t.slot==='trade'))
         ? ' <span style="font-size:.7rem;color:var(--accent)">&rarr; apply mastery changes in the allocator below</span>' : '';
-      const replHTML = (t.replaceable && t.options && !t.expandable)
+      const replHTML = (t.replaceable && t.options)
         ? ` <select class="select repl" data-dec="${esc(t.id)}" title="replace this with a single valid ${esc(t.slot)}"><option value="" selected>&mdash; replace &mdash;</option>${optHTML(t.options, null, null)}</select>`
         : '';
-      const expandHTML = t.expandable
-        ? ` <a href="#" data-expand="${esc(t.id)}" style="font-size:.7rem;color:var(--accent)" title="rebuild all maneuver/spell slots across every level (${t.expand_n} total) so each granted pick has its own slot">[expand into per-level slots]</a>`
-        : '';
-      body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${expandHTML}${replHTML}</span>`;
+      body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
     const slotLabel = t.slot==='spell_tagged' ? 'spell' : t.slot;  // BUG-12(a): don't leak the internal slot kind
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
@@ -2738,7 +2749,6 @@ function render(s){
   document.querySelectorAll('[data-attr]').forEach(el => el.onchange = () => refresh(api.set_attr(el.dataset.attr, el.value)));
   document.querySelectorAll('[data-rm]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.remove_decision(el.dataset.rm)); });
   document.querySelectorAll('[data-dismiss]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.dismiss_note(el.dataset.dismiss)); });
-  document.querySelectorAll('[data-expand]').forEach(el => el.onclick = ev => { ev.preventDefault(); refresh(api.expand_composite(el.dataset.expand)); });
   // + ancestry trait control
   $('tradd-lvl').innerHTML = s.anc_levels.map(l=>`<option value="${l}">L${l}</option>`).join("");
   $('tradd').onclick = () => refresh(api.add_trait($('tradd-lvl').value));
@@ -2750,6 +2760,16 @@ function render(s){
     else if(sp<bu){ col='var(--warn)'; tail=` &mdash; ${bu-sp} to spend`; }
     else { col='var(--ok)'; tail=' &mdash; balanced'; }
     $('ancpts').innerHTML = `Ancestry points: <b style="color:${col}">${sp} of ${bu} spent</b>${tail}`;
+  }
+  if($('resreadout')){
+    // grants-only auto-heal: show maneuver/spell "N of M recorded" only when under the known
+    // count (a gap the ready slot heals); silent when complete, to avoid clutter.
+    const bits=[];
+    if(s.man_budget>0 && s.man_have<s.man_budget)
+      bits.push(`Maneuvers: <b style="color:var(--warn)">${s.man_have} of ${s.man_budget} recorded</b>`);
+    if(s.spell_budget>0 && s.spell_have<s.spell_budget)
+      bits.push(`Spells: <b style="color:var(--warn)">${s.spell_have} of ${s.spell_budget} recorded</b>`);
+    $('resreadout').innerHTML = bits.join(' &middot; ');
   }
   // skills / trades allocator
   $('alloc').innerHTML = s.alloc.map(a => {

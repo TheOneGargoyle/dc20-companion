@@ -40,7 +40,9 @@ levels:
     - {slot: talent, pick: "Spell School Initiate: Transmutation", grants: {spells: 2},
        note: "School Magic = 2 Arcane spells from the school; Signature School = -1 MP once/rest (classes.md l.3526+)"}
     - {slot: maneuver, pick: Resolve, inferred: true, source: "Martial path rank 1"}
-    - {slot: spell, pick: "Death Bolt + Regenerate (the 2 SSI picks; timing/order inferred)", inferred: true}
+    # grants-only unification (2026-07-19): de-bundled "Death Bolt + Regenerate (the 2 SSI picks)" into two named flat picks. These are CHOICE-grant spells (Spell School Initiate: Transmutation {spells:2}), so they belong in the free pool; order is immaterial in a flat pool.
+    - {slot: spell, pick: Death Bolt, inferred: true, note: "Spell School Initiate (Transmutation) choice-grant spell (timing/order inferred)."}
+    - {slot: spell, pick: Regenerate, inferred: true, note: "Spell School Initiate (Transmutation) choice-grant spell (timing/order inferred)."}
   3:
     - {slot: subclass, pick: "Rune Knight", grants: {runes: 2}, granted_runes: [Flame, Water]}  # FR-8 slice 3: 2 Runes learned (classes.md l.3080); flows via the slice-2 child-slot backbone
     - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed. ASK JESSE."}

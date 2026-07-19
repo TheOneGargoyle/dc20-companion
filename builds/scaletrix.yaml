@@ -27,6 +27,7 @@ chargen:
     - {name: Concussive Breath, source: Dragonborn, cost: 1}
     # Total 5 = L1 budget; Second Breath = the L4 spend (budget-inferred; which 2 pts landed at L4 is a guess).
   spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt]
+  # grants-only unification (2026-07-19): 6 of Scaletrix's 10 known spells are named (4 here + Regenerate L2 + Dispel Magic L3). The other 4 (2 Innate Power "Intuitive" choice-grant + 2 Spellcaster-path free picks) are genuinely unrecorded and surface as auto-heal ready slots in the builder. ASK DAMO to name them.
   maneuvers: []
   combat_training: [Spell Focuses, Light Armor]
 
@@ -35,11 +36,12 @@ levels:
     - {slot: talent, pick: "MC Sorcerer: Innate Power (Intuitive)", grants: {mp: 1, spells: 2},
        note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51)"}
     - {slot: path, pick: Spellcaster}
-    - {slot: spell, pick: "Regenerate (+2 Intuitive picks among Arcane list, order unknown)", inferred: true}
+    # grants-only unification (2026-07-19): cleaned to the one named pick (Regenerate). The 2 Innate Power "Intuitive" choice-grant spells that were bundled into this string are NOT actually recorded, so they now surface as auto-heal ready slots (ASK DAMO) rather than hiding in the entry text.
+    - {slot: spell, pick: Regenerate, inferred: true}
   3:
     - {slot: subclass, pick: Phoenix, note: "Fiery Form, Cleansing Flames, Rolling Wild Fire, Fire Within"}
     - {slot: attribute, pick: might, inferred: true, note: "Destination unconfirmed. ASK DAMO."}
-    - {slot: spell, pick: "Dispel Magic (or another of the Arcane set)", inferred: true, source: "class table +1"}
+    - {slot: spell, pick: Dispel Magic, inferred: true, source: "class table +1", note: "Best-guess name (or another Arcane spell); ASK DAMO. grants-only unification 2026-07-19: cleaned from a parenthetical composite."}
   4:
     - {slot: talent, pick: "Meta Magic", grants: {metamagic: 2},
        granted_metamagic: [Quickened Spell, Vicious Spell],
