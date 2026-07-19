@@ -1231,8 +1231,10 @@ def check_slice5():
            [d.get("id") for d in os_["decisions"] if "#spells#" in str(d.get("id"))])
     # FR-13a positive case: Scaletrix's Innate Power (spell_access source Arcane) materialises 2
     # source-constrained 'spell_sourced' children, Arcane-filtered, reading his granted_spells.
-    sca = st(builder_api.BuilderAPI("scaletrix", CATPATHS))
-    scakids = [d for d in sca["decisions"] if d.get("slot") == "spell_sourced"]
+    scapi = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    sca = st(scapi)
+    scakids = [d for d in sca["decisions"]
+               if d.get("slot") == "spell_sourced" and str(d.get("id")).startswith("GC#L2:0#spells#")]
     ok("Scaletrix Innate Power: 2 source-constrained spell_sourced children (Arcane-only), read granted_spells",
        len(scakids) == 2
        and {d.get("current") for d in scakids} == {"Disintegrating Beam", "Gravity Well"}
@@ -1240,6 +1242,64 @@ def check_slice5():
        and all(all("Arcane" in (meta.get(o["name"]) or {}).get("sources", []) or o["name"] == d.get("current")
                    for o in d["options"]) for d in scakids),
        [(d.get("current"), len(d.get("options") or [])) for d in scakids])
+
+    # ---- FR-13a SLICE 2 -------------------------------------------------------------------------
+    # (a) Command is childed UNDER the Fiendish Magic ancestry trait (Arcane + Elemental/Enchantment
+    #     source-constrained), not a flat chargen spell. Its GC# id encodes the ancestry-trait parent
+    #     (cgtrait:<i>), and it is NOT in the flat chargen spells list.
+    cmdkids = [d for d in sca["decisions"]
+               if d.get("slot") == "spell_sourced" and str(d.get("id")).startswith("GC#cgtrait:")]
+    ok("slice2(a): Command is an ancestry-trait grant-child (GC#cgtrait:...), source-constrained, not flat",
+       len(cmdkids) == 1 and cmdkids[0]["current"] == "Command"
+       and cmdkids[0]["widget"] == "picker" and cmdkids[0].get("editable")
+       and cmdkids[0].get("current_group") is None  # not resolved via the ancestry-trait alias path
+       and all((meta.get(o["name"]) or {}).get("school") in ("Elemental", "Enchantment")
+               or o["name"] == "Command" for o in cmdkids[0]["options"])
+       and "Command" not in (scapi.ledger["chargen"].get("spells") or []),
+       (cmdkids[0]["current"], len(cmdkids[0]["options"])) if cmdkids else None)
+    ok("slice2(a): the ancestry-trait Command child writes into the trait's granted_spells (structural GC# link)",
+       scapi.ledger["chargen"]["ancestry_traits"][1].get("granted_spells") == ["Command"],
+       scapi.ledger["chargen"]["ancestry_traits"][1].get("granted_spells"))
+
+    # (b) the two Spellcaster-path spells (Dispel Magic, Telekinesis) carry a canonical source, so their
+    #     flat pickers are Arcane-source-filtered - NO "(current, off-list)" option any more.
+    def _offlist(dec):
+        return any("off-list" in (o.get("label") or "") for o in (dec.get("options") or []))
+    flatarc = {d["current"]: d for d in sca["decisions"]
+               if d.get("slot") == "spell" and d.get("current") in ("Dispel Magic", "Telekinesis")}
+    ok("slice2(b): Dispel Magic + Telekinesis are source-filtered flat pickers with NO off-list option",
+       set(flatarc) == {"Dispel Magic", "Telekinesis"}
+       and not any(_offlist(d) for d in flatarc.values())
+       and all(all("Arcane" in (meta.get(o["name"]) or {}).get("sources", []) for o in d["options"])
+               for d in flatarc.values()),
+       {k: (len(d["options"]), _offlist(d)) for k, d in flatarc.items()})
+    ok("slice2(b): a FREE-TEXT source (minimus 'Spellcaster path +1 spell') is NOT treated as canonical",
+       True in [any(d.get("slot") == "spell" for d in
+                    st(builder_api.BuilderAPI("minimus", CATPATHS))["decisions"])],
+       "minimus flat spells still render (Commander model none)")
+    # regression: no Scaletrix spell picker anywhere still shows an off-list option (all 3 tags cleared)
+    ok("slice2: NO Scaletrix spell/spell_sourced picker carries an off-list option (all 3 Arcane tags cleared)",
+       not any(_offlist(d) for d in sca["decisions"]
+               if d.get("slot") in ("spell", "spell_sourced")),
+       [d.get("current") for d in sca["decisions"]
+        if d.get("slot") in ("spell", "spell_sourced") and _offlist(d)])
+
+    # (c) the Sorcerous Origin sub-choice is an EXPLICIT editable node (source_choice) whose value
+    #     drives the Innate Power children's source filter; re-picking it resets + re-filters them.
+    sonode = [d for d in sca["decisions"] if d.get("slot") == "source_choice"]
+    ok("slice2(c): explicit Sorcerous Origin node (source_choice), current Arcane, 3 source options",
+       len(sonode) == 1 and sonode[0]["current"] == "Arcane"
+       and sonode[0]["widget"] == "picker" and sonode[0].get("editable")
+       and {o["name"] for o in sonode[0]["options"]} == {"Arcane", "Divine", "Primal"},
+       (sonode[0]["current"], [o["name"] for o in sonode[0]["options"]]) if sonode else None)
+    scapi.set_decision(sonode[0]["id"], "Primal")
+    s3 = st(scapi)
+    ip3 = [d for d in s3["decisions"] if str(d.get("id")).startswith("GC#L2:0#spells#")]
+    ok("slice2(c): re-picking the origin to Primal RESETS the 2 Innate Power children + re-filters to Primal",
+       scapi.ledger["levels"][2][0].get("sorcerous_origin", {}).get("chosen_source") == "Primal"
+       and all(d["current"] == UND for d in ip3)
+       and all(all("Primal" in (meta.get(o["name"]) or {}).get("sources", []) for o in d["options"]) for d in ip3),
+       (scapi.ledger["levels"][2][0].get("sorcerous_origin"), [d["current"] for d in ip3]))
 
     # ---- (f) re-picking the subclass rebuilds/clears the constrained spell slot (_apply_grants wiring) ----
     rapi.set_decision(subref, "Fey")                            # a non-tag-constrained subclass (no spell_access)

@@ -20,23 +20,25 @@ chargen:
   ancestry_traits:
     - {name: Mana Increase, source: Fiendborn, cost: 1, grants: {mp: 1}}
     - {name: Arcane Spell, source: Fiendborn, cost: 2, grants: {spells: 1},
-       note: 'Fiendish Magic (Fiendborn "Arcane Spell" trait): 1 Arcane spell limited to Elemental or Enchantment schools. The chosen spell = Command (Arcane source, Enchantment school = legal), from Darryl''s sheet screenshot. Recorded as a flat chargen spell for now; childing it UNDER this ancestry trait with source-filtering is FR-13a slice 2 (needs the ancestry-trait grant-child path). FR-13a slice 1, 2026-07-19.'}
+       granted_spells: [Command], spell_access: {source: Arcane, schools: [Elemental, Enchantment]},
+       note: 'Fiendish Magic (Fiendborn "Arcane Spell" trait): 1 Arcane spell limited to Elemental or Enchantment schools. FR-13a slice 2 (2026-07-19): Command is now CHILDED under this ancestry trait as a source-constrained grant-child (granted_spells + spell_access), so it renders as an Arcane/Elemental-or-Enchantment-filtered picker instead of the old flat chargen spell (which showed as "(current, off-list)" against the Primal class list). Command = Arcane source, Enchantment school = legal. The {spells:1} grant is CONSUMED by this child (engine counts it via the grant, not the flat list), so the 10-spell total is unchanged.'}
     - {name: Radiant Weakness, source: Fiendborn, cost: -1}
     - {name: Umbral Weakness, source: Fiendborn, cost: -1}
     - {name: Darkvision, source: Fiendborn, cost: 1}
     - {name: Draconic Breath Weapon (Fire), source: Dragonborn, cost: 2}
     - {name: Concussive Breath, source: Dragonborn, cost: 1}
     # Total 5 = L1 budget; Second Breath = the L4 spend (budget-inferred; which 2 pts landed at L4 is a guess).
-  spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt, Command]
-  # FR-13a 2026-07-19: ALL 10 spells now named + sourced from Darryl's sheet screenshot.
+  spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt]
+  # FR-13a: ALL 10 spells named + sourced from Darryl's sheet screenshot.
   # PRIMAL (5, Druid source): Wild Guard, Primal Hide, Fireball, Fire Bolt (4 L1 table here)
   #   + Regenerate (the L3 table +1 spell, moved to L3 below where the Druid spine grants it).
-  # ARCANE (5): Command (Fiendish Magic ancestry trait; recorded here as a flat L1 spell, slice-2
-  #   will child it under the trait), Disintegrating Beam + Gravity Well (Innate Power / Intuitive
-  #   Magic, L2, childed under the talent + Arcane-source-filtered), Dispel Magic (Spellcaster path
-  #   rank 1, L2, flat), Telekinesis (Spellcaster path rank 2, L4, flat). Sheet writes "Telekenesis"
-  #   = a typo for Telekinesis. The exact Intuitive-vs-path split within the Arcane 5 is an assumption
-  #   (all are Arcane-legal); only refine if Damo cares. No auto-heal ready slots any more.
+  # ARCANE (5): Command (Fiendish Magic ancestry trait; FR-13a slice 2 childed it under the trait
+  #   as granted_spells + spell_access, so it is NO LONGER a flat chargen spell), Disintegrating Beam
+  #   + Gravity Well (Innate Power / Intuitive Magic, L2, childed under the talent + Arcane-source-
+  #   filtered), Dispel Magic (Spellcaster path rank 1, L2, source-filtered flat spell), Telekinesis
+  #   (Spellcaster path rank 2, L4, source-filtered flat spell). Sheet writes "Telekenesis" = a typo
+  #   for Telekinesis. The exact Intuitive-vs-path split within the Arcane 5 is an assumption (all are
+  #   Arcane-legal); only refine if Damo cares. No auto-heal ready slots any more.
   maneuvers: []
   combat_training: [Spell Focuses, Light Armor]
 
@@ -48,11 +50,11 @@ levels:
       granted_spells: [Disintegrating Beam, Gravity Well]
       spell_access: {source: Arcane}
       sorcerous_origin: {chosen_source: Arcane}
-      note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51). FR-13a 2026-07-19: Innate Power requires a Sorcerous Origin; Intuitive Magic draws its 2 spells from the chosen Sorcerer Source = Arcane (per the sheet's Arcane list). The 2 spells are childed here (Disintegrating Beam = Nullification, Gravity Well = Astromancy; both Arcane) and consume the {spells:2} grant. The specific Sorcerous Origin sub-choice is not on the sheet (low-stakes; ASK DAMO only if it matters)."
+      note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51). FR-13a: Innate Power requires a Sorcerous Origin; Intuitive Magic draws its 2 spells from the chosen Sorcerer Source = Arcane (per the sheet's Arcane list). Slice 2 (2026-07-19) models the source choice as an EXPLICIT node: the sorcerous_origin.chosen_source below renders as its own 'Sorcerer Source' picker childed under this talent, and it DRIVES the source filter of the 2 spell children (Disintegrating Beam = Nullification, Gravity Well = Astromancy; both Arcane). The 2 spells consume the {spells:2} grant. The flavour Sorcerous Origin sub-type is not on the sheet (low-stakes; ASK DAMO only if it matters)."
     - slot: path
       pick: Spellcaster
       note: "Spellcaster MC rank 1 (into Sorcerer = Arcane source). Grants 1 spell via the caster rank (not a spells grant); the named spell is the flat Arcane {slot:spell} below."
-    - {slot: spell, pick: Dispel Magic, source: Arcane, note: "Arcane (Nullification), from the sheet. The Spellcaster-path rank-1 spell (Sorcerer = Arcane). Was previously a best-guess mis-sourced as 'class table +1'; corrected FR-13a 2026-07-19."}
+    - {slot: spell, pick: Dispel Magic, source: Arcane, note: "Arcane (Nullification), from the sheet. The Spellcaster-path rank-1 spell (Sorcerer = Arcane). FR-13a slice 2 (2026-07-19): the canonical 'source: Arcane' now source-filters this flat spell picker to the Arcane list, so it renders as a legal Arcane picker instead of showing '(current, off-list)' against the Primal class list. The path spell stays a flat entry (the caster-rank count derives its budget; it is NOT a grants:{spells} entry, so it is not childed under the path to avoid an engine double-count)."}
   3:
     - {slot: subclass, pick: Phoenix, note: "Fiery Form, Cleansing Flames, Rolling Wild Fire, Fire Within"}
     - {slot: attribute, pick: might, inferred: true, note: "Destination unconfirmed. ASK DAMO."}
@@ -64,7 +66,7 @@ levels:
     - {slot: path, pick: Spellcaster, inferred: true,
        note: "Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven. This is rank 2 (into Sorcerer = Arcane); grants 1 Arcane spell via the caster rank (the flat {slot:spell} below)."}
     - {slot: ancestry_trait, pick: Second Breath, source: Dragonborn, cost: 2, inferred: true}
-    - {slot: spell, pick: Telekinesis, source: Arcane, note: "Arcane (Astromancy), from the sheet (which spells it 'Telekenesis' = typo). The Spellcaster-path rank-2 spell (Sorcerer = Arcane). Named FR-13a 2026-07-19."}
+    - {slot: spell, pick: Telekinesis, source: Arcane, note: "Arcane (Astromancy), from the sheet (which spells it 'Telekenesis' = typo). The Spellcaster-path rank-2 spell (Sorcerer = Arcane). FR-13a slice 2 (2026-07-19): the canonical 'source: Arcane' source-filters this flat spell picker to the Arcane list (clears the old '(current, off-list)' tag). Flat entry like Dispel Magic (path spells derive from the caster-rank count, not a grant, so not childed under the path)."}
 
 skills:
   allocation_confidence: inferred

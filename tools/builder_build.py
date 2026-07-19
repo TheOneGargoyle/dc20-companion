@@ -649,8 +649,12 @@ class BuilderAPI:
         if int((parent.get('grants') or {}).get('spells', 0) or 0) <= 0:
             return None
         sa = parent.get('spell_access') or {}
-        src = sa.get('source')
-        if not src:
+        # FR-13a slice 2: when the parent models an explicit Sorcerous Origin node, its chosen
+        # source is the source of truth (the node DRIVES this filter, so re-picking it re-filters
+        # the spell children); otherwise fall back to a static spell_access.source. Schools (if any)
+        # still come from spell_access.
+        src = ((parent.get('sorcerous_origin') or {}).get('chosen_source')) or sa.get('source')
+        if not src or str(src) == UNDECIDED:
             return None
         return src, (sa.get('schools') or None)
 
@@ -709,6 +713,17 @@ class BuilderAPI:
         return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
                  'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
                 for n in sorted(out)]
+
+    def _all_sources(self):
+        # FR-13a slice 2: the set of CANONICAL spell sources (Arcane / Divine / Primal), harvested
+        # from the baked spell metadata (spells.md "Source:" lines). Used to tell a real source name
+        # apart from a free-text provenance string on a ledger spell entry. Cached.
+        if getattr(self, '_all_src_cache', None) is None:
+            s = set()
+            for m in self.meta.values():
+                s |= set(m.get('sources') or [])
+            self._all_src_cache = s
+        return self._all_src_cache
 
     def _spell_sourced_options(self, source, schools=None):
         # FR-13a: options for a SOURCE-constrained spell child-slot = every spell in spells.md whose
@@ -951,6 +966,11 @@ class BuilderAPI:
             return self._spell_tagged_options()
         if slot == 'spell_sourced':  # FR-13a source-constrained spell grant-child; options are per-
             return []                # parent (the source constraint), so _grant_children sets them
+        if slot == 'source_choice':  # FR-13a slice 2: the Sorcerous Origin node = the chosen Sorcerer
+            # Source. The three magic Sources (classes.md l.2530-2551: Sorcerers draw from Arcane,
+            # Divine, or Primal); narrowed to the sources actually present in the baked metadata.
+            return [{'name': s, 'group': '', 'label': s}
+                    for s in ('Arcane', 'Divine', 'Primal') if s in self._all_sources()]
         if slot in ('skill', 'trade'):   # FR-3/FR-17 planned-level skill/trade child-slot: options are
             return []                      # level-aware, so _grant_children overrides d['options'].
         return []
@@ -1163,6 +1183,11 @@ class BuilderAPI:
                                 t.get('cost'), bool(t.get('inferred')), not ph,
                                 note='placeholder - itemisation pending' if ph else None,
                                 removable=self.scratch or BUILDER_NOTE in str(t.get('note', ''))))
+            # FR-13a slice 2: an ancestry trait can itself GRANT a source-constrained spell (Scaletrix's
+            # Fiendish Magic "Arcane Spell" -> Command). Materialise its grant-child(ren) right after the
+            # trait row so they glue under it (FR-20). Reuses the same source branch as class/level grants;
+            # traits without a spell grant (Mana Increase, Jumper, ...) produce nothing.
+            ds.extend(self._grant_children(t, 'cgtrait:%d' % i, 1, not ph))
         for ci, c in enumerate(cg.get('class_choices') or []):
             opt_slot = ('discipline' if c['slot'] == 'spellblade_disciplines'
                         else 'pact_boon' if c['slot'] in ('pact_boons', 'pact_boon') else None)
@@ -1190,6 +1215,7 @@ class BuilderAPI:
                 ds.append(self._dec('L%d:%d' % (lvl, i), lvl, e.get('slot'), e.get('pick'),
                                     e.get('cost'), bool(e.get('inferred')), editable,
                                     note=e.get('note'), plan=is_plan, plan_editable=plan_edit,
+                                    spell_source=e.get('source'),   # FR-13a slice 2: source-filter flat path spells
                                     # BUG-16: maneuver/spell budget slots are NOT removable. They are a
                                     # fixed-count pool (base class table + path riders + grants) that the
                                     # engine budgets but does NOT count entry-by-entry, and nothing
@@ -1261,7 +1287,7 @@ class BuilderAPI:
         return [t[4] for t in meta]
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
-             removable=False, plan_editable=False):
+             removable=False, plan_editable=False, spell_source=None):
         # FR-3: a builder-generated PLAN row (a level above current_level) is an editable
         # picker so a player can fill in the plan; a hand-authored locked plan (e.g.
         # Tanrielle's L5/L6) has no plan_editable flag and stays a read-only preview.
@@ -1287,7 +1313,16 @@ class BuilderAPI:
             # unification removed. Missing maneuver/spell slots now self-heal via the auto ready-slot
             # in _decisions, and a genuine composite still gets the single-value replace dropdown.)
         if d['widget'] == 'picker':
-            opts = self._options_for(slot)
+            if slot == 'spell' and spell_source and spell_source in self._all_sources():
+                # FR-13a slice 2: a flat spell entry carrying a CANONICAL source (e.g. a Spellcaster-
+                # path spell "source: Arcane" on a Druid) renders source-filtered to that source
+                # instead of the class list, so an off-class-source pick (Dispel Magic / Telekinesis)
+                # is a legal picker rather than a "(current, off-list)" row. Free-text provenance
+                # sources ("class table +1", "Spellcaster path +1 spell") are NOT canonical and fall
+                # through to the class options unchanged.
+                opts = self._spell_sourced_options(spell_source)
+            else:
+                opts = self._options_for(slot)
             if slot in FR7_FILTER_SLOTS:  # FR-7: hide options already taken elsewhere
                 mine = base_name(pick) if slot in ('spell', 'maneuver', 'talent') else str(pick)
                 taken = self._chosen_names(slot) - ({mine} if str(pick) != UNDECIDED else set())
@@ -1393,6 +1428,16 @@ class BuilderAPI:
         # as the tag branch (resource 'spells' -> granted_spells, consumed by the budget), options
         # filtered to the source (+ optional schools). Guarded off the tag case so the two never
         # double-render a parent that (hypothetically) had both.
+        # FR-13a slice 2: an EXPLICIT Sorcerous Origin node. A parent carrying a sorcerous_origin dict
+        # (MC Sorcerer Innate Power) renders ONE 'source_choice' picker for the chosen Sorcerer Source
+        # (Arcane/Divine/Primal). Emitted BEFORE the source-spell children so it reads top-down, and its
+        # value DRIVES their source filter (via _spell_grant_source, which reads chosen_source first), so
+        # re-picking it re-filters + resets the spell children (see _set_grant_child).
+        if isinstance(parent.get('sorcerous_origin'), dict):
+            cur_src = parent['sorcerous_origin'].get('chosen_source', UNDECIDED)
+            out.append(self._dec('GC#%s#sorcerous_origin#0' % parentref, level, 'source_choice',
+                                 cur_src, None, False, editable,
+                                 plan=level > cur, plan_editable=editable and level > cur))
         gsrc = self._spell_grant_source(parent)
         if gsrc and not self._spell_grant_tag(parent):
             src, schools = gsrc
@@ -1484,14 +1529,22 @@ class BuilderAPI:
 
     def _set_grant_child(self, did, value):
         # write a grant-child pick into its parent's granted_<resource> list (see _grant_children).
-        # did = GC#<parentref>#<resource>#<k>; parentref = 'cg:<ci>' (chargen choice) or 'L<lvl>:<idx>'.
+        # did = GC#<parentref>#<resource>#<k>; parentref = 'cgtrait:<i>' (chargen ancestry trait),
+        # 'cg:<ci>' (chargen class choice), or 'L<lvl>:<idx>' (level entry).
         _, parentref, resource, k = did.split('#')
         k = int(k)
-        if parentref.startswith('cg:'):
-            entry = self.ledger['chargen']['class_choices'][int(parentref.split(':')[1])]
-        else:
-            lvl, idx = parentref[1:].split(':')
-            entry = self.ledger['levels'][int(lvl)][int(idx)]
+        entry = self._grant_child_entry(parentref)
+        if resource == 'sorcerous_origin':
+            # FR-13a slice 2: the explicit Sorcerous Origin node writes the chosen Sorcerer Source.
+            # If the source actually changed, reset the source-filtered spell children to UNDECIDED
+            # (their old picks may be illegal under the new source), mirroring _apply_grants' clear.
+            so = entry.setdefault('sorcerous_origin', {})
+            if str(so.get('chosen_source')) != str(value):
+                so['chosen_source'] = value
+                n = int((entry.get('grants') or {}).get('spells', 0) or 0)
+                if n > 0:
+                    entry['granted_spells'] = [UNDECIDED] * n
+            return self.state()
         n = int((entry.get('grants') or {}).get(resource, 0) or 0)
         lst = list(entry.get('granted_%s' % resource) or [])
         lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
@@ -1500,6 +1553,8 @@ class BuilderAPI:
         return self.state()
 
     def _grant_child_entry(self, parentref):
+        if parentref.startswith('cgtrait:'):   # FR-13a slice 2: chargen ancestry-trait grant parent
+            return self.ledger['chargen']['ancestry_traits'][int(parentref.split(':')[1])]
         if parentref.startswith('cg:'):
             return self.ledger['chargen']['class_choices'][int(parentref.split(':')[1])]
         lvl, idx = parentref[1:].split(':')
@@ -1839,6 +1894,18 @@ class BuilderAPI:
     def _set_trait(self, t, value, entry=False):
         lst, row = self._anc_find(value)
         key = 'pick' if entry else 'name'
+        # FR-13a slice 2: a trait can carry a source-constrained spell grant (Fiendish Magic ->
+        # Command). If it is re-picked to a DIFFERENT trait, drop that spell-grant provenance so a
+        # stale grant-child (and a phantom spell in the engine count) cannot linger (mirrors
+        # _apply_grants' changed-clear; non-spell grants are left as-is, matching prior behaviour).
+        if base_name(str(t.get(key))) != base_name(str(value)):
+            t.pop('granted_spells', None)
+            t.pop('spell_access', None)
+            t.pop('sorcerous_origin', None)
+            if isinstance(t.get('grants'), dict):
+                t['grants'].pop('spells', None)
+                if not t['grants']:
+                    t.pop('grants', None)
         t[key] = value
         if row is not None:
             t['cost'] = row['cost']
@@ -2791,7 +2858,8 @@ function render(s){
         : '';
       body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
-    const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced') ? 'spell' : t.slot;  // BUG-12(a): don't leak the internal slot kind
+    const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
+                    : (t.slot==='source_choice') ? 'sorcerer source' : t.slot;        // FR-13a slice 2: Sorcerous Origin node
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;
