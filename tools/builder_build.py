@@ -571,11 +571,23 @@ class BuilderAPI:
         # harness stays safe.
         cur = self.ledger['current_level']
         slot = self._res_slot(resource)
+        gkey = 'granted_%s' % resource
         if any(str(x) == UNDECIDED for x in (self.ledger['chargen'].get(resource) or [])):
             return True
-        return any(e.get('slot') == slot and str(e.get('pick')) == UNDECIDED
-                   for lvl, es in (self.ledger.get('levels') or {}).items() if int(lvl) <= cur
-                   for e in es or [])
+        # an undecided grant-child (e.g. a freshly re-picked pact boon's maneuver slot) is itself
+        # the ready slot, so it suppresses the flat auto slot too.
+        for c in (self.ledger['chargen'].get('class_choices') or []):
+            if any(str(x) == UNDECIDED for x in (c.get(gkey) or [])):
+                return True
+        for lvl, es in (self.ledger.get('levels') or {}).items():
+            if int(lvl) > cur:
+                continue
+            for e in es or []:
+                if e.get('slot') == slot and str(e.get('pick')) == UNDECIDED:
+                    return True
+                if any(str(x) == UNDECIDED for x in (e.get(gkey) or [])):
+                    return True
+        return False
 
     def _traits(self):
         for t in self.ledger['chargen'].get('ancestry_traits') or []:
@@ -1254,6 +1266,14 @@ class BuilderAPI:
             if slot == 'talent':
                 m = re.match(r'MC \w+(?: \((?:Novice|Adept|Expert|Master)\))?:\s*(.*)', str(pick))
                 d['current'] = base_name((m.group(1) if m else str(pick)).split(':')[0])
+            # A <select> must contain its current value or the browser renders it blank/locked.
+            # An inferred/off-list pick (e.g. Scaletrix's guessed "Dispel Magic", not in her
+            # school-filtered options) is kept selectable by prepending it as an "(off-list)" option
+            # so it shows and can be corrected. UNDECIDED already returned above.
+            cur = d.get('current')
+            if cur and cur != UNDECIDED and not any(o.get('name') == cur for o in (d.get('options') or [])):
+                d.setdefault('options', []).insert(
+                    0, {'name': cur, 'label': '%s (current, off-list)' % cur})
         return d
 
     def _grant_children(self, parent, parentref, level, editable):
@@ -1323,23 +1343,21 @@ class BuilderAPI:
                                      pick, None, False, editable,
                                      plan=level > self.ledger['current_level'],
                                      plan_editable=editable and level > self.ledger['current_level']))
-        # grants-only display (2026-07-19): FIXED maneuver/spell grants (e.g. a pact boon's
-        # specific maneuvers) live in granted_maneuvers/granted_spells and are determined by
-        # the parent pick, not free-choice picks - so they are read-only rows glued under the
-        # parent, not editable free pickers. This keeps the granted names visible after the
-        # unification removed them from the flat pool. (granted_spells handled by slice 5 above
-        # is skipped so it is not rendered twice.)
-        pname = (parent.get('pick')
-                 or ', '.join(str(x) for x in (parent.get('picks') or [])) or 'grant')
-        for resource, singular in (('maneuvers', 'maneuver'), ('spells', 'spell')):
-            if resource == 'spells' and self._spell_grant_tag(parent):
-                continue
-            for k, nm in enumerate(parent.get('granted_%s' % resource) or []):
-                out.append({'id': 'GG#%s#%s#%d' % (parentref, resource, k), 'level': level,
-                            'slot': singular, 'pick': nm, 'cost': None, 'inferred': False,
-                            'editable': False, 'plan': level > cur, 'widget': 'fixed',
-                            'removable': False, 'granted': True,
-                            'note': 'granted (fixed) by %s' % base_name(pname)})
+        # grants-only display (2026-07-19): a PACT BOON grants "N Maneuvers of your choice"
+        # (classes.md l.3244 Pact Weapon = Attack, l.3269 Pact Armor = Defensive), so the granted
+        # maneuvers are player-CHOICE picks tied to the boon - the exact shape of the slice-5
+        # Eldritch spell grant. Render them as EDITABLE grant-child pickers (stored in
+        # granted_maneuvers, re-picking the boon rebuilds them via _apply_grants), NOT read-only
+        # rows and NOT flat-pool dups. Gated to pact-boon parents so a CHOICE grant that uses the
+        # flat pool (Martial Expansion {maneuvers:2}, MC Bard {spells:2}) is untouched.
+        if parent.get('slot') in ('pact_boon', 'pact_boons'):
+            n = int(grants.get('maneuvers', 0) or 0)
+            lst = parent.get('granted_maneuvers') or []
+            for k in range(n):
+                pick = lst[k] if k < len(lst) else UNDECIDED
+                out.append(self._dec('GC#%s#maneuvers#%d' % (parentref, k), level, 'maneuver',
+                                     pick, None, False, editable,
+                                     plan=level > cur, plan_editable=editable and level > cur))
         return out
 
     def _apply_grants(self, entry, grants, changed):
@@ -1375,6 +1393,16 @@ class BuilderAPI:
             else:
                 prev = [] if changed else list(entry.get('granted_spells') or [])
                 entry['granted_spells'] = (prev + [UNDECIDED] * n)[:n]
+        # grants-only (2026-07-19): a pact boon's "N Maneuvers of your choice" are editable
+        # grant-children in granted_maneuvers, so resize that list like a child resource (the
+        # other {maneuvers:N} grant, Martial Expansion, uses the flat pool and is not a pact_boon).
+        if entry.get('slot') in ('pact_boon', 'pact_boons'):
+            n = int(grants.get('maneuvers', 0) or 0)
+            if n <= 0:
+                entry.pop('granted_maneuvers', None)
+            else:
+                prev = [] if changed else list(entry.get('granted_maneuvers') or [])
+                entry['granted_maneuvers'] = (prev + [UNDECIDED] * n)[:n]
 
     def _set_grant_child(self, did, value):
         # write a grant-child pick into its parent's granted_<resource> list (see _grant_children).

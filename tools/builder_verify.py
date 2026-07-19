@@ -792,16 +792,14 @@ def check_replace_hatch():
        cc4["picks"][0] == "Pact Familiar" and not cc4.get("grants"), (cc4.get("picks"), cc4.get("grants")))
     apiR = builder_api.BuilderAPI("runt", CATPATHS)
     mrows = [d for d in st(apiR)["decisions"] if d.get("slot") == "maneuver"]
-    free = [d for d in mrows if not d.get("granted")]
-    granted = [d for d in mrows if d.get("granted")]
-    ok("free maneuver rows are editable pickers and NOT removable (BUG-16: budget slots edit-only)",
-       bool(free) and all(d["widget"] == "picker" and d.get("editable") for d in free)
+    boon_man = [d for d in mrows if "#maneuvers#" in str(d.get("id") or "")]
+    ok("all maneuver rows are editable pickers and NOT removable (BUG-16: budget slots edit-only)",
+       bool(mrows) and all(d["widget"] == "picker" and d.get("editable") for d in mrows)
        and not any(d.get("removable") for d in mrows),
        [(d.get("current"), d.get("widget"), d.get("removable")) for d in mrows])
-    ok("grants-only: fixed pact-boon maneuvers show as read-only granted rows (Cleave/Pathcarver/Brace/Side Step)",
-       {d.get("pick") for d in granted} == {"Cleave", "Pathcarver", "Brace", "Side Step"}
-       and all(d["widget"] == "fixed" and not d.get("removable") for d in granted),
-       [d.get("pick") for d in granted])
+    ok("grants-only: pact-boon maneuvers are EDITABLE grant-child pickers (Cleave/Pathcarver/Brace/Side Step)",
+       {d.get("current") for d in boon_man} == {"Cleave", "Pathcarver", "Brace", "Side Step"},
+       [d.get("current") for d in boon_man])
     ok("no new problems introduced by the replace (runt is now fully clean; BUG-7 AD closed)",
        s1["problems"] == [], s1["problems"])
     html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
@@ -1033,8 +1031,13 @@ def check_slice2():
     ok("surgical boundary intact: plain 'spells'/'maneuvers' are NOT in GRANT_CHILD_SLOTS (flat-pool model kept)",
        "spells" not in builder_api.GRANT_CHILD_SLOTS and "maneuvers" not in builder_api.GRANT_CHILD_SLOTS,
        dict(builder_api.GRANT_CHILD_SLOTS))
-    ok("Runt's flat maneuvers/spells do NOT become GC child slots; his ONLY GC row is the slice-5 tag-constrained Psychic spell",
-       not any("#maneuvers#" in i for i in gc_ids) and gc_ids == ["GC#L3:0#spells#0"],
+    # grants-only (2026-07-19): pact-boon maneuvers ("N of your choice") ARE editable grant-children
+    # via the dedicated pact_boon branch, but flat-pool grants (Martial Expansion {maneuvers:2}, the
+    # L2 Slam/Body Block/Throw Creature picks) are NOT - they stay flat. So Runt's GC rows = the
+    # slice-5 Psychic spell + his 4 pact-boon maneuvers, and nothing else.
+    ok("pact-boon maneuvers are GC children; flat-pool grants (Martial Expansion) stay flat",
+       set(gc_ids) == {"GC#L3:0#spells#0", "GC#cg:0#maneuvers#0", "GC#cg:0#maneuvers#1",
+                       "GC#L4:1#maneuvers#0", "GC#L4:1#maneuvers#1"},
        gc_ids)
     ok("the page's BuilderAPI glue carries the slice-2 backbone methods (glue is base64-baked; blob==source is checked in section 1)",
        all(hasattr(builder_api.BuilderAPI, m) for m in ("_grant_children", "_apply_grants", "_set_grant_child"))
@@ -1664,12 +1667,12 @@ def check_fr20():
     ok("Scaletrix L4 = talent, its 2 metamagic, then path, ancestry (no resources this level)",
        slot_seq("scaletrix", 4) == ["talent", "metamagic", "metamagic", "path", "ancestry_trait"],
        slot_seq("scaletrix", 4))
-    # grants-only (2026-07-19): the 2 fixed Pact Weapon maneuvers now render as read-only granted
-    # rows (emitted with the boon's grant children) instead of duplicated flat picks, so within the
-    # resources block they precede the 4 free chargen spells.
-    ok("Runt L1 = attributes -> class (schools+boon) -> ancestry -> resources (granted maneuvers, spells)",
-       slot_seq("runt", 1) == ["attributes", "spell_school", "spell_school", "spell_school", "pact_boon"]
-       + ["ancestry_trait"] * 7 + ["maneuver"] * 2 + ["spell"] * 4,
+    # grants-only (2026-07-19): the 2 Pact Weapon maneuvers ("of your choice") are editable
+    # grant-children glued directly under the L1 pact_boon (class rank), so they render right after
+    # the boon and before ancestry; the 4 free chargen spells stay in the resources tail.
+    ok("Runt L1 = attributes -> class (schools + boon + its 2 maneuvers) -> ancestry -> resources (spells)",
+       slot_seq("runt", 1) == ["attributes", "spell_school", "spell_school", "spell_school", "pact_boon",
+                               "maneuver", "maneuver"] + ["ancestry_trait"] * 7 + ["spell"] * 4,
        slot_seq("runt", 1))
 
 
@@ -1884,19 +1887,28 @@ def check_grants_only():
         exp = {"scaletrix": (0, 4)}.get(who, (0, 0))
         ok("%-10s no maneuver/spell over-fill; gaps == expected %s" % (who, exp),
            gap_m >= 0 and gap_s >= 0 and (gap_m, gap_s) == exp, (gap_m, gap_s))
-    # (b) Runt: the 4 fixed pact-boon maneuvers are read-only granted rows (not free pickers,
-    #     not duplicated into the flat pool), and the free maneuvers stay editable pickers.
+    # (b) Runt: the 4 pact-boon maneuvers are "of your choice" (classes.md l.3244/3269), so they
+    #     are EDITABLE grant-child pickers tied to the boon (not read-only, not duplicated into the
+    #     flat pool); the flat free maneuvers stay editable too, and no name is duplicated.
     sr = st(builder_api.BuilderAPI("runt", CATPATHS))
     mrows = [d for d in sr["decisions"] if d.get("slot") == "maneuver"]
-    granted = {d["pick"] for d in mrows if d.get("granted")}
-    free = [d for d in mrows if not d.get("granted")]
-    ok("Runt: fixed pact-boon maneuvers are read-only granted rows (Cleave/Pathcarver/Brace/Side Step)",
-       granted == {"Cleave", "Pathcarver", "Brace", "Side Step"}
-       and all(d["widget"] == "fixed" and not d.get("removable") for d in mrows if d.get("granted")),
-       sorted(granted))
-    ok("Runt: free maneuvers are editable pickers; no maneuver row is duplicated",
-       bool(free) and all(d["widget"] == "picker" and d.get("editable") for d in free)
-       and len(mrows) == len({d["pick"] for d in mrows}), [d["pick"] for d in mrows])
+    boon_man = [d for d in mrows if "#maneuvers#" in str(d.get("id") or "")]
+    flat_man = [d for d in mrows if not str(d.get("id") or "").startswith("GC#")]
+    ok("Runt: pact-boon maneuvers are EDITABLE grant-child pickers (Cleave/Pathcarver/Brace/Side Step), not locked",
+       {d.get("current") for d in boon_man} == {"Cleave", "Pathcarver", "Brace", "Side Step"}
+       and all(d["widget"] == "picker" and d.get("editable") and not d.get("removable") for d in boon_man),
+       [(d.get("current"), d.get("widget"), d.get("editable")) for d in boon_man])
+    ok("Runt: every maneuver row is an editable picker; no maneuver name is duplicated",
+       bool(flat_man) and all(d["widget"] == "picker" and d.get("editable") for d in mrows)
+       and len(mrows) == len({d.get("current") for d in mrows}), [d.get("current") for d in mrows])
+    # off-list current value stays selectable: a picker's <select> must contain its own current
+    # value or the browser renders it blank (Scaletrix's inferred "Dispel Magic" is not in her
+    # school-filtered list, so it is prepended as an off-list option).
+    ss = st(builder_api.BuilderAPI("scaletrix", CATPATHS))
+    dm = next((d for d in ss["decisions"] if d.get("slot") == "spell" and d.get("current") == "Dispel Magic"), None)
+    ok("off-list current value kept in its picker options (Scaletrix Dispel Magic renders, not blank)",
+       bool(dm) and any(o.get("name") == "Dispel Magic" for o in (dm.get("options") or [])),
+       dm and dm.get("current"))
     # (c) Scaletrix: the gap surfaces as exactly ONE auto spell ready-slot (chaining, FR-9 style),
     #     it is a real spell picker, and it raises NO problem (advisory, baseline stays clean).
     api = builder_api.BuilderAPI("scaletrix", CATPATHS)
