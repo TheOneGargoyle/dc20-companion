@@ -1772,6 +1772,11 @@ class BuilderAPI:
                 continue
             m = self.meta.get(e['pick']) or {}
             spells.append({'name': e['pick'], 'school': m.get('school'), 'tags': m.get('tags') or []})
+        # The char sheet is the "all my spells in one place" reference view (provenance/grant-source
+        # lives in the builder decision list, colour-coded by category). So sort the sheet list
+        # ALPHABETICALLY by name for findability, not by the internal slot-kind harvest order
+        # (flat -> tagged -> sourced), which would otherwise leak grant provenance into the sheet.
+        spells.sort(key=lambda s: str(s['name']).lower())
         equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods')}
                      for it in (self.ledger.get('equipment') or [])]
         return json.dumps({

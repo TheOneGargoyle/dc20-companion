@@ -617,6 +617,11 @@ def check_sheet():
         picks = [x for v2 in d["abilities"].values() for x in v2]
         ok("%-10s abilities within current level, no blanks" % c,
            all(x.get("pick") and (not x.get("level") or x["level"] <= d["level"]) for x in picks), None)
+        # sheet spell list = the consolidated reference view -> sorted ALPHABETICALLY by name
+        # (provenance/grant-source lives in the builder decision list, not the sheet).
+        names = [s["name"] for s in d["spells"]]
+        ok("%-10s sheet spells sorted alphabetically (findability, not slot-kind order)" % c,
+           names == sorted(names, key=lambda n: str(n).lower()), names)
     d = json.loads(builder_api.BuilderAPI("tanrielle", CATPATHS).sheet())
     aw = next((s["bonus"] for s in d["skills"] if s["name"] == "Awareness"), None)
     ok("tanrielle Awareness = +7 (Prime 3 + Adept 4)", aw == 7, aw)
