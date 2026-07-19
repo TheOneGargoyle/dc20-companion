@@ -19,36 +19,52 @@ chargen:
   # (alternatives: Agility or Charisma routes are equally legal).
   ancestry_traits:
     - {name: Mana Increase, source: Fiendborn, cost: 1, grants: {mp: 1}}
-    - {name: Arcane Spell, source: Fiendborn, cost: 2, grants: {spells: 1}}
+    - {name: Arcane Spell, source: Fiendborn, cost: 2, grants: {spells: 1},
+       note: 'Fiendish Magic (Fiendborn "Arcane Spell" trait): 1 Arcane spell limited to Elemental or Enchantment schools. The chosen spell = Command (Arcane source, Enchantment school = legal), from Darryl''s sheet screenshot. Recorded as a flat chargen spell for now; childing it UNDER this ancestry trait with source-filtering is FR-13a slice 2 (needs the ancestry-trait grant-child path). FR-13a slice 1, 2026-07-19.'}
     - {name: Radiant Weakness, source: Fiendborn, cost: -1}
     - {name: Umbral Weakness, source: Fiendborn, cost: -1}
     - {name: Darkvision, source: Fiendborn, cost: 1}
     - {name: Draconic Breath Weapon (Fire), source: Dragonborn, cost: 2}
     - {name: Concussive Breath, source: Dragonborn, cost: 1}
     # Total 5 = L1 budget; Second Breath = the L4 spend (budget-inferred; which 2 pts landed at L4 is a guess).
-  spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt]
-  # grants-only unification (2026-07-19): 6 of Scaletrix's 10 known spells are named (4 here + Regenerate L2 + Dispel Magic L3). The other 4 (2 Innate Power "Intuitive" choice-grant + 2 Spellcaster-path free picks) are genuinely unrecorded and surface as auto-heal ready slots in the builder. ASK DAMO to name them.
+  spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt, Command]
+  # FR-13a 2026-07-19: ALL 10 spells now named + sourced from Darryl's sheet screenshot.
+  # PRIMAL (5, Druid source): Wild Guard, Primal Hide, Fireball, Fire Bolt (4 L1 table here)
+  #   + Regenerate (the L3 table +1 spell, moved to L3 below where the Druid spine grants it).
+  # ARCANE (5): Command (Fiendish Magic ancestry trait; recorded here as a flat L1 spell, slice-2
+  #   will child it under the trait), Disintegrating Beam + Gravity Well (Innate Power / Intuitive
+  #   Magic, L2, childed under the talent + Arcane-source-filtered), Dispel Magic (Spellcaster path
+  #   rank 1, L2, flat), Telekinesis (Spellcaster path rank 2, L4, flat). Sheet writes "Telekenesis"
+  #   = a typo for Telekinesis. The exact Intuitive-vs-path split within the Arcane 5 is an assumption
+  #   (all are Arcane-legal); only refine if Damo cares. No auto-heal ready slots any more.
   maneuvers: []
   combat_training: [Spell Focuses, Light Armor]
 
 levels:
   2:
-    - {slot: talent, pick: "MC Sorcerer: Innate Power (Intuitive)", grants: {mp: 1, spells: 2},
-       note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51)"}
-    - {slot: path, pick: Spellcaster}
-    # grants-only unification (2026-07-19): cleaned to the one named pick (Regenerate). The 2 Innate Power "Intuitive" choice-grant spells that were bundled into this string are NOT actually recorded, so they now surface as auto-heal ready slots (ASK DAMO) rather than hiding in the entry text.
-    - {slot: spell, pick: Regenerate, inferred: true}
+    - slot: talent
+      pick: "MC Sorcerer: Innate Power (Intuitive)"
+      grants: {mp: 1, spells: 2}
+      granted_spells: [Disintegrating Beam, Gravity Well]
+      spell_access: {source: Arcane}
+      sorcerous_origin: {chosen_source: Arcane}
+      note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51). FR-13a 2026-07-19: Innate Power requires a Sorcerous Origin; Intuitive Magic draws its 2 spells from the chosen Sorcerer Source = Arcane (per the sheet's Arcane list). The 2 spells are childed here (Disintegrating Beam = Nullification, Gravity Well = Astromancy; both Arcane) and consume the {spells:2} grant. The specific Sorcerous Origin sub-choice is not on the sheet (low-stakes; ASK DAMO only if it matters)."
+    - slot: path
+      pick: Spellcaster
+      note: "Spellcaster MC rank 1 (into Sorcerer = Arcane source). Grants 1 spell via the caster rank (not a spells grant); the named spell is the flat Arcane {slot:spell} below."
+    - {slot: spell, pick: Dispel Magic, source: Arcane, note: "Arcane (Nullification), from the sheet. The Spellcaster-path rank-1 spell (Sorcerer = Arcane). Was previously a best-guess mis-sourced as 'class table +1'; corrected FR-13a 2026-07-19."}
   3:
     - {slot: subclass, pick: Phoenix, note: "Fiery Form, Cleansing Flames, Rolling Wild Fire, Fire Within"}
     - {slot: attribute, pick: might, inferred: true, note: "Destination unconfirmed. ASK DAMO."}
-    - {slot: spell, pick: Dispel Magic, inferred: true, source: "class table +1", note: "Best-guess name (or another Arcane spell); ASK DAMO. grants-only unification 2026-07-19: cleaned from a parenthetical composite."}
+    - {slot: spell, pick: Regenerate, source: Primal, note: "The L3 Druid class-table +1 spell (Primal, Invocation). Moved here from L2 (FR-13a 2026-07-19): the Druid spine grants its post-L1 table spell at L3, and Regenerate is the sheet's 5th Primal spell."}
   4:
     - {slot: talent, pick: "Meta Magic", grants: {metamagic: 2},
        granted_metamagic: [Quickened Spell, Vicious Spell],
        note: "FR-8 slice 4: de-bundled from the composite name into the metamagic grant + child-slots (the Meta Magic talent grants 2 Spell Enhancements; classes.md l.2618-2639). Metamagic carries no resource delta, so the derived oracle is unchanged."}
     - {slot: path, pick: Spellcaster, inferred: true,
-       note: "Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven."}
+       note: "Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven. This is rank 2 (into Sorcerer = Arcane); grants 1 Arcane spell via the caster rank (the flat {slot:spell} below)."}
     - {slot: ancestry_trait, pick: Second Breath, source: Dragonborn, cost: 2, inferred: true}
+    - {slot: spell, pick: Telekinesis, source: Arcane, note: "Arcane (Astromancy), from the sheet (which spells it 'Telekenesis' = typo). The Spellcaster-path rank-2 spell (Sorcerer = Arcane). Named FR-13a 2026-07-19."}
 
 skills:
   allocation_confidence: inferred
@@ -78,4 +94,5 @@ expected: {hp: 13, sp: 0, mp: 17, spells: 10, maneuvers: 0, grit: 4, attack: 5, 
 
 notes:
   - "Sheet header says Spells(8) but 10 are listed; 10 is the budget-correct count (5 table + 2 paths + 2 Intuitive + 1 Arcane trait). Header is wrong."
+  - "FR-13a 2026-07-19: all 10 spells now named + sourced from Darryl's sheet screenshot (5 Primal / 5 Arcane), matching the 10-spell budget exactly. Arcane sourcing: Command via Fiendish Magic ancestry trait; Disintegrating Beam + Gravity Well via Innate Power / Intuitive Magic (Sorcerous Origin source = Arcane); Dispel Magic + Telekinesis via the two Spellcaster-path ranks (Sorcerer = Arcane). Resolves the old 'ASK DAMO for 4 Arcane spells' item and clears the auto-heal ready slots."
   - "Sheet Level field stale at 3; all content reconciles ONLY at L4. Damo to update (09 Table admin)."

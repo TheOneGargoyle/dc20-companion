@@ -53,8 +53,10 @@ Ordered so each step makes the next cheaper and nothing big is attempted before 
 **Phase 0. Foundation: data-drive the class progression.** (NEXT THREAD. Detailed spec in section 5.)
 Move `CLASS_TABLES` out of `build_engine.py` into per-class catalog data; the engine reads the spine as passed-in data (the `stamina_regen`/`damage_addons` pattern); `catalog_build.py` stops importing the spine from the engine. Pure refactor, no behaviour change, 66/66 + 90/90 byte-identical. Self-contained. This is the linchpin: after it, a class is one data file and a beta refresh is a data edit. Ship it on its own before committing real hours to data, to prove the "adding a class is now data-only" claim.
 
-**Phase 1. Sourcing machinery + FR-13a (our casters).**
+**Phase 1. Sourcing machinery + FR-13a (our casters). SLICE 1 DONE 2026-07-19; SLICE 2 deferred.**
 Generalize the FR-8 slice-5 Eldritch constrained-grant pattern into a reusable system: every spell/maneuver grant carries its source/school/tag, the picker filters to it, and the grant is childed under the granting feature (Scaletrix's Command childed under the Fiendish Magic ANCESTRY trait, not as a class spell). Model the currently-unmodelled **Sorcerous Origin** sub-choice + the Intuitive Magic list pick. Fixes Scaletrix's real gap now (the auto-heal ready slots are the visible symptom) and builds the exact machinery FR-12/FR-13 lean on. Small blast radius (our six). **Data ask: Damo's four chosen Arcane spells** (machinery can be built with placeholders meanwhile). This is FR-13a as scoped in BACKLOG.
+
+_Slice 1 shipped (see BACKLOG "FR-13a SLICE 1"): the reusable **source-constrained spell grant-child** (the source sibling of the tag-constrained slice-5 one) is built and harness-locked, and Scaletrix's 10 spells are fully named + sourced from Darryl's sheet (the ASK-DAMO item is resolved). Disintegrating Beam + Gravity Well now render as Arcane-source-filtered child pickers under Innate Power. **Slice 2 (deferred):** child Command under the Fiendish Magic ancestry trait (needs an ancestry-trait grant-child parent path in `_set_grant_child`), model the **Sorcerous Origin** sub-choice as an explicit node, and extend source-filtering to the flat Spellcaster-path picks._
 
 **Phase 2. Spell/maneuver legality data (the long pole, phased).**
 Tag the full spell/maneuver list by school/source/type so open pickers filter correctly (FR-13 proper). The maneuver-TYPE half is already done (pact-boon pickers, 2026-07-19). Phaseable: start with the schools/sources our six + likely MC targets use, expand outward. School tagging likely largely free from the flattened list; source tagging is the labor. This is what makes Phase 3's open pickers trustworthy.
@@ -118,5 +120,5 @@ Regression-test FIRST: fresh `git clone` of `https://github.com/TheOneGargoyle/d
 
 ## 8. Ask-the-players standing list (relevant to this epic)
 
-- **Damo:** name Scaletrix's 4 unrecorded Arcane spells (2 Innate Power "Intuitive" + 2 Spellcaster-path) for Phase 1 / FR-13a; also his paper sheet reads Level 3, should be L4.
-- **Phil:** Runt PD 15-vs-17 confirm (standing, not epic-specific).
+- ~~**Damo:** name Scaletrix's 4 unrecorded Arcane spells (2 Innate Power "Intuitive" + 2 Spellcaster-path) for Phase 1 / FR-13a~~ RESOLVED 2026-07-19 from Darryl's sheet screenshot: Command, Disintegrating Beam, Gravity Well, Telekenesis (+ Dispel Magic confirmed as the 5th Arcane, previously a best-guess). Per-grant split is an optional low-stakes confirm. ~~his paper sheet reads Level 3, should be L4~~ RESOLVED (L4 confirmed; Damo to update his own paper sheet).
+- ~~**Phil:** Runt PD 15-vs-17 confirm (standing, not epic-specific).~~ RESOLVED 2026-07-16 (BUG-7 closed with Phil): PD 16 unbuffed / 18 with Primal Hide, AD 13.

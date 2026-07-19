@@ -1220,13 +1220,26 @@ def check_slice5():
        flat_spell_opts and all("Tendrils from Beyond" not in {o["name"] for o in d["options"]} for d in flat_spell_opts),
        "hidden")
 
-    # ---- (e) surgical boundary intact: plain {spells:N} grants do NOT get a spell_tagged child ----
-    for other in ("scaletrix", "tanrielle", "bonan", "xanwyn"):
+    # ---- (e) FR-13a boundary: a plain {spells:N} grant (NO spell_access) stays flat-pool; a grant
+    #     that carries a spell_access SOURCE now gets source-constrained children (Scaletrix Innate
+    #     Power). Tag-constrained subclass grants keep the spell_tagged path (Runt, above).
+    for other in ("tanrielle", "bonan", "xanwyn"):
         oapi = builder_api.BuilderAPI(other, CATPATHS)
         os_ = st(oapi)
-        ok("%s's flat {spells:N} grant gets NO spell child slot (spells stay on the flat-pool model)" % other,
+        ok("%s's flat {spells:N} grant gets NO spell child slot (no spell_access -> flat-pool model)" % other,
            not any("#spells#" in str(d.get("id")) for d in os_["decisions"]),
            [d.get("id") for d in os_["decisions"] if "#spells#" in str(d.get("id"))])
+    # FR-13a positive case: Scaletrix's Innate Power (spell_access source Arcane) materialises 2
+    # source-constrained 'spell_sourced' children, Arcane-filtered, reading his granted_spells.
+    sca = st(builder_api.BuilderAPI("scaletrix", CATPATHS))
+    scakids = [d for d in sca["decisions"] if d.get("slot") == "spell_sourced"]
+    ok("Scaletrix Innate Power: 2 source-constrained spell_sourced children (Arcane-only), read granted_spells",
+       len(scakids) == 2
+       and {d.get("current") for d in scakids} == {"Disintegrating Beam", "Gravity Well"}
+       and all(d["widget"] == "picker" and d.get("editable") for d in scakids)
+       and all(all("Arcane" in (meta.get(o["name"]) or {}).get("sources", []) or o["name"] == d.get("current")
+                   for o in d["options"]) for d in scakids),
+       [(d.get("current"), len(d.get("options") or [])) for d in scakids])
 
     # ---- (f) re-picking the subclass rebuilds/clears the constrained spell slot (_apply_grants wiring) ----
     rapi.set_decision(subref, "Fey")                            # a non-tag-constrained subclass (no spell_access)
@@ -1664,8 +1677,8 @@ def check_fr20():
     ok("Xanwyn L3 = attribute, subclass, its 2 runes, then resources (spell, maneuver)",
        slot_seq("xanwyn", 3) == ["attribute", "subclass", "rune", "rune", "spell", "maneuver"],
        slot_seq("xanwyn", 3))
-    ok("Scaletrix L4 = talent, its 2 metamagic, then path, ancestry (no resources this level)",
-       slot_seq("scaletrix", 4) == ["talent", "metamagic", "metamagic", "path", "ancestry_trait"],
+    ok("Scaletrix L4 = talent, its 2 metamagic, path, ancestry, then resources (the FR-13a path spell)",
+       slot_seq("scaletrix", 4) == ["talent", "metamagic", "metamagic", "path", "ancestry_trait", "spell"],
        slot_seq("scaletrix", 4))
     # grants-only (2026-07-19): the 2 Pact Weapon maneuvers ("of your choice") are editable
     # grant-children glued directly under the L1 pact_boon (class rank), so they render right after
@@ -1879,12 +1892,13 @@ def check_grants_only():
     print("\n## (28) grants-only unification + maneuver/spell auto-heal (BUG-16 full fix)")
     UND = "(undecided)"
     # (a) every canon ledger is internally consistent: named flat picks + fixed grants == the
-    #     engine budget, EXCEPT Scaletrix, whose 4 genuinely-unrecorded Arcane spells are known.
+    #     engine budget. FR-13a (2026-07-19): Scaletrix's 4 Arcane spells are now recorded from
+    #     Darryl's sheet, so every canon ledger is fully consistent (no maneuver/spell gaps anywhere).
     for who in builder_build.CHARS:
         s = st(builder_api.BuilderAPI(who, CATPATHS))
         gap_m = s["man_budget"] - s["man_have"]
         gap_s = s["spell_budget"] - s["spell_have"]
-        exp = {"scaletrix": (0, 4)}.get(who, (0, 0))
+        exp = (0, 0)
         ok("%-10s no maneuver/spell over-fill; gaps == expected %s" % (who, exp),
            gap_m >= 0 and gap_s >= 0 and (gap_m, gap_s) == exp, (gap_m, gap_s))
     # (b) Runt: the 4 pact-boon maneuvers are "of your choice" (classes.md l.3244/3269), so they
@@ -1924,35 +1938,40 @@ def check_grants_only():
     ok("off-list current value kept in its picker options (Scaletrix Dispel Magic renders, not blank)",
        bool(dm) and any(o.get("name") == "Dispel Magic" for o in (dm.get("options") or [])),
        dm and dm.get("current"))
-    # (c) Scaletrix: the gap surfaces as exactly ONE auto spell ready-slot (chaining, FR-9 style),
-    #     it is a real spell picker, and it raises NO problem (advisory, baseline stays clean).
+    # (c) FR-13a: Scaletrix is now fully recorded - NO auto spell slot, 10 of 10, no problems.
     api = builder_api.BuilderAPI("scaletrix", CATPATHS)
     s = st(api)
-    sp_autos = [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "spell"]
-    ok("Scaletrix: exactly one auto spell ready-slot (id cg:spell:+, undecided, has options)",
+    ok("Scaletrix: fully recorded now (10 of 10 spells, no auto spell slot, no problems)",
+       s["spell_have"] == 10 and s["spell_budget"] == 10
+       and not [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+       and not s["builder_problems"] and not s["catalog_problems"],
+       (s["spell_have"], s["builder_problems"]))
+    # (d) the auto-heal chaining MECHANISM (BUG-16) still works: synthesise a 2-spell gap by
+    #     dropping two recorded chargen spells and confirm ONE ready-slot surfaces at a time,
+    #     picking it materialises a real editable spell + re-derives, chaining until the gap closes.
+    apg = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    apg.ledger["chargen"]["spells"] = apg.ledger["chargen"]["spells"][:-2]  # drop 2 -> gap of 2
+    sg = st(apg)
+    sp_autos = [d for d in sg["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+    ok("synthetic gap: exactly one auto spell ready-slot (id cg:spell:+, undecided, has options)",
        len(sp_autos) == 1 and sp_autos[0]["id"] == "cg:spell:+"
        and sp_autos[0]["current"] == UND and len(sp_autos[0].get("options") or []) > 5, sp_autos[:1])
-    ok("Scaletrix: no maneuver auto-slot (budget 0) and the gap raises no builder/engine problem",
-       not [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "maneuver"]
-       and not s["builder_problems"] and not s["catalog_problems"], s["builder_problems"])
-    ok("Scaletrix: readout meta reports 6 of 10 spells recorded",
-       s["spell_have"] == 6 and s["spell_budget"] == 10, (s["spell_have"], s["spell_budget"]))
-    # (d) picking the auto slot materialises a real chargen spell, then the NEXT ready slot appears
-    #     (chaining one at a time) until the gap closes.
+    ok("synthetic gap: readout reports 8 of 10; no maneuver auto-slot; no problems",
+       sg["spell_have"] == 8 and sg["spell_budget"] == 10
+       and not [d for d in sg["decisions"] if d.get("auto") and d.get("slot") == "maneuver"]
+       and not sg["builder_problems"] and not sg["catalog_problems"], (sg["spell_have"],))
     pick = next(o["name"] for o in sp_autos[0]["options"] if o["name"] != UND)
-    s2 = json.loads(api.set_decision("cg:spell:+", pick))
-    ok("picking the auto slot materialises a real editable spell and re-derives the readout (7 of 10)",
-       s2["spell_have"] == 7
+    s2 = json.loads(apg.set_decision("cg:spell:+", pick))
+    ok("picking the auto slot materialises a real editable spell and re-derives (9 of 10)",
+       s2["spell_have"] == 9
        and any(d["slot"] == "spell" and d.get("current") == pick and not d.get("auto")
                for d in s2["decisions"])
        and len([d for d in s2["decisions"] if d.get("auto") and d.get("slot") == "spell"]) == 1,
        s2["spell_have"])
-    # fill the remaining 3 -> gap closes, no more auto spell slot
-    for _ in range(3):
-        a = [d for d in json.loads(api.state())["decisions"] if d.get("auto") and d.get("slot") == "spell"]
-        api.set_decision("cg:spell:+", next(o["name"] for o in a[0]["options"] if o["name"] != UND))
-    sf = json.loads(api.state())
-    ok("after filling all 4, the gap closes (10 of 10, no auto spell slot, still no problem)",
+    a = [d for d in json.loads(apg.state())["decisions"] if d.get("auto") and d.get("slot") == "spell"]
+    apg.set_decision("cg:spell:+", next(o["name"] for o in a[0]["options"] if o["name"] != UND))
+    sf = json.loads(apg.state())
+    ok("after filling both, the gap closes (10 of 10, no auto spell slot, still no problem)",
        sf["spell_have"] == 10
        and not [d for d in sf["decisions"] if d.get("auto") and d.get("slot") == "spell"]
        and not sf["builder_problems"], (sf["spell_have"],))

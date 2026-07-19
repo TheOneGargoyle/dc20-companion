@@ -226,5 +226,5 @@ expected:
 notes:
 - MP 9 is the ruled value (sheet's 8 was previous-version; fixed 2026-07-04).
 - 'L1 ancestry itemised 2026-07-16 from Phil''s L1 sheet: Powerful Build 2 / Brute 1 / Tough 1 / Titanic Toss 1 / Mighty Hurl 1 / Unyielding Movement 0 / Heavy Riser -1 = 5. Closes the old "ASK PHIL" itemisation item.'
-- 'BUG-7 (open, Phil / CH-1): after the armour fix RAW AD = 12 base + armour 1 + Pact Armor 1 = 14, but the sheet records 12. Shown as a MISMATCH in the review table as a live reminder until Phil confirms.'
+- 'BUG-7 CLOSED 2026-07-16 (confirmed with Phil): PD 16 unbuffed (18 with Primal Hide) / AD 13. The old open-mismatch note here (RAW AD 14 vs sheet 12) was superseded when the armour reading was corrected to Deflecting Heavy +2 PD and Pact Armor +1 AD; expected pd 16 / ad 13 derive clean, no MISMATCH.'
 - 'Second Talent slot contents were resolved 2026-07-05: L2 Martial Expansion + L4 Expanded Boon.'

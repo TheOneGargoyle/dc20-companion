@@ -128,7 +128,7 @@ FR20_CAT = {
     # 2: ancestry
     'ancestry_trait': 2, 'ancestry_traits': 2,
     # 3: resources (spells, maneuvers, skill/trade point-buy carriers + their children)
-    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spells': 3, 'maneuvers': 3,
+    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spell_sourced': 3, 'spells': 3, 'maneuvers': 3,
     'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
 }
 FR20_DEFAULT_RANK = 3
@@ -557,6 +557,9 @@ class BuilderAPI:
                    if str(x) != UNDECIDED and not is_composite(x))
         for c in (self.ledger['chargen'].get('class_choices') or []):
             have += sum(1 for g in (c.get(gkey) or []) if str(g) != UNDECIDED)
+        for t in (self.ledger['chargen'].get('ancestry_traits') or []):   # FR-13a: spells childed on an ancestry trait
+            if isinstance(t, dict):
+                have += sum(1 for g in (t.get(gkey) or []) if str(g) != UNDECIDED)
         for lvl, es in (self.ledger.get('levels') or {}).items():
             if int(lvl) > cur:
                 continue
@@ -579,6 +582,9 @@ class BuilderAPI:
         # the ready slot, so it suppresses the flat auto slot too.
         for c in (self.ledger['chargen'].get('class_choices') or []):
             if any(str(x) == UNDECIDED for x in (c.get(gkey) or [])):
+                return True
+        for t in (self.ledger['chargen'].get('ancestry_traits') or []):   # FR-13a: ancestry-childed grant child
+            if isinstance(t, dict) and any(str(x) == UNDECIDED for x in (t.get(gkey) or [])):
                 return True
         for lvl, es in (self.ledger.get('levels') or {}).items():
             if int(lvl) > cur:
@@ -631,6 +637,22 @@ class BuilderAPI:
             return None
         sg = (self.ccat.get('subclass_grants') or {}).get(base_name(parent.get('pick'))) or {}
         return (sg.get('spell_access') or {}).get('tag')
+
+    def _spell_grant_source(self, parent):
+        # FR-13a: if PARENT carries a spell_access.source constraint AND grants spells, return
+        # (source, schools|None) so the {spells:N} grant renders as SOURCE-filtered child pickers
+        # (e.g. Scaletrix's Innate Power / Intuitive Magic -> 2 Arcane spells). Data-driven: the
+        # constraint lives on the ledger entry itself (spell_access: {source, schools}), so no
+        # catalog talent table is needed for the walked case. This is the source-based sibling of
+        # the tag-based _spell_grant_tag (subclass_grants) - together they cover the two ways a
+        # feature reaches spells outside the character's own class list.
+        if int((parent.get('grants') or {}).get('spells', 0) or 0) <= 0:
+            return None
+        sa = parent.get('spell_access') or {}
+        src = sa.get('source')
+        if not src:
+            return None
+        return src, (sa.get('schools') or None)
 
     def _spell_access(self):
         # -> (options set, describe(name) -> why-legal string or None)
@@ -688,6 +710,21 @@ class BuilderAPI:
                  'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
                 for n in sorted(out)]
 
+    def _spell_sourced_options(self, source, schools=None):
+        # FR-13a: options for a SOURCE-constrained spell child-slot = every spell in spells.md whose
+        # Source list includes `source` (optionally narrowed to `schools`). Independent of the
+        # character's own class source, since the grant reaches outside it (e.g. a Druid's Arcane
+        # grants via Innate Power). Uses the spell metadata baked from spells.md.
+        out = []
+        for n, m in self.meta.items():
+            if source in (m.get('sources') or []):
+                if schools and m.get('school') not in schools:
+                    continue
+                out.append(n)
+        return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
+                 'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
+                for n in sorted(out)]
+
     def _maneuver_options(self):
         return [{'name': m, 'group': typ, 'label': '%s (%s)' % (m, typ)}
                 for typ, lst in self.cat['maneuvers']['maneuvers'].items() for m in lst]
@@ -737,6 +774,10 @@ class BuilderAPI:
             for c in cg.get('class_choices') or []:
                 for x in c.get('granted_spells') or []:
                     add(x)
+            for t in cg.get('ancestry_traits') or []:   # FR-13a: spells childed on an ancestry trait
+                if isinstance(t, dict):
+                    for x in t.get('granted_spells') or []:
+                        add(x)
             for lvl in self.ledger.get('levels') or {}:
                 for e in self.ledger['levels'][lvl] or []:
                     for x in e.get('granted_spells') or []:
@@ -908,6 +949,8 @@ class BuilderAPI:
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
             return self._spell_tagged_options()
+        if slot == 'spell_sourced':  # FR-13a source-constrained spell grant-child; options are per-
+            return []                # parent (the source constraint), so _grant_children sets them
         if slot in ('skill', 'trade'):   # FR-3/FR-17 planned-level skill/trade child-slot: options are
             return []                      # level-aware, so _grant_children overrides d['options'].
         return []
@@ -1254,7 +1297,8 @@ class BuilderAPI:
                 d['current'] = UNDECIDED
                 return d
             d['current'] = (base_name(pick) if slot in ('ancestry_trait', 'talent', 'spell',
-                                                        'maneuver', 'subclass', 'spell_tagged') else str(pick))
+                                                        'maneuver', 'subclass', 'spell_tagged',
+                                                        'spell_sourced') else str(pick))
             if slot == 'ancestry_trait':
                 lst, row = self._anc_find(pick)
                 if lst is not None:
@@ -1344,6 +1388,27 @@ class BuilderAPI:
                                      pick, None, False, editable,
                                      plan=level > self.ledger['current_level'],
                                      plan_editable=editable and level > self.ledger['current_level']))
+        # FR-13a: a SOURCE-constrained spell grant (e.g. Innate Power / Intuitive Magic -> N spells
+        # of the chosen Sorcerer Source) materialises source-filtered spell child-slots. Same shape
+        # as the tag branch (resource 'spells' -> granted_spells, consumed by the budget), options
+        # filtered to the source (+ optional schools). Guarded off the tag case so the two never
+        # double-render a parent that (hypothetically) had both.
+        gsrc = self._spell_grant_source(parent)
+        if gsrc and not self._spell_grant_tag(parent):
+            src, schools = gsrc
+            n = int(grants.get('spells', 0) or 0)
+            lst = parent.get('granted_spells') or []
+            opts = self._spell_sourced_options(src, schools)
+            for k in range(n):
+                pick = lst[k] if k < len(lst) else UNDECIDED
+                d = self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_sourced',
+                              pick, None, False, editable,
+                              plan=level > cur, plan_editable=editable and level > cur)
+                d['options'] = list(opts)
+                curv = d.get('current')
+                if curv and curv != UNDECIDED and not any(o.get('name') == curv for o in d['options']):
+                    d['options'].insert(0, {'name': curv, 'label': '%s (current, off-list)' % curv})
+                out.append(d)
         # grants-only display (2026-07-19): a PACT BOON grants "N Maneuvers of your choice"
         # (classes.md l.3244 Pact Weapon = Attack, l.3269 Pact Armor = Defensive), so the granted
         # maneuvers are player-CHOICE picks tied to the boon - the exact shape of the slice-5
@@ -1647,7 +1712,7 @@ class BuilderAPI:
         # BUG-12(b): tag-constrained granted spells (FR-8 slice 5, e.g. Runt's Psychic
         # Tendrils from Beyond) live under the 'spell_tagged' slot, so pull those in too or
         # they drop off the sheet's spell list. Skip any still-undecided grant.
-        for e in groups.get('spell', []) + groups.get('spell_tagged', []):
+        for e in groups.get('spell', []) + groups.get('spell_tagged', []) + groups.get('spell_sourced', []):
             if str(e['pick']) == UNDECIDED:
                 continue
             m = self.meta.get(e['pick']) or {}
@@ -2726,7 +2791,7 @@ function render(s){
         : '';
       body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
-    const slotLabel = t.slot==='spell_tagged' ? 'spell' : t.slot;  // BUG-12(a): don't leak the internal slot kind
+    const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced') ? 'spell' : t.slot;  // BUG-12(a): don't leak the internal slot kind
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;

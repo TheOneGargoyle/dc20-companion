@@ -203,6 +203,10 @@ def spell_picks(led):
     for c in led["chargen"].get("class_choices") or []:      # FR-8 slice 5: granted spells (tag-constrained)
         for x in c.get("granted_spells") or []:
             names += split_names(x)
+    for t in led["chargen"].get("ancestry_traits") or []:    # FR-13a: spells childed under an ancestry trait
+        if isinstance(t, dict):                               # (e.g. Scaletrix's Command via Fiendish Magic)
+            for x in t.get("granted_spells") or []:
+                names += split_names(x)
     for lvl, entries in (led.get("levels") or {}).items():
         for e in entries or []:
             if e.get("slot") == "spell":
@@ -420,7 +424,9 @@ def check_ledger(fname, led):
         src = cat["spellcasting"]["source"]
         primal_flat = {sp for sch in sources_cat["sources"][src].values() for sp in sch}
         # Arcane grant slots the walked ledger carries (Scaletrix): Intuitive Magic (2, any
-        # from the MC'd Sorcerer's chosen Source - Arcane per ledger) + Fiendish Magic (1).
+        # from the MC'd Sorcerer's chosen Source - Arcane per ledger) + Fiendish Magic (1)
+        # + each Spellcaster-path rank (1 spell drawn from the MC'd class Source; Scaletrix
+        # MC'd Sorcerer = Arcane, so his 2 path ranks are 2 more Arcane slots). FR-13a.
         grant_slots = 0
         for _, e in talent_picks(led):
             if "Innate Power" in str(e["pick"]) and "Intuitive" in str(e["pick"]):
@@ -428,6 +434,10 @@ def check_ledger(fname, led):
         for t in iter_traits(led):
             if base_name(t["name"]) in ("Fiendish Magic", "Arcane Spell"):
                 grant_slots += 1
+        for _, e in ((lvl, e) for lvl, ents in (led.get("levels") or {}).items()
+                     for e in ents or []):
+            if e.get("slot") == "path" and base_name(e.get("pick", "")) == "Spellcaster":
+                grant_slots += 1   # MC'd source is Arcane for the one walked case (Sorcerer)
         off_source = []
         for s in picks:
             meta = spell_meta[s]
