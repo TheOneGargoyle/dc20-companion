@@ -54,7 +54,8 @@ from rules_corpus import build_rules_data, corpus_embed  # FR-6: shared rules co
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
-           "talents", "skills_trades", "languages", "metamagic", "stamina_regen"]
+           "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
+           "class_spines"]  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 

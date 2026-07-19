@@ -22,70 +22,42 @@ import sys
 import yaml
 
 # ---------------------------------------------------------------- rules data
-# Class tables from rules/tables.md (0.10.5). Per level: deltas.
-# Keys: hp, attr, skill, trade, sp, man (maneuvers), mp, spells, features.
-CLASS_TABLES = {
-    "Spellblade": {  # tables.md l.157-170
-        1: dict(hp=8, sp=1, man=1, mp=3, spells=2, features=["Class Features"]),
-        2: dict(hp=1, features=["Class Feature", "Talent", "Path"]),
-        3: dict(hp=2, attr=1, skill=1, trade=1, man=1, mp=2, features=["Subclass"]),
-        4: dict(hp=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        5: dict(hp=2, attr=1, skill=2, trade=1, sp=1, mp=1, spells=1, features=["Class Feature"]),
-        6: dict(hp=1, skill=1, features=["Talent", "Path"]),
-        7: dict(hp=2, man=1, mp=2, features=["Subclass Expert"]),
-        8: dict(hp=1, attr=1, skill=1, trade=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        9: dict(hp=2, sp=1, mp=1, spells=1, features=["Class Capstone"]),
-        10: dict(hp=1, attr=1, skill=2, trade=1, man=1, mp=2, features=["Subclass Capstone"]),
-    },
-    "Warlock": {  # tables.md l.172-186
-        1: dict(hp=8, mp=6, spells=4, features=["Class Features"]),
-        2: dict(hp=1, features=["Class Feature", "Talent", "Path"]),
-        3: dict(hp=2, attr=1, skill=1, trade=1, mp=3, spells=1, features=["Subclass"]),
-        4: dict(hp=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        5: dict(hp=2, attr=1, skill=2, trade=1, mp=3, spells=1, features=["Class Feature"]),
-        6: dict(hp=1, skill=1, features=["Talent", "Path"]),
-        7: dict(hp=2, mp=3, spells=1, features=["Subclass Expert"]),
-        8: dict(hp=1, attr=1, skill=1, trade=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        9: dict(hp=2, mp=3, spells=1, features=["Class Capstone"]),
-        10: dict(hp=1, attr=1, skill=2, trade=1, mp=3, spells=1, features=["Subclass Capstone"]),
-    },
-    "Commander": {  # tables.md l.67-81 (Minimus; a.k.a. the Warlord-flavoured class)
-        1: dict(hp=8, sp=2, man=2, features=["Class Features"]),
-        2: dict(hp=2, features=["Class Feature", "Talent", "Path"]),
-        3: dict(hp=2, attr=1, skill=1, trade=1, sp=1, man=1, features=["Subclass"]),
-        4: dict(hp=2, features=["Talent", "2 Ancestry Points", "Path"]),
-        5: dict(hp=2, attr=1, skill=2, trade=1, man=1, features=["Class Feature"]),
-        6: dict(hp=2, skill=1, features=["Talent", "Path"]),
-        7: dict(hp=2, sp=1, man=1, features=["Subclass Expert"]),
-        8: dict(hp=2, attr=1, skill=1, trade=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        9: dict(hp=2, sp=1, man=1, features=["Class Capstone"]),
-        10: dict(hp=2, attr=1, skill=2, trade=1, sp=1, man=1, features=["Subclass Capstone"]),
-    },
-    "Barbarian": {  # tables.md l.7-21
-        1: dict(hp=8, sp=2, man=2, features=["Class Features"]),
-        2: dict(hp=2, features=["Class Feature", "Talent", "Path"]),
-        3: dict(hp=2, attr=1, skill=1, trade=1, sp=1, man=1, features=["Subclass"]),
-        4: dict(hp=2, features=["Talent", "2 Ancestry Points", "Path"]),
-        5: dict(hp=2, attr=1, skill=2, trade=1, man=1, features=["Class Expert Feature"]),
-        6: dict(hp=2, skill=1, features=["Talent", "Path"]),
-        7: dict(hp=2, sp=1, man=1, features=["Subclass Expert"]),
-        8: dict(hp=2, attr=1, skill=1, trade=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        9: dict(hp=2, sp=1, man=1, features=["Class Capstone"]),
-        10: dict(hp=2, attr=1, skill=2, trade=1, sp=1, man=1, features=["Subclass Capstone"]),
-    },
-    "Druid": {  # tables.md l.82-96
-        1: dict(hp=7, mp=6, spells=4, features=["Class Features"]),
-        2: dict(hp=1, features=["Class Feature", "Talent", "Path"]),
-        3: dict(hp=1, attr=1, skill=1, trade=1, mp=3, spells=1, features=["Subclass"]),
-        4: dict(hp=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        5: dict(hp=1, attr=1, skill=2, trade=1, mp=3, spells=1, features=["Class Feature"]),
-        6: dict(hp=1, skill=1, features=["Talent", "Path"]),
-        7: dict(hp=1, mp=3, spells=1, features=["Subclass Expert"]),
-        8: dict(hp=1, attr=1, skill=1, trade=1, features=["Talent", "2 Ancestry Points", "Path"]),
-        9: dict(hp=1, mp=3, spells=1, features=["Class Capstone"]),
-        10: dict(hp=1, attr=1, skill=2, trade=1, mp=3, spells=1, features=["Subclass Capstone"]),
-    },
-}
+# Class progression spines now live in DATA, not a hardcoded dict (FR-12.0, Phase 0):
+# builds/catalog/class_spines.yaml is the single source of truth for per-level deltas.
+# load_class_tables() reads it (cached); replay() takes an optional class_tables= so a
+# caller can pass the data in, mirroring stamina_regen(ledger, cat) / damage_addons(handle, cat).
+# Per-level keys: hp, attr, skill, trade, sp, man (maneuvers), mp, spells, features.
+
+def _spine_candidates():
+    here = os.path.dirname(os.path.abspath(__file__))
+    return [
+        "class_spines.yaml",  # Pyodide FS (baked bare name) or cwd
+        os.path.join(here, "..", "builds", "catalog", "class_spines.yaml"),  # repo layout (CLI, Companion)
+    ]
+
+
+_CLASS_TABLES_CACHE = None
+
+
+def load_class_tables(path=None):
+    """Return {class_name: {level:int -> delta dict}} from class_spines.yaml.
+
+    Replaces the old hardcoded CLASS_TABLES dict. Cached when loaded from the default
+    location; pass path= (or class_tables= into replay) to override, e.g. for tests.
+    """
+    global _CLASS_TABLES_CACHE
+    if path is None and _CLASS_TABLES_CACHE is not None:
+        return _CLASS_TABLES_CACHE
+    candidates = [path] if path else _spine_candidates()
+    for p in candidates:
+        if p and os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                tables = yaml.safe_load(f)["classes"]
+            if path is None:
+                _CLASS_TABLES_CACHE = tables
+            return tables
+    sys.exit("class_spines.yaml not found (looked in: %s)"
+             % ", ".join(c for c in candidates if c))
 
 POINT_BUY_POINTS = 12          # from -2 base in all four attributes
 ATTR_BASE_SUM = -8
@@ -177,12 +149,13 @@ def grant_flag(ledger, level, key, default=None):
     return val
 
 
-def replay(ledger, level):
+def replay(ledger, level, class_tables=None):
     rep = Report()
     cls = ledger["class"]
-    table = CLASS_TABLES.get(cls)
+    tables = class_tables if class_tables is not None else load_class_tables()
+    table = tables.get(cls)
     if table is None:
-        sys.exit(f"Class '{cls}' not yet encoded in CLASS_TABLES.")
+        sys.exit(f"Class '{cls}' not encoded in class_spines.yaml.")
     cg = ledger["chargen"]
     cur = ledger.get("current_level", level)
     plan = level > cur

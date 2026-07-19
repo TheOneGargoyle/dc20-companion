@@ -1,10 +1,10 @@
-# SCRIPTED — do not hand-edit. Regenerate: python3 tools/catalog_build.py
-# Spine numbers come straight from CLASS_TABLES; names cross-checked vs classes.md.
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.
 catalog_version: 1
 ruleset: DC20 0.10.5
 class: Warlock
 generated_by: tools/catalog_build.py
-source: CLASS_TABLES (build_engine.py) + rules/classes.md l.3145-3465 + rules/tables.md l.172-186
+source: builds/catalog/class_spines.yaml + rules/classes.md l.3145-3465 + rules/tables.md l.172-186
 spine:
   1:
     hp: 8

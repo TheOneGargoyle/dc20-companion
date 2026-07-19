@@ -6,11 +6,12 @@ classes) / spike 2 resolution (SS11): "script the class spine (reshape what the 
 holds), hand-curate the small cross-cutting cost lists."
 
 This script owns the scripted half for ALL FIVE walked classes (Spellblade, Warlock,
-Commander, Barbarian, Druid). For each class it reshapes the engine's CLASS_TABLES into a
-catalog spine, pulls the class-choice facts (Disciplines / Pact Boons / Subclasses /
-spellcasting model) out of rules/classes.md, and cross-checks every curated name against the
-rules text. Output: builds/catalog/<class>.yaml. It NEVER hand-edits numbers - every resource
-delta comes from CLASS_TABLES, so the catalog spines can never drift from the engine.
+Commander, Barbarian, Druid). For each class it reshapes the authored class spine from
+builds/catalog/class_spines.yaml into a catalog spine, pulls the class-choice facts
+(Disciplines / Pact Boons / Subclasses / spellcasting model) out of rules/classes.md, and
+cross-checks every curated name against the rules text. Output: builds/catalog/<class>.yaml.
+It NEVER hand-edits numbers - every resource delta comes from class_spines.yaml, which the
+engine reads too (FR-12.0), so the catalog spines can never drift from the engine.
 
 The cross-cutting cost lists (spell_schools.yaml, spell_sources.yaml, ancestries.yaml,
 maneuvers.yaml, talents.yaml) are hand-curated and live beside the output;
@@ -26,11 +27,13 @@ import sys
 
 import yaml
 
-# import the single source of truth for the numbers
+# the single source of truth for the numbers is now DATA (FR-12.0): the engine and this
+# generator both read builds/catalog/class_spines.yaml, so the spines can never drift.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_engine import CLASS_TABLES  # noqa: E402
+from build_engine import load_class_tables  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLASS_SPINES = load_class_tables(os.path.join(ROOT, "builds", "catalog", "class_spines.yaml"))
 CLASSES_MD = os.path.join(ROOT, "rules", "classes.md")
 
 # ---------------------------------------------------------------------------
@@ -91,7 +94,7 @@ SUBCLASS_GRANTS = {
 
 CLASS_CONFIG = {
     "Spellblade": {
-        "source_note": "CLASS_TABLES (build_engine.py) + rules/classes.md l.2759-3048 + rules/tables.md l.157-170",
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.2759-3048 + rules/tables.md l.157-170",
         "extras": {
             "disciplines_pick_l1": 2,
             "disciplines": SPELLBLADE_DISCIPLINES,
@@ -100,7 +103,7 @@ CLASS_CONFIG = {
         "spellcasting": {"model": "schools", "schools_chosen": 2, "tag_access": ["Weapon", "Ward"]},
     },
     "Warlock": {
-        "source_note": "CLASS_TABLES (build_engine.py) + rules/classes.md l.3145-3465 + rules/tables.md l.172-186",
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.3145-3465 + rules/tables.md l.172-186",
         "extras": {
             "pact_boons_pick_l1": 1,
             "pact_boons": WARLOCK_PACT_BOONS,
@@ -111,7 +114,7 @@ CLASS_CONFIG = {
         "spellcasting": {"model": "schools", "schools_chosen": 3},
     },
     "Commander": {
-        "source_note": "CLASS_TABLES (build_engine.py) + rules/classes.md l.1059-1269 + rules/tables.md l.67-81",
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.1059-1269 + rules/tables.md l.67-81",
         "extras": {},
         # Martial class: no Spell List of its own. Spells arrive only via the Spellcaster
         # Path first-time rider: "A Class that starts without a Spell List gains a Spell List
@@ -119,12 +122,12 @@ CLASS_CONFIG = {
         "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
     },
     "Barbarian": {
-        "source_note": "CLASS_TABLES (build_engine.py) + rules/classes.md l.34-274 + rules/tables.md l.7-21",
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.34-274 + rules/tables.md l.7-21",
         "extras": {},
         "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
     },
     "Druid": {
-        "source_note": "CLASS_TABLES (build_engine.py) + rules/classes.md l.1270-1684 + rules/tables.md l.82-96",
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.1270-1684 + rules/tables.md l.82-96",
         "extras": {},
         # classes.md l.1315-16: "When you learn a new Spell, you can choose any Spell on the
         # Primal Spell Source." -> source model; THIS is where the SS11 parent-source-heading
@@ -139,8 +142,8 @@ KEYMAP = {"hp": "hp", "attr": "attribute_points", "skill": "skill_points",
           "mp": "mp", "spells": "spells"}
 
 
-def spine_from_engine(cls):
-    table = CLASS_TABLES[cls]
+def spine_from_data(cls):
+    table = CLASS_SPINES[cls]
     spine = {}
     for level, deltas in sorted(table.items()):
         row = {}
@@ -203,7 +206,7 @@ def build(cls):
         "class": cls,
         "generated_by": "tools/catalog_build.py",
         "source": cfg["source_note"],
-        "spine": spine_from_engine(cls),
+        "spine": spine_from_data(cls),
     }
 
     extras = cfg["extras"]
@@ -237,8 +240,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="print, do not write")
     args = ap.parse_args()
-    header = ("# SCRIPTED — do not hand-edit. Regenerate: python3 tools/catalog_build.py\n"
-              "# Spine numbers come straight from CLASS_TABLES; names cross-checked vs classes.md.\n")
+    header = ("# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py\n"
+              "# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.\n")
     for cls in CLASS_CONFIG:
         catalog = build(cls)
         body = yaml.safe_dump(catalog, sort_keys=False, allow_unicode=True, width=100)

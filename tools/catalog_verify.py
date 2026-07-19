@@ -8,7 +8,7 @@ Three checks, in order:
       Armor's +1 is AD not PD, so RAW AD = 13 = the sheet. The old "Trade points over-spent"
       whitelist is also retired (BUG-2: Deep Speech is a free Eldritch grant).
   (2) Catalog vs ALL SIX ledgers - every walked pick must be legal and priced by the catalog:
-      each class spine == CLASS_TABLES; every ancestry-trait cost matches (with source aliases,
+      each class spine == class_spines.yaml (authored data); every ancestry-trait cost matches (with source aliases,
       trait aliases, and the Redeemed Fiendborn->Angelborn fallback); every named spell exists in
       spells.md and is legal for that character's spell-access model (Spellblade: chosen schools
       + Weapon/Ward tags + Spell School Initiate school; Warlock: 3 chosen schools + Eldritch
@@ -32,7 +32,10 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from build_engine import replay, CLASS_TABLES  # noqa: E402
+from build_engine import replay, load_class_tables  # noqa: E402
+
+# FR-12.0: the class spines are authored data now, read by the engine AND catalog_build.
+CLASS_SPINES = load_class_tables(os.path.join(ROOT, "builds", "catalog", "class_spines.yaml"))
 
 KNOWN_OPEN = set()  # retired 2026-07-16: runt's trade over-spend was the phantom Deep Speech LP
                     # (BUG-2, now a free Eldritch grant); scaletrix's was fixed 2026-07-12 (Draconic Limited).
@@ -135,17 +138,17 @@ for i, ln in enumerate(slines):
 # ---- (2) catalog vs the six ledgers ---------------------------------------
 print("## (2) Catalog vs the six ledgers")
 
-# (2a) each class spine matches the engine (no drift)
+# (2a) each generated class spine matches the authored data (no drift)
 KEY = {"hp": "hp", "attr": "attribute_points", "skill": "skill_points", "trade": "trade_points",
        "sp": "sp", "man": "maneuvers", "mp": "mp", "spells": "spells"}
 for cls, cat in CLASS_CAT.items():
-    for lvl, deltas in CLASS_TABLES[cls].items():
+    for lvl, deltas in CLASS_SPINES[cls].items():
         row = cat["spine"][lvl]
         for src, dst in KEY.items():
             expect(row.get(dst, 0) == deltas.get(src, 0),
-                   f"{cls} spine L{lvl} {dst}: catalog {row.get(dst, 0)} vs engine {deltas.get(src, 0)}")
+                   f"{cls} spine L{lvl} {dst}: catalog {row.get(dst, 0)} vs data {deltas.get(src, 0)}")
         expect(row.get("features") == list(deltas.get("features", [])), f"{cls} spine L{lvl} features drift")
-print("  spines match CLASS_TABLES across all 10 levels x 5 classes")
+print("  spines match class_spines.yaml across all 10 levels x 5 classes")
 
 # FR-8 slice 3: Spellblade rune catalog + Rune Knight grant (feeds the slice-2 child-slot backbone)
 _sb = CLASS_CAT["Spellblade"]

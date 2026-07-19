@@ -1,0 +1,63 @@
+# Class progression spines (DC20 Beta 0.10.5). AUTHORED DATA - the single source of
+# truth for per-level class deltas. Read by tools/build_engine.py (replay, via
+# load_class_tables) and tools/catalog_build.py. Replaces the old hardcoded
+# build_engine.CLASS_TABLES dict (FR-12.0, Phase 0). Adding/refreshing a class is a
+# data edit here, never a code edit.
+# Per-level keys: hp, attr, skill, trade, sp, man (maneuvers), mp, spells, features.
+ruleset: DC20 0.10.5
+classes:
+  Spellblade:   # tables.md l.157-170
+    1: {hp: 8, sp: 1, man: 1, mp: 3, spells: 2, features: [Class Features]}
+    2: {hp: 1, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, man: 1, mp: 2, features: [Subclass]}
+    4: {hp: 1, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, mp: 1, spells: 1, features: [Class Feature]}
+    6: {hp: 1, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, man: 1, mp: 2, features: [Subclass Expert]}
+    8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, sp: 1, mp: 1, spells: 1, features: [Class Capstone]}
+    10: {hp: 1, attr: 1, skill: 2, trade: 1, man: 1, mp: 2, features: [Subclass Capstone]}
+  Warlock:   # tables.md l.172-186
+    1: {hp: 8, mp: 6, spells: 4, features: [Class Features]}
+    2: {hp: 1, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, mp: 3, spells: 1, features: [Subclass]}
+    4: {hp: 1, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Class Feature]}
+    6: {hp: 1, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, mp: 3, spells: 1, features: [Subclass Expert]}
+    8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, mp: 3, spells: 1, features: [Class Capstone]}
+    10: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Subclass Capstone]}
+  Commander:   # tables.md l.67-81
+    1: {hp: 8, sp: 2, man: 2, features: [Class Features]}
+    2: {hp: 2, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, sp: 1, man: 1, features: [Subclass]}
+    4: {hp: 2, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, man: 1, features: [Class Feature]}
+    6: {hp: 2, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, sp: 1, man: 1, features: [Subclass Expert]}
+    8: {hp: 2, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, sp: 1, man: 1, features: [Class Capstone]}
+    10: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, man: 1, features: [Subclass Capstone]}
+  Barbarian:   # tables.md l.7-21
+    1: {hp: 8, sp: 2, man: 2, features: [Class Features]}
+    2: {hp: 2, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, sp: 1, man: 1, features: [Subclass]}
+    4: {hp: 2, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, man: 1, features: [Class Expert Feature]}
+    6: {hp: 2, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, sp: 1, man: 1, features: [Subclass Expert]}
+    8: {hp: 2, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, sp: 1, man: 1, features: [Class Capstone]}
+    10: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, man: 1, features: [Subclass Capstone]}
+  Druid:   # tables.md l.82-96
+    1: {hp: 7, mp: 6, spells: 4, features: [Class Features]}
+    2: {hp: 1, features: [Class Feature, Talent, Path]}
+    3: {hp: 1, attr: 1, skill: 1, trade: 1, mp: 3, spells: 1, features: [Subclass]}
+    4: {hp: 1, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Class Feature]}
+    6: {hp: 1, skill: 1, features: [Talent, Path]}
+    7: {hp: 1, mp: 3, spells: 1, features: [Subclass Expert]}
+    8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 1, mp: 3, spells: 1, features: [Class Capstone]}
+    10: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Subclass Capstone]}

@@ -2,6 +2,8 @@
 
 **Status: architecture decided 2026-07-19 (design thread, no code written by intent). Re-entry point for the full-coverage epic, same role RUNG3_PLAN.md played for the builder.** Phase 0 is teed up as the next thread's work.
 
+**Phase 0 DONE (2026-07-19), Option B chosen.** The class progression now lives in authored data (`builds/catalog/class_spines.yaml`); `build_engine.load_class_tables()` reads it and `replay(ledger, level, class_tables=None)` takes it as passed-in data; the hardcoded `CLASS_TABLES` dict is retired and `catalog_build.py` no longer imports it. Provably safe: loaded data == old dict, PARTY_DERIVED byte-identical, catalog_verify 90/90, builder_verify PASS; a new class added as data-only resolves with zero engine edits. **NEXT = Phase 1 (sourcing machinery + FR-13a).**
+
 Audience: GM / tooling. Convention: no em-dashes anywhere. If this doc and `builds/BACKLOG.md` + `_SESSION_LOG.md` disagree, trust the log + BACKLOG (this is the durable design record; the log is the running state).
 
 ---
