@@ -1757,30 +1757,43 @@ def check_fr20():
 # ---------------------------------------------------------------- (22) FR-9 ancestry slots/budget
 def check_fr9():
     print("\n## (22) FR-9: ancestry-trait budget readout + auto ready-slot (polish + lock)")
-    # (a) all six canon ledgers are at budget -> anc_spent == anc_budget, no auto slot, no problem
+    # (a) all six canon ledgers are at budget -> anc_spent == anc_budget, no ancestry-point
+    #     problem. BUG-17: a canon PC that already has its one free Minor (0-cost) Trait shows
+    #     no auto slot; one still MISSING its minor (Scaletrix, Xanwyn) shows a single L1
+    #     minor-allowance ready slot (a legal free pick), still with no ancestry-point problem.
     for who in builder_build.CHARS:
-        s = st(builder_api.BuilderAPI(who, CATPATHS))
+        api0 = builder_api.BuilderAPI(who, CATPATHS)
+        s = st(api0)
         autos = [d for d in s["decisions"] if d.get("auto") and d.get("slot") == "ancestry_trait"]
         anc_probs = [p for p in s["problems"] if "Ancestry point" in p]
-        ok("%s at budget: anc_spent==anc_budget, no auto slot, no ancestry problem" % who,
-           s["anc_spent"] == s["anc_budget"] and not autos and not anc_probs,
-           (s["anc_spent"], s["anc_budget"], len(autos), anc_probs))
+        minor_ct = sum(1 for t in (api0.ledger["chargen"].get("ancestry_traits") or [])
+                       if str(t.get("name")) != "(undecided)" and int(t.get("cost", 0) or 0) == 0)
+        base_ok = s["anc_spent"] == s["anc_budget"] and not anc_probs
+        if minor_ct >= 1:
+            ok("%s at budget (has minor): no auto slot, no ancestry problem" % who,
+               base_ok and not autos, (s["anc_spent"], s["anc_budget"], len(autos), anc_probs))
+        else:
+            ok("%s at budget (no minor): one L1 minor ready slot, no ancestry problem" % who,
+               base_ok and len(autos) == 1 and autos[0]["level"] == 1,
+               (s["anc_spent"], s["anc_budget"], len(autos), anc_probs))
     # (b) under budget -> exactly one auto ready-slot, full options, ancestry problem raised
     api = builder_api.BuilderAPI("runt", CATPATHS)
     del api.ledger["chargen"]["ancestry_traits"][1]   # drop Brute (cost 1): 7 -> 6 spent vs 7
     s = st(api)
     autos = [d for d in s["decisions"] if d.get("auto")]
     ok("under budget: exactly one auto ready-slot", len(autos) == 1, len(autos))
-    ok("auto slot is an ancestry_trait picker (id cg:trait:+, undecided, full options)",
-       autos and autos[0]["id"] == "cg:trait:+" and autos[0]["slot"] == "ancestry_trait"
-       and autos[0]["current"] == "(undecided)" and len(autos[0].get("options") or []) > 10,
-       autos[:1])
+    # BUG-18: Runt is L4 and under budget, so the ready slot is placed at the level that most
+    # recently granted ancestry points (L4) -> id "L4:trait:+", not the chargen "cg:trait:+".
+    ok("auto slot is an ancestry_trait picker (BUG-18 level-placed id L4:trait:+, undecided, full options)",
+       autos and autos[0]["id"] == "L4:trait:+" and autos[0]["slot"] == "ancestry_trait"
+       and autos[0]["level"] == 4 and autos[0]["current"] == "(undecided)"
+       and len(autos[0].get("options") or []) > 10, autos[:1])
     ok("under budget: readout numbers (6 of 7) + engine ancestry problem raised",
        s["anc_spent"] == 6 and s["anc_budget"] == 7
        and any("Ancestry points: 6 spent vs 7 budget" in p for p in s["problems"]), s["anc_spent"])
     # (c) picking via the auto slot materialises a real trait; back at budget -> no auto slot
     opt = next(o["name"] for o in autos[0]["options"] if 0 < o.get("cost", 0) <= 1)
-    s2 = json.loads(api.set_decision("cg:trait:+", opt))
+    s2 = json.loads(api.set_decision(autos[0]["id"], opt))
     ok("picking the auto slot materialises a real trait and rebalances the budget",
        s2["anc_spent"] == 7 and not [p for p in s2["problems"] if "Ancestry point" in p]
        and not [d for d in s2["decisions"] if d.get("auto")], (s2["anc_spent"],))
@@ -1802,8 +1815,9 @@ def check_fr9():
     ok("undecAt counter skips auto rows (&& !t.auto)", "&& !t.auto)" in html)
     # the sentinel + budget helper live in API_PY (base64-baked into the page; check_page's
     # "api blob == builder_build.API_PY" already proves the bake matches this source)
-    ok("auto-slot sentinel 'cg:trait:+' handled in set_decision (API_PY source)",
-       "cg:trait:+" in builder_build.API_PY and "_anc_budget" in builder_build.API_PY)
+    ok("auto-slot sentinels handled in set_decision (chargen cg:trait:+ + BUG-18 level :trait:+)",
+       "cg:trait:+" in builder_build.API_PY and "':trait:+'" in builder_build.API_PY
+       and "_anc_budget" in builder_build.API_PY and "_anc_ready_level" in builder_build.API_PY)
 
 
 # ---------------------------------------------------------------- (23) BUG-16 maneuver/spell edit-only
@@ -1825,7 +1839,7 @@ def check_bug16():
     owned = {d.get("current") for d in s["decisions"] if d["slot"] == "ancestry_trait"}
     opt = next(o["name"] for o in auto["options"]
                if 0 < o.get("cost", 0) <= 1 and o["name"] not in owned and "Attribute" not in o["name"])
-    s2 = json.loads(api.set_decision("cg:trait:+", opt))
+    s2 = json.loads(api.set_decision(auto["id"], opt))
     added = next(d for d in s2["decisions"] if d["slot"] == "ancestry_trait" and d.get("current") == opt)
     ok("ancestry removability unchanged: a builder-added trait is still removable (safe, self-heals)",
        added.get("removable") is True, added.get("removable"))

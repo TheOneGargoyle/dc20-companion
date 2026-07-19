@@ -528,6 +528,30 @@ class BuilderAPI:
         return any(e.get('slot') == 'ancestry_trait' and str(e.get('pick')) == UNDECIDED
                    for es in (self.ledger.get('levels') or {}).values() for e in es or [])
 
+    def _anc_ready_level(self):
+        # BUG-18: the level at which to render the ready ancestry slot = the highest level
+        # (<= current) that granted ancestry points. L1 always grants 5; L4/L8 add '2 Ancestry
+        # Points'. Points are pooled, so after L4 the ready slot belongs in the L4 block where
+        # the user just gained them, not back at chargen.
+        cur = self.ledger['current_level']
+        lvls = [1] + [l for l in sorted(self.ccat['spine'])
+                      if l <= cur and '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or [])]
+        return max(lvls)
+
+    def _anc_minor_count(self):
+        # count of chosen Minor (0-cost) ancestry traits (excluding undecided ready slots).
+        return sum(1 for t in self._traits()
+                   if str(t.get('name')) != UNDECIDED and int(t.get('cost', 0) or 0) == 0)
+
+    def _anc_minor_room(self):
+        # BUG-17: True when the one free Minor Trait has not been taken AND a 0-cost option is
+        # still available to pick. Lets the ready slot show even at 0 points remaining.
+        if self._anc_minor_count() >= 1:
+            return False
+        chosen = {base_name(str(t.get('name'))) for t in self._traits()}
+        return any(int(o.get('cost', 0) or 0) == 0 and base_name(str(o['name'])) not in chosen
+                   for o in self._anc_options())
+
     # ---------- grants-only maneuver/spell auto-heal (2026-07-19) ----------
     # The maneuver/spell analog of the FR-9 ancestry ready-slot. Model: the engine derives
     # "Maneuvers/Spells known" as a BUDGET (class table + path + all grants); the flat pool
@@ -1230,14 +1254,25 @@ class BuilderAPI:
                 ds.extend(self._grant_children(e, 'L%d:%d' % (lvl, i), lvl,
                                                (lvl <= cur) or bool(e.get('plan_edit'))))   # FR-8 slice 2 / FR-3
         # FR-9: while ancestry points are unspent AND no open slot already exists, show ONE
-        # ready empty ancestry-trait picker (id 'cg:trait:+') so the common case (spend your L1
-        # points) needs no button - matching the skills allocator's always-ready feel. It flows
-        # through the normal decision renderer; set_decision materialises a real trait on first
-        # pick. The FR-20 reorder places it in the L1 ancestry block (rank 2). Suppressed when at
-        # budget (the six canon ledgers) or when options can't resolve (scratch, no ancestry yet).
+        # ready empty ancestry-trait picker so the common case (spend your points) needs no
+        # button - matching the skills allocator's always-ready feel. It flows through the
+        # normal decision renderer; set_decision materialises a real trait on pick.
+        # BUG-17 (2026-07-19): also show the slot when the single free Minor (0-cost) Trait has
+        # not been taken yet, even at 0 points left (a Minor Trait costs 0 and is a separate
+        # one-only allowance, ancestries.md l.~2568). So the gate is "points remain OR a minor
+        # is still available".
+        # BUG-18 (2026-07-19): render the ready slot at the level that most recently granted
+        # ancestry points (L4 / L8 give '2 Ancestry Points'), not always at chargen L1 - so
+        # after levelling to L4 the extra points spawn slots AT L4, where the user is looking,
+        # instead of silently appearing back in the L1 block.
         spent, budget = self._anc_budget()
-        if spent < budget and not self._anc_has_undecided() and self._anc_options():
-            auto = self._dec('cg:trait:+', 1, 'ancestry_trait', UNDECIDED, None, False, True)
+        if (spent < budget or self._anc_minor_room()) and not self._anc_has_undecided() \
+                and self._anc_options():
+            # BUG-18: unspent POINTS surface at the level that most recently granted them (L4/L8);
+            # BUG-17: the free MINOR trait is a chargen allowance, so it surfaces at L1.
+            tl = self._anc_ready_level() if spent < budget else 1
+            sid = 'cg:trait:+' if tl == 1 else 'L%d:trait:+' % tl
+            auto = self._dec(sid, tl, 'ancestry_trait', UNDECIDED, None, False, True)
             auto['auto'] = True
             ds.append(auto)
         # grants-only auto-heal (2026-07-19): the maneuver/spell analog of the FR-9 ready-slot.
@@ -1802,6 +1837,15 @@ class BuilderAPI:
         value = str(value)
         if did.startswith('GC#'):
             return self._set_grant_child(did, value)   # FR-8 slice 2 grant-child pick
+        if did.startswith('L') and did.endswith(':trait:+'):
+            # BUG-18: the ready ancestry slot rendered at a level (L4/L8) - materialise a real
+            # level ancestry_trait entry, then set it (the level analog of cg:trait:+). Handled
+            # before the generic 'L<lvl>:<idx>' branch, which cannot parse this sentinel id.
+            lvl = int(did[1:].split(':')[0])
+            self.ledger.setdefault('levels', {}).setdefault(lvl, []).append(
+                {'slot': 'ancestry_trait', 'pick': UNDECIDED, 'cost': 0, 'note': BUILDER_NOTE})
+            self._set_trait(self.ledger['levels'][lvl][-1], value, entry=True)
+            return self.state()
         if did == 'cg:trait:+':
             # FR-9: the auto empty-slot - materialise a real chargen ancestry trait, then set it
             # (add_trait + _set_trait in one step). Next state() re-derives whether another auto

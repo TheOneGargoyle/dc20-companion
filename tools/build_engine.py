@@ -203,6 +203,16 @@ def replay(ledger, level, class_tables=None):
         1 for l in range(2, level + 1) if "2 Ancestry Points" in table.get(l, {}).get("features", []))
     if anc_spent != anc_budget:
         rep.problem(f"Ancestry points: {anc_spent} spent vs {anc_budget} budget")
+    # BUG-17: Minor Ancestry Traits cost 0 Points and you may choose only ONE
+    # (ancestries.md "Minor Ancestry Traits ... You can only choose 1 Minor Trait").
+    # Undecided ready slots (pick/name "(undecided)", cost 0) are not real picks.
+    minor_ct = sum(1 for t in cg.get("ancestry_traits", [])
+                   if str(t.get("name")) != "(undecided)" and int(t.get("cost", 0) or 0) == 0)
+    minor_ct += sum(1 for _, e in all_entries(ledger, level)
+                    if e.get("slot") == "ancestry_trait"
+                    and str(e.get("pick")) != "(undecided)" and int(e.get("cost", 0) or 0) == 0)
+    if minor_ct > 1:
+        rep.problem(f"Minor Ancestry Traits: {minor_ct} chosen (0-cost); only 1 is allowed")
 
     # --- paths / talents / subclass ---------------------------------------
     paths = [e.get("pick") for _, e in all_entries(ledger, level) if e.get("slot") == "path"]
