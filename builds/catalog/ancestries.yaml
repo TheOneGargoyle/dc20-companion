@@ -21,6 +21,14 @@
 
 catalog_version: 1
 source_aliases: {Beast: Beastborn}
+# origins: the per-ancestry damage-type choice (ancestries.md l.525-532 Draconic Origin,
+# l.696-701 Fiendish Origin). "All future choices within this Ancestry must use the chosen
+# Origin." It is engine-neutral (records a damage type, no derived-stat effect); the builder
+# renders ONE picker per present origin-ancestry so a scratch pick can record it (BUG-24).
+# tools/catalog_verify.py re-parses the two Origin lists from ancestries.md and asserts a match.
+origins:
+  Dragonborn: [Cold, Corrosion, Fire, Lightning, Poison, Psychic, Radiant, Umbral]
+  Fiendborn: [Cold, Corrosion, Fire, Poison, Umbral]
 ancestries:
   Human:
     # Default Traits
@@ -51,7 +59,7 @@ ancestries:
     - {name: Might Attribute Decrease, cost: -1}
   Dwarf:
     # Default Traits
-    - {name: Tough, cost: 1}
+    - {name: Tough, cost: 1, grants: {hp: 1}}
     - {name: Toxic Fortitude, cost: 2}
     - {name: Physically Sturdy, cost: 2}
     - {name: Iron Stomach, cost: 0}
@@ -83,7 +91,7 @@ ancestries:
     - {name: Short-Legged, cost: -1}
   Giantborn:
     # Default Traits
-    - {name: Tough, cost: 1}
+    - {name: Tough, cost: 1, grants: {hp: 1}}
     - {name: Powerful Build, cost: 2}
     - {name: Unstoppable, cost: 1}
     - {name: Giant's Resolve, cost: 1}
@@ -93,7 +101,7 @@ ancestries:
     - {name: Strong Body, cost: 2}
     - {name: Mighty Hurl, cost: 1}
     - {name: Titanic Toss, cost: 1}
-    - {name: Mighty Leap, cost: 1}
+    - {name: Mighty Leap, cost: 1, grants: {jump_from: might}}
     - {name: Brute, cost: 1}
     - {name: Heavy Riser, cost: -1}
     - {name: Clumsiness, cost: -1}
@@ -105,7 +113,7 @@ ancestries:
     - {name: Draconic Breath Weapon, cost: 2}
     - {name: Reptilian Superiority, cost: 0}
     # Expanded Traits
-    - {name: Mana Increase, cost: 1}
+    - {name: Mana Increase, cost: 1, grants: {mp: 1}}
     - {name: Thick-Skinned, cost: 1}
     - {name: Second Breath, cost: 2, requires: Draconic Breath Weapon}
     - {name: Concussive Breath, cost: 1, requires: Draconic Breath Weapon}
@@ -125,7 +133,7 @@ ancestries:
     - {name: Darkvision, cost: 1}
     - {name: Light's Bane, cost: 0}
     # Expanded Traits
-    - {name: Mana Increase, cost: 1}
+    - {name: Mana Increase, cost: 1, grants: {mp: 1}}
     - {name: Silver-Tongued, cost: 1}
     - {name: Fiendish Aura, cost: 1}
     - {name: Superior Darkvision, cost: 1, requires: Darkvision}
@@ -142,7 +150,7 @@ ancestries:
     - {name: Celestial Magic, cost: 2}
     - {name: Healing Touch, cost: 2}
     - {name: Divine Glow, cost: 0}
-    - {name: Mana Increase, cost: 1}
+    - {name: Mana Increase, cost: 1, grants: {mp: 1}}
     - {name: Celestial Clarity, cost: 1}
     - {name: Angelic Insight, cost: 1}
     - {name: Gift of the Angels, cost: 2}
@@ -170,7 +178,7 @@ ancestries:
     - {name: Charge, cost: 2}
     - {name: Burrow Speed, cost: 2}
     # Jumping
-    - {name: Jumper, cost: 1}
+    - {name: Jumper, cost: 1, grants: {jump: 2}}
     - {name: Strong Jumper, cost: 1}
     # Flying
     - {name: Glide Speed, cost: 2}
@@ -180,7 +188,7 @@ ancestries:
     - {name: Stealth Feathers, cost: 2, requires: Limited Flight}
     - {name: Winged Arms, cost: -1, requires: any Flying Beast Trait}
     # Body
-    - {name: Tough, cost: 1}
+    - {name: Tough, cost: 1, grants: {hp: 1}}
     - {name: Thick-Skinned, cost: 1}
     - {name: Hazardous Hide, cost: 1}
     - {name: Powerful Build, cost: 2}

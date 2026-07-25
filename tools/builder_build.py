@@ -990,6 +990,8 @@ class BuilderAPI:
             return self._spell_tagged_options()
         if slot == 'spell_sourced':  # FR-13a source-constrained spell grant-child; options are per-
             return []                # parent (the source constraint), so _grant_children sets them
+        if slot == 'ancestry_origin':  # BUG-24: per-ancestry Origin damage type; options are per-
+            return []                    # ancestry (Dragonborn vs Fiendborn), so _origin_decisions sets them
         if slot == 'source_choice':  # FR-13a slice 2: the Sorcerous Origin node = the chosen Sorcerer
             # Source. The three magic Sources (classes.md l.2530-2551: Sorcerers draw from Arcane,
             # Divine, or Primal); narrowed to the sources actually present in the baked metadata.
@@ -1191,6 +1193,34 @@ class BuilderAPI:
         return probs
 
     # ---------- the decision model ----------
+    def _origin_decisions(self):
+        # BUG-24 (option-effects, 2026-07-25): Dragonborn/Fiendborn each require a single per-ancestry
+        # Origin (a damage type) that "all future choices within this Ancestry must use" (ancestries.md
+        # l.525/696). It is ENGINE-NEUTRAL (records a type, no derived-stat effect), so it lives in the
+        # ledger at chargen.ancestry_origins[<source>] and is NOT a grant. Render ONE picker per present
+        # origin-ancestry (a trait of that source has been taken), so a scratch pick can record it - the
+        # gap the bug named. Shared value = consistency across that ancestry's typed traits for free.
+        origins = (self.cat['ancestries'].get('origins') or {})
+        if not origins:
+            return []
+        present = []
+        for t in self._traits():
+            src = str(t.get('source') or '')
+            if src in origins and src not in present:
+                present.append(src)
+        store = self.ledger['chargen'].get('ancestry_origins') or {}
+        out = []
+        for src in present:
+            cur = store.get(src, UNDECIDED)
+            d = self._dec('AO#%s' % src, 1, 'ancestry_origin', cur, None, False, True)
+            d['options'] = [{'name': x, 'group': '', 'label': x} for x in origins[src]]
+            d['current'] = cur if cur else UNDECIDED
+            if cur and cur != UNDECIDED and not any(o['name'] == cur for o in d['options']):
+                d['options'].insert(0, {'name': cur, 'label': '%s (off-list)' % cur})
+            d['slotlabel'] = '%s origin' % src.lower()
+            out.append(d)
+        return out
+
     def _decisions(self):
         ds = []
         cg = self.ledger['chargen']
@@ -1212,6 +1242,7 @@ class BuilderAPI:
             # trait row so they glue under it (FR-20). Reuses the same source branch as class/level grants;
             # traits without a spell grant (Mana Increase, Jumper, ...) produce nothing.
             ds.extend(self._grant_children(t, 'cgtrait:%d' % i, 1, not ph))
+        ds.extend(self._origin_decisions())   # BUG-24: per-ancestry Origin damage-type picker(s)
         for ci, c in enumerate(cg.get('class_choices') or []):
             opt_slot = ('discipline' if c['slot'] == 'spellblade_disciplines'
                         else 'pact_boon' if c['slot'] in ('pact_boons', 'pact_boon') else None)
@@ -1837,6 +1868,10 @@ class BuilderAPI:
         value = str(value)
         if did.startswith('GC#'):
             return self._set_grant_child(did, value)   # FR-8 slice 2 grant-child pick
+        if did.startswith('AO#'):   # BUG-24: per-ancestry Origin damage-type choice (engine-neutral)
+            src = did.split('#', 1)[1]
+            self.ledger['chargen'].setdefault('ancestry_origins', {})[src] = value
+            return self.state()
         if did.startswith('L') and did.endswith(':trait:+'):
             # BUG-18: the ready ancestry slot rendered at a level (L4/L8) - materialise a real
             # level ancestry_trait entry, then set it (the level analog of cg:trait:+). Handled
@@ -1946,8 +1981,9 @@ class BuilderAPI:
         # FR-13a slice 2: a trait can carry a source-constrained spell grant (Fiendish Magic ->
         # Command). If it is re-picked to a DIFFERENT trait, drop that spell-grant provenance so a
         # stale grant-child (and a phantom spell in the engine count) cannot linger (mirrors
-        # _apply_grants' changed-clear; non-spell grants are left as-is, matching prior behaviour).
-        if base_name(str(t.get(key))) != base_name(str(value)):
+        # _apply_grants' changed-clear).
+        changed = base_name(str(t.get(key))) != base_name(str(value))
+        if changed:
             t.pop('granted_spells', None)
             t.pop('spell_access', None)
             t.pop('sorcerous_origin', None)
@@ -1959,6 +1995,19 @@ class BuilderAPI:
         if row is not None:
             t['cost'] = row['cost']
             t['source'] = lst
+            # Scratch-mode option-effects layer (2026-07-25): copy the catalog option's mechanical
+            # effect onto the ledger entry so a picked trait actually APPLIES its effect (previously a
+            # scratch pick applied its cost but nothing else - BUG-27 etc). Only NUMERIC grants live in
+            # the ancestry catalog (mp/hp/jump/jump_from); spell grants stay ledger-authored via the
+            # FR-13a child machinery. On a real change the spell provenance was cleared just above, so
+            # replacing grants with the new trait's numeric catalog grants is safe; an UNCHANGED re-pick
+            # leaves the entry (and any hand-authored childed spell grant) untouched.
+            if changed:
+                cat_grants = dict(row.get('grants') or {})
+                if cat_grants:
+                    t['grants'] = cat_grants
+                else:
+                    t.pop('grants', None)
         was_added = BUILDER_NOTE in str(t.get('note', ''))
         t['note'] = ('%s; cost %s from catalog (%s).'
                      % (BUILDER_NOTE if was_added else 'Edited in builder',
@@ -2908,7 +2957,8 @@ function render(s){
       body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
     const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
-                    : (t.slot==='source_choice') ? 'sorcerer source' : t.slot;        // FR-13a slice 2: Sorcerous Origin node
+                    : (t.slot==='source_choice') ? 'sorcerer source'                 // FR-13a slice 2: Sorcerous Origin node
+                    : (t.slot==='ancestry_origin') ? (t.slotlabel||'origin') : t.slot;  // BUG-24: per-ancestry Origin picker
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;

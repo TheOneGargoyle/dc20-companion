@@ -28,6 +28,7 @@ chargen:
     - {name: Draconic Breath Weapon (Fire), source: Dragonborn, cost: 2}
     - {name: Concussive Breath, source: Dragonborn, cost: 1}
     # Total 5 = L1 budget; Second Breath = the L4 spend (budget-inferred; which 2 pts landed at L4 is a guess).
+  ancestry_origins: {Dragonborn: Fire, Fiendborn: Fire}  # BUG-24: per-ancestry Origin damage type (both Fire, per the ledger's inline trait names + the character header). Engine-neutral.
   spells: [Wild Guard, Primal Hide, Fireball, Fire Bolt]
   # FR-13a: ALL 10 spells named + sourced from Darryl's sheet screenshot.
   # PRIMAL (5, Druid source): Wild Guard, Primal Hide, Fireball, Fire Bolt (4 L1 table here)

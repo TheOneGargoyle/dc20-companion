@@ -2069,6 +2069,80 @@ def check_grants_only():
        "def expand_composite" not in builder_build.API_PY)
 
 
+
+# --------------------------------------------- option-effects (scratch-mode grants)
+def check_option_effects():
+    """2026-07-25 option-effects layer: a scratch-mode ancestry pick must APPLY its catalog
+    effect, not just its cost. Numeric ancestry grants (mp/hp/jump/jump_from) flow from the
+    catalog onto the ledger entry via _set_trait, and a re-pick clears them."""
+    print("## (OE) Option-effects: scratch ancestry grants apply + clear")
+
+    def stat(s, n):
+        v = next(r[1] for r in s["stats"] if r[0] == n)
+        return int(str(v).split()[0])
+
+    def last_trait_slot(s):
+        return [d for d in s["decisions"] if d["slot"] == "ancestry_trait"][-1]
+
+    def fresh(cls, anc):
+        a = builder_api.BuilderAPI(None, CATPATHS, new_class=cls)
+        a.set_attr("might", 3); a.set_attr("agility", 1)
+        a.set_attr("charisma", 0); a.set_attr("intelligence", 0)
+        a.set_ancestry(anc, "-")
+        return a
+
+    # Mana Increase -> +1 MP (BUG-27)
+    a = fresh("druid", "Dragonborn"); mp0 = stat(st(a), "MP")
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    s1 = json.loads(a.set_decision(d["id"], "Mana Increase"))
+    ok("scratch Dragonborn Mana Increase grants +1 MP (BUG-27)",
+       stat(s1, "MP") == mp0 + 1, "%d->%d" % (mp0, stat(s1, "MP")))
+    # re-pick to a no-numeric-grant trait clears the MP grant
+    s2 = json.loads(a.set_decision(d["id"], "Darkvision"))
+    ok("scratch Mana Increase -> Darkvision clears the MP grant",
+       stat(s2, "MP") == mp0, "%d (base %d)" % (stat(s2, "MP"), mp0))
+
+    # Tough -> +1 HP ; Jumper -> +2 Jump Distance
+    a = fresh("barbarian", "Beastborn"); s0 = st(a)
+    hp0, j0 = stat(s0, "HP"), stat(s0, "Jump Distance")
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    sh = json.loads(a.set_decision(d["id"], "Tough"))
+    ok("scratch Beastborn Tough grants +1 HP",
+       stat(sh, "HP") == hp0 + 1, "%d->%d" % (hp0, stat(sh, "HP")))
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    sj = json.loads(a.set_decision(d["id"], "Jumper"))
+    ok("scratch Beastborn Jumper grants +2 Jump Distance",
+       stat(sj, "Jump Distance") == j0 + 2, "%d->%d" % (j0, stat(sj, "Jump Distance")))
+
+    # BUG-24: per-ancestry Origin picker appears once a trait of that ancestry is taken, records
+    # the choice, and is engine-neutral; canon Scaletrix loads with both origins seeded.
+    def origins(s):
+        return [d for d in s["decisions"] if d["slot"] == "ancestry_origin"]
+    a = fresh("druid", "Dragonborn")
+    ok("no Draconic Origin node before any Dragonborn trait", len(origins(st(a))) == 0)
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    s = json.loads(a.set_decision(d["id"], "Draconic Breath Weapon"))
+    od = origins(s)
+    ok("Draconic Origin node appears after a Dragonborn trait", len(od) == 1,
+       [x["slot"] for x in od])
+    if od:
+        opts = {o["name"] for o in od[0]["options"]}
+        ok("Draconic Origin offers the 8 rules damage types",
+           opts == {"Cold", "Corrosion", "Fire", "Lightning", "Poison", "Psychic", "Radiant", "Umbral"},
+           sorted(opts))
+        mp_before = stat(s, "MP")
+        s2 = json.loads(a.set_decision(od[0]["id"], "Fire"))
+        ok("picking a Draconic Origin records it", origins(s2)[0]["current"] == "Fire",
+           origins(s2)[0]["current"])
+        ok("Draconic Origin pick is engine-neutral (MP unchanged)",
+           stat(s2, "MP") == mp_before, (mp_before, stat(s2, "MP")))
+    a2 = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    od2 = origins(st(a2))
+    ok("canon Scaletrix loads both origins seeded to Fire (no undecided)",
+       len(od2) == 2 and all(x["current"] == "Fire" for x in od2),
+       [(x.get("slotlabel"), x["current"]) for x in od2])
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -2108,6 +2182,7 @@ def main():
         check_fr4()
         check_fr23()
         check_grants_only()
+        check_option_effects()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)

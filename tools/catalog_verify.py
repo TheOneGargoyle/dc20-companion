@@ -515,6 +515,24 @@ for a in anc["ancestries"]:
     print(f"  {a}: all {len(anc['ancestries'][a])} curated costs"
           + (f" + {nreq} prerequisites" if nreq else "") + " match ancestries.md")
 
+# origins (BUG-24): the per-ancestry Origin damage-type lists must match ancestries.md.
+def parse_origin_types(md, heading, label):
+    body = ancestry_region(md, heading)
+    m = re.search(label + r"(.*?)(?:Default Traits|Fiendborn Redemption)", body, re.S)
+    seg = m.group(1) if m else ""
+    # damage types are Capitalised words in the list sentence(s); collect unique, dedup, sort.
+    types = sorted(set(re.findall(r"\b(Cold|Corrosion|Fire|Lightning|Poison|Psychic|Radiant|Umbral)\b", seg)))
+    return types
+
+for a in (anc.get("origins") or {}):
+    heading = a
+    label = "Draconic Origin" if a == "Dragonborn" else "Fiendish Origin"
+    md_types = parse_origin_types(anctext, heading, label)
+    cat_types = sorted(set(anc["origins"][a]))
+    expect(cat_types == md_types,
+           f"{a} origin list: catalog {cat_types} vs ancestries.md {md_types}")
+    print(f"  {a} origin: {len(cat_types)} damage types match ancestries.md")
+
 # spell-school lists: slice the 'Spells sorted by Schools' block, read each school's bullets
 start = spelltext.index("#### Spells sorted by Schools")
 end = spelltext.index("Astromancy is the magic", start)   # start of the full descriptions
