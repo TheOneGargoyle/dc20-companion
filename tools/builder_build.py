@@ -57,6 +57,7 @@ CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuve
            "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
            "class_spines",  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
            "class_features"]  # BUG-19/22: named class features per class per level (+ their effects)
+CATPATHS_EXCLUDE = {"class_spines"}   # BUG-31: baked + FS-written, but loaded by the ENGINE, not BuilderAPI
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 
@@ -3115,13 +3116,11 @@ async function boot(){
   viaNote = `sources: ${vias.fetch} fetched, ${vias.baked} baked`;
   await pyodide.runPythonAsync(
     "import builder_api\n" +
-    "CATPATHS = {\n" +
-    "    'spellblade':'spellblade.yaml','warlock':'warlock.yaml','commander':'commander.yaml',\n" +
-    "    'barbarian':'barbarian.yaml','druid':'druid.yaml','ancestries':'ancestries.yaml',\n" +
-    "    'spell_schools':'spell_schools.yaml','spell_sources':'spell_sources.yaml',\n" +
-    "    'maneuvers':'maneuvers.yaml','talents':'talents.yaml',\n" +
-    "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml',\n" +
-    "    'metamagic':'metamagic.yaml','stamina_regen':'stamina_regen.yaml'}\n" +
+    // BUG-31: this map is GENERATED from builder_build.CATALOG at build time. It used to be a
+    // hand-written literal, which silently diverged the day a catalog file was added (class_features
+    // was baked into the page and written to the FS, but never passed to BuilderAPI, so every class
+    // feature fell back to "not in the catalog" and its effects vanished). Never hand-edit it.
+    "CATPATHS = __CATPATHS_PY__\n" +
     "def make_api(handle):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS)\n" +
     "def make_api_new(cls):\n" +
@@ -3555,7 +3554,13 @@ def main():
         b64[c] = b64_file(os.path.join(REPO, "builds", "catalog", c + ".yaml"))
         rel[c] = "catalog/" + c + ".yaml"
 
+    # BUG-31: the in-page CATPATHS must cover every catalog the BuilderAPI needs, so generate it from
+    # CATALOG rather than hand-maintaining a second list. class_spines is excluded on purpose: the
+    # ENGINE loads it itself by bare filename (load_class_tables), it is not a BuilderAPI catalog.
+    catpaths = {c: c + ".yaml" for c in CATALOG if c not in CATPATHS_EXCLUDE}
+
     html = (TEMPLATE
+            .replace("__CATPATHS_PY__", repr(catpaths))
             .replace("__CHARS_JSON__", json.dumps(CHARS))
             .replace("__NEWC_JSON__", json.dumps(NEWCLASSES))
             .replace("__B64_JSON__", json.dumps(b64))

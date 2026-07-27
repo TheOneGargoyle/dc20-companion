@@ -2457,6 +2457,21 @@ def check_class_features():
        (kids2[0].get("current"), len(kids2[0]["options"])) if kids2 else None)
     # Rune Knight is unaffected (no prefer key) and canon Xanwyn still resolves
     x = st(builder_api.BuilderAPI("xanwyn", CATPATHS))
+    # BUG-31: the harness built CATPATHS from CATALOG while the PAGE carried a hand-written literal,
+    # so a newly added catalog file passed every test here and did nothing in the browser (that is
+    # exactly how class_features shipped inert). Assert the page's map covers CATALOG, in the page.
+    import re as _re
+    html_cp = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    m_cp = _re.search(r"CATPATHS = (\{[^}]*\})", html_cp)
+    page_cp = eval(m_cp.group(1)) if m_cp else {}
+    want_cp = {c for c in builder_build.CATALOG if c not in builder_build.CATPATHS_EXCLUDE}
+    ok("the PAGE's CATPATHS covers every BuilderAPI catalog in CATALOG (BUG-31)",
+       bool(m_cp) and set(page_cp) == want_cp
+       and all(page_cp[c] == c + ".yaml" for c in want_cp),
+       sorted(want_cp - set(page_cp)) or sorted(set(page_cp) - want_cp))
+    ok("...and class_features in particular reaches the API (the bug that shipped inert)",
+       page_cp.get("class_features") == "class_features.yaml", page_cp.get("class_features"))
+
     ok("canon Xanwyn (Rune Knight) unaffected: no discipline grant-child, still clean",
        not [d for d in x["decisions"] if d["slot"] == "discipline"
             and str(d.get("id")).startswith("GC#")] and clean(x),

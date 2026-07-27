@@ -498,13 +498,11 @@ async function boot(){
   viaNote = `sources: ${vias.fetch} fetched, ${vias.baked} baked`;
   await pyodide.runPythonAsync(
     "import builder_api\n" +
-    "CATPATHS = {\n" +
-    "    'spellblade':'spellblade.yaml','warlock':'warlock.yaml','commander':'commander.yaml',\n" +
-    "    'barbarian':'barbarian.yaml','druid':'druid.yaml','ancestries':'ancestries.yaml',\n" +
-    "    'spell_schools':'spell_schools.yaml','spell_sources':'spell_sources.yaml',\n" +
-    "    'maneuvers':'maneuvers.yaml','talents':'talents.yaml',\n" +
-    "    'skills_trades':'skills_trades.yaml','languages':'languages.yaml',\n" +
-    "    'metamagic':'metamagic.yaml','stamina_regen':'stamina_regen.yaml'}\n" +
+    // BUG-31: this map is GENERATED from builder_build.CATALOG at build time. It used to be a
+    // hand-written literal, which silently diverged the day a catalog file was added (class_features
+    // was baked into the page and written to the FS, but never passed to BuilderAPI, so every class
+    // feature fell back to "not in the catalog" and its effects vanished). Never hand-edit it.
+    "CATPATHS = {'spellblade': 'spellblade.yaml', 'warlock': 'warlock.yaml', 'commander': 'commander.yaml', 'barbarian': 'barbarian.yaml', 'druid': 'druid.yaml', 'ancestries': 'ancestries.yaml', 'spell_schools': 'spell_schools.yaml', 'spell_sources': 'spell_sources.yaml', 'maneuvers': 'maneuvers.yaml', 'talents': 'talents.yaml', 'skills_trades': 'skills_trades.yaml', 'languages': 'languages.yaml', 'metamagic': 'metamagic.yaml', 'stamina_regen': 'stamina_regen.yaml', 'class_features': 'class_features.yaml'}\n" +
     "def make_api(handle):\n" +
     "    return builder_api.BuilderAPI(handle, CATPATHS)\n" +
     "def make_api_new(cls):\n" +
