@@ -2478,6 +2478,48 @@ def check_class_features():
        (x["problems"], x["catalog_problems"], x["builder_problems"]))
 
 
+# --------------------------------------------- sheet ability groups + build stamp (BUG-32 / FR-43)
+def check_sheet_groups():
+    """2026-07-27: the sheet's Features & Abilities list is emitted BY THE API (SHEET_GROUPS), not
+    assembled from a list held in the page JS. That literal had silently dropped Xanwyn's runes,
+    Runt's pact boons, Scaletrix's metamagic + origin nodes and the BUG-19 class-features row. Also
+    checks the FR-43 build stamp is present."""
+    print("## (SG) Sheet ability groups emitted by the API + build stamp")
+    covered = {sl for sl, _ in builder_api.SHEET_GROUPS} | builder_api.SHEET_SLOT_SKIP
+    uncovered = {}
+    got = {}
+    for h in list(builder_build.CHARS) + ["new:" + c for c in builder_build.NEWCLASSES]:
+        api = (builder_api.BuilderAPI(h, CATPATHS) if not h.startswith("new:")
+               else builder_api.BuilderAPI(None, CATPATHS, new_class=h[4:]))
+        sh = json.loads(api.sheet())
+        got[h] = {g["label"]: len(g["items"]) for g in sh["ability_groups"]}
+        for k in sh["abilities"]:
+            if k not in covered:
+                uncovered.setdefault(k, []).append(h)
+    ok("every slot a real sheet emits is covered by SHEET_GROUPS (BUG-32)", not uncovered, uncovered)
+    # the four that were invisible before, on the characters that own them
+    ok("Xanwyn's 2 Runes reach the sheet", got["xanwyn"].get("Runes") == 2, got["xanwyn"])
+    ok("Runt's 2 Pact boons reach the sheet", got["runt"].get("Pact boons") == 2, got["runt"])
+    ok("Scaletrix's 2 Meta Magic reach the sheet", got["scaletrix"].get("Meta Magic") == 2,
+       got["scaletrix"])
+    ok("Scaletrix's Origin + Spell source nodes reach the sheet",
+       got["scaletrix"].get("Origin") == 1 and got["scaletrix"].get("Spell source") == 1,
+       got["scaletrix"])
+    ok("a fresh barbarian's class features reach the sheet (the BUG-19 row, plural slot aliased)",
+       got["new:barbarian"].get("Class features") == 1, got["new:barbarian"])
+    ok("canon rows still land: Xanwyn keeps Disciplines / Bound weapon / Ancestry",
+       all(got["xanwyn"].get(k) for k in ("Disciplines", "Bound weapon", "Ancestry")), got["xanwyn"])
+    # page side: renders what it is given, holds no label list of its own, and carries a stamp
+    html = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("the page renders d.ability_groups and no longer holds a catLabels literal (BUG-32)",
+       "d.ability_groups" in html and "catLabels" not in html)
+    import re as _re2
+    m_st = _re2.search(r'class="stamp">Build: ([^<]+)<', html)
+    ok("FR-43: the page carries a build stamp (date + short SHA, like the Companion's)",
+       bool(m_st) and bool(_re2.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2} \S+ . \S+$", m_st.group(1))),
+       m_st.group(1) if m_st else None)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -2519,6 +2561,7 @@ def main():
         check_grants_only()
         check_option_effects()
         check_class_features()
+        check_sheet_groups()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)

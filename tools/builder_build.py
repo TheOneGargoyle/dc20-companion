@@ -41,6 +41,7 @@ never drift from them (same discipline as tools/catalog_build.py):
 Headless regression harness: python3 tools/builder_verify.py
 """
 import argparse
+from datetime import datetime, timezone
 import base64
 import json
 import os
@@ -107,6 +108,27 @@ FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 # FR-17 (2026-07-18): 'trades' joins the backbone too, so a PLANNED level's trade-point budget
 # materialises editable trade child picker-slots exactly like skills (grants {trades:M} on a per-
 # plan-level carrier, picks in granted_trades). Skills AND trades share the point-buy plan model.
+# BUG-32: the character sheet's "Features & Abilities" list. This ORDERED map is the single source of
+# truth for which decision slots appear there and under what label; sheet() emits the rendered groups
+# and the page just prints them. It used to be a hand-written list in the page JS, which silently
+# dropped every slot nobody remembered to add: Xanwyn's runes, Runt's pact boons, Scaletrix's
+# metamagic and her origin nodes were all invisible on the sheet, and the plural `class_features`
+# row added for BUG-19 was too. builder_verify asserts every slot a real sheet can emit is covered.
+SHEET_GROUPS = [('subclass', 'Subclass'), ('class_feature', 'Class features'),
+                ('discipline', 'Disciplines'), ('pact_boon', 'Pact boons'), ('rune', 'Runes'),
+                ('metamagic', 'Meta Magic'), ('path', 'Path'),
+                ('bound_weapon_options', 'Bound weapon'), ('maneuver', 'Maneuvers'),
+                ('talent', 'Talents'), ('ancestry_trait', 'Ancestry'),
+                ('ancestry_origin', 'Origin'), ('spell_school', 'Spell schools'),
+                ('source_choice', 'Spell source')]
+# slots that are deliberately NOT in the abilities list: spells have their own panel, and these are
+# point-buy / attribute bookkeeping rather than abilities.
+SHEET_SLOT_SKIP = {'spell', 'spell_tagged', 'spell_sourced', 'spell_any',
+                   'skills', 'trades', 'skill', 'trade', 'attribute'}
+# ledger slot spellings that mean the same group (plural chargen carriers vs per-level rows)
+SHEET_SLOT_ALIAS = {'class_features': 'class_feature', 'pact_boons': 'pact_boon',
+                    'spellblade_disciplines': 'discipline'}
+
 GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
                      'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
 # FR-17: a planned skill/trade pick can buy a Mastery-Limit raise ("cap+", core-rules.md l.991-1005):
@@ -2094,7 +2116,8 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
-            lst = groups.setdefault(d.get('slot'), [])
+            slot = SHEET_SLOT_ALIAS.get(d.get('slot'), d.get('slot'))   # BUG-32
+            lst = groups.setdefault(slot, [])
             if not any(x['pick'] == pick for x in lst):
                 lst.append({'level': lv, 'pick': pick})
         spells = []
@@ -2125,7 +2148,12 @@ class BuilderAPI:
                         'jump': eder.get('jump'), 'spend_limit': eder.get('spend_limit'),
                         'dr': eder.get('dr', {})},
             'skills': skills, 'trades': trades, 'languages': s['languages'],
-            'abilities': groups, 'spells': spells, 'equipment': equipment,
+            'abilities': groups,   # kept for the harness / any caller that wants it raw
+            # BUG-32: the RENDERED ability groups, in SHEET_GROUPS order, so the page cannot
+            # drop a slot by forgetting to list it.
+            'ability_groups': [{'label': lbl, 'items': groups[sl]}
+                               for sl, lbl in SHEET_GROUPS if groups.get(sl)],
+            'spells': spells, 'equipment': equipment,
             # FR-23: Stamina Regen trigger(s), derived catalog-driven by the shared engine helper.
             'stamina_regen': eng.stamina_regen(self.ledger, self.cat.get('stamina_regen') or {}),
         })
@@ -2721,6 +2749,7 @@ details.lvlgrp>summary .lvlprev{font-weight:400;font-style:normal;color:var(--mu
 .planbtn:hover{color:var(--accent);border-color:var(--accent)}
 a.rm{color:var(--bad);text-decoration:none;font-weight:700;font-size:.95rem;padding:0 .2rem}
 .foot{font-size:.76rem;color:var(--muted);margin-top:1rem}
+.stamp{opacity:.75;font-variant-numeric:tabular-nums}   /* FR-43: did this page actually rebuild? */
 .src{font-size:.72rem;color:var(--muted);margin-top:.4rem}
 pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size:.76rem;white-space:pre-wrap;max-height:260px;overflow:auto;display:none}
 @media (max-width:640px){
@@ -2856,7 +2885,7 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
 </div>
 
 <p class="foot">Unofficial fan tooling for our home DC20 (v0.10.5) campaign. DC20 is by The Dungeon Coach,
-released under the ORC License.</p>
+released under the ORC License.<br><span class="stamp">Build: __BUILD_STAMP__</span></p>
 <div id="ruleScrim"></div>
 <aside id="rulePanel" aria-label="DC20 rule"><div class="rpbar"><span class="rpf" id="ruleF"></span><button class="rpclose" id="ruleClose" type="button">close &times;</button></div><div id="ruleBody"></div></aside>
 
@@ -2935,12 +2964,11 @@ function shBuild(d){
     return `<div class="sh-row"><span>${shEsc(t.name)} <span class="sh-tag">${shEsc(t.tier||'')}</span></span><span class="v">${sign}${mb}</span></div>`;
   }).join('')+'<div class="sh-note">Bonus = Mastery only; add the relevant attribute in play (it varies by use).</div>':'<div class="sh-note">None</div>';
   const langHtml=(d.languages||[]).map(l=>`<div class="sh-row"><span>${shEsc(l.name)}</span><span class="v">${shEsc(l.fluency)}</span></div>`).join('')||'<div class="sh-note">None</div>';
-  const catLabels=[['subclass','Subclass'],['class_feature','Class features'],['discipline','Disciplines'],['path','Path'],['bound_weapon_options','Bound weapon'],['maneuver','Maneuvers'],['talent','Talents'],['ancestry_trait','Ancestry'],['spell_school','Spell schools']];
+  // BUG-32: groups + labels + order come from the API (SHEET_GROUPS), never from a list held here.
   let featHtml='';
-  catLabels.forEach(([slot,label])=>{
-    const items=(d.abilities[slot]||[]);
-    if(!items.length)return;
-    featHtml+=`<li><span class="cat">${label}</span>${items.map(x=>shEsc(x.pick)).join(' &middot; ')}</li>`;
+  (d.ability_groups||[]).forEach(g=>{
+    if(!g.items||!g.items.length)return;
+    featHtml+=`<li><span class="cat">${shEsc(g.label)}</span>${g.items.map(x=>shEsc(x.pick)).join(' &middot; ')}</li>`;
   });
   if(!featHtml)featHtml='<li class="sh-note">None recorded</li>';
   const spellHtml=(d.spells||[]).length?d.spells.map(s=>{
@@ -3559,7 +3587,21 @@ def main():
     # ENGINE loads it itself by bare filename (load_class_tables), it is not a BuilderAPI catalog.
     catpaths = {c: c + ".yaml" for c in CATALOG if c not in CATPATHS_EXCLUDE}
 
+    # FR-43: build stamp, deliberately the SAME recipe as the Companion's About-tab stamp
+    # (companion-src/build.py): Sydney wall clock + the short SHA the Action was run against, or
+    # "local" when generated by hand. It answers "did the deployed page actually rebuild?" without
+    # having to diff a 2.5 MB file, which is exactly the question that cost us a round trip on
+    # 2026-07-27. Note it names the commit the build ran FROM, so a freshly regenerated page
+    # committed alongside its sources shows the PREVIOUS SHA until the Action rebuilds it.
+    try:
+        from zoneinfo import ZoneInfo
+        _now = datetime.now(ZoneInfo("Australia/Sydney"))
+    except Exception:
+        _now = datetime.now(timezone.utc)
+    stamp = _now.strftime("%Y-%m-%d %H:%M %Z") + " \u00b7 " + (os.environ.get("GITHUB_SHA", "local")[:7])
+
     html = (TEMPLATE
+            .replace("__BUILD_STAMP__", stamp)
             .replace("__CATPATHS_PY__", repr(catpaths))
             .replace("__CHARS_JSON__", json.dumps(CHARS))
             .replace("__NEWC_JSON__", json.dumps(NEWCLASSES))
