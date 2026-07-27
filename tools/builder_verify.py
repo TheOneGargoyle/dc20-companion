@@ -1228,7 +1228,10 @@ def check_slice5():
     # ---- (e) FR-13a boundary: a plain {spells:N} grant (NO spell_access) stays flat-pool; a grant
     #     that carries a spell_access SOURCE now gets source-constrained children (Scaletrix Innate
     #     Power). Tag-constrained subclass grants keep the spell_tagged path (Runt, above).
-    for other in ("tanrielle", "bonan", "xanwyn"):
+    #     BUG-30 (2026-07-27) moved bonan OFF this list: her MC Bard talent carries spell_access.any,
+    #     so it is now a child-bearing parent too (asserted just below). Tanrielle's MC Warlock Pact
+    #     Spell and Xanwyn's Spell School Initiate carry no spell_access and hold the flat boundary.
+    for other in ("tanrielle", "xanwyn"):
         oapi = builder_api.BuilderAPI(other, CATPATHS)
         os_ = st(oapi)
         ok("%s's flat {spells:N} grant gets NO spell child slot (no spell_access -> flat-pool model)" % other,
@@ -2193,21 +2196,24 @@ def check_option_effects():
 
     # ---- BUG-23 (2026-07-27): the maneuver/spell ready slot renders at the level that granted
     # the budget, not always at chargen (the BUG-18 treatment), and materialises a LEVEL entry.
+    # Vehicle = Spellcasting Expansion, a general talent granting {spells: 3} with NO spell_access, so
+    # its spells use the flat pool. (The original repro used MC Bard Remarkable Repertoire, which BUG-30
+    # later moved onto its own any-list child-slots, so it no longer exercises the flat ready slot.)
     a = drive_fresh("barbarian")
     s = json.loads(a.add_level())
     tal = [d for d in s["decisions"] if d.get("id") and d["slot"] == "talent"][0]
-    a.set_decision(tal["id"], "Remarkable Repertoire")   # MC Bard: 2 spells + 2 skill points
-    s = json.loads(a.set_decision("L2:2", "Spellcaster"))  # path rider: +1 spell -> budget 3
-    ok("Barbarian + MC Bard Remarkable Repertoire at L2 budgets 3 spells (BUG-23 root)",
-       s["spell_budget"] == 3 and s["spell_have"] == 0, (s["spell_have"], s["spell_budget"]))
-    rider = [d for d in s["decisions"] if d["slot"] == "spell" and d["level"] == 2]
-    a.set_decision(rider[0]["id"], rider[0]["options"][0]["name"])
+    a.set_decision(tal["id"], "Spellcasting Expansion")   # general talent: 3 flat-pool spells
+    s = json.loads(a.set_decision("L2:2", "Spellcaster"))  # path rider: +1 spell -> budget 4
+    ok("Barbarian + Spellcasting Expansion at L2 budgets 4 spells (BUG-23 root)",
+       s["spell_budget"] == 4 and s["spell_have"] == 0, (s["spell_have"], s["spell_budget"]))
+    rider0 = [d for d in s["decisions"] if d["slot"] == "spell" and d["level"] == 2]
+    a.set_decision(rider0[0]["id"], rider0[0]["options"][0]["name"])   # fill the path-rider slot
     s = json.loads(a.state())
     autos = [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"]
     ok("the ready spell slot renders AT L2, the level that granted it (not cg:spell:+)",
        len(autos) == 1 and autos[0]["id"] == "L2:spell:+" and autos[0]["level"] == 2,
        [(x["id"], x["level"]) for x in autos])
-    for _ in range(2):
+    for _ in range(3):
         au = [d for d in json.loads(a.state())["decisions"]
               if d.get("auto") and d["slot"] == "spell"]
         if au:
@@ -2216,13 +2222,13 @@ def check_option_effects():
                                              {e.get("pick") for e in a.ledger["levels"][2]}))
     s = json.loads(a.state())
     l2 = [e for e in a.ledger["levels"][2] if e.get("slot") == "spell"]
-    ok("chaining fills 3 of 3 and every pick is recorded as an L2 entry",
-       s["spell_have"] == 3 and s["spell_budget"] == 3 and len(l2) == 3
+    ok("chaining fills 4 of 4 and every pick is recorded as an L2 entry",
+       s["spell_have"] == 4 and s["spell_budget"] == 4 and len(l2) == 4
        and not [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"],
        (s["spell_have"], [e.get("pick") for e in l2]))
     rt = yaml.safe_load(a.export_yaml())
     ok("the L2 spells round-trip through export",
-       len([e for e in rt["levels"][2] if e.get("slot") == "spell"]) == 3,
+       len([e for e in rt["levels"][2] if e.get("slot") == "spell"]) == 4,
        [e.get("pick") for e in rt["levels"][2] if e.get("slot") == "spell"])
     ok("both level sentinels are wired in API_PY",
        ":spell:+" in builder_build.API_PY and ":man:+" in builder_build.API_PY
@@ -2232,29 +2238,35 @@ def check_option_effects():
     # funded behind, and an over-recorded count must never be silent.
     s = json.loads(a.set_decision(tal["id"], "Wild Form"))   # MC Druid: no spell grant
     l2 = [e for e in a.ledger["levels"][2] if e.get("slot") == "spell"]
-    ok("swapping the talent away prunes the spells it funded (3 of 3 -> 1 of 1)",
+    ok("swapping the talent away prunes the spells it funded (4 of 4 -> 1 of 1)",
        s["spell_have"] == 1 and s["spell_budget"] == 1 and len(l2) == 1
        and not s["builder_problems"],
        (s["spell_have"], s["spell_budget"], [e.get("pick") for e in l2], s["builder_problems"]))
     ok("the path-rider spell survives the prune (its path is still chosen)",
        bool(l2) and str(l2[0].get("source", "")).startswith("path rider"),
        l2[0].get("source") if l2 else None)
-    s = json.loads(a.set_decision(tal["id"], "Remarkable Repertoire"))
+    s = json.loads(a.set_decision(tal["id"], "Spellcasting Expansion"))
     au = [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"]
-    ok("swapping the talent back re-opens the ready slot at L2 (1 of 3)",
-       s["spell_have"] == 1 and s["spell_budget"] == 3
+    ok("swapping the talent back re-opens the ready slot at L2 (1 of 4)",
+       s["spell_have"] == 1 and s["spell_budget"] == 4
        and len(au) == 1 and au[0]["id"] == "L2:spell:+",
        (s["spell_have"], s["spell_budget"], [x["id"] for x in au]))
-    # canon rows are NEVER pruned: hand-authored picks are a data question, so they raise the advisory
+    # hand-authored rows are NEVER pruned (only builder-added ones are), so a canon ledger that ends up
+    # over-recorded raises the advisory instead of losing data. Synthesised on a canon ledger: two extra
+    # flat spells at L2 that no grant pays for.
     c = builder_api.BuilderAPI("bonan", CATPATHS)
     sc0 = st(c)
-    tb = find_dec(sc0, lambda d: d["slot"] == "talent" and d["level"] == 2)
-    sc = json.loads(c.set_decision(tb["id"], "Wild Form"))
+    c.ledger["levels"][2] += [{"slot": "spell", "pick": "Fire Bolt"},
+                              {"slot": "spell", "pick": "Gust"}]
+    sc = st(c)
     kept = [e.get("pick") for e in c.ledger["levels"][2] if e.get("slot") == "spell"]
-    ok("canon Bonan: swapping her MC Bard talent away keeps her 3 authored spells",
-       sc0["spell_have"] == 3 and len(kept) == 3, (sc0["spell_have"], kept))
+    ok("canon Bonan starts clean at 3 of 3 (2 childed under the talent + 1 flat)",
+       sc0["spell_have"] == 3 and sc0["spell_budget"] == 3 and clean(sc0),
+       (sc0["spell_have"], sc0["spell_budget"]))
+    ok("hand-authored over-recording keeps every row (nothing pruned)",
+       len(kept) == 3, kept)
     ok("...and flags the overflow instead of going silent (BUG-28)",
-       any("3 spells recorded but only 1 granted" in p for p in sc["builder_problems"]),
+       any("5 spells recorded but only 3 granted" in p for p in sc["builder_problems"]),
        sc["builder_problems"])
     ok("the readout renders the over-budget branch too (not just under)",
        "recorded, only ${budget} granted" in builder_build.TEMPLATE
@@ -2268,24 +2280,25 @@ def check_option_effects():
     b.set_ancestry("Human", "-")
     sb = json.loads(b.add_level())
     tsb = find_dec(sb, lambda d: d["slot"] == "talent" and d["level"] == 2)
-    sb = json.loads(b.set_decision(tsb["id"], "Remarkable Repertoire"))
+    sb = json.loads(b.set_decision(tsb["id"], "Spellcasting Expansion"))   # 3 flat-pool spells at L2
     aub = [d for d in sb["decisions"] if d.get("auto") and d["slot"] == "spell"]
     ok("Spellblade L2 talent spells get a ready slot at L2 while L1 spells are undecided (BUG-29)",
-       sb["spell_budget"] == 4 and len(aub) == 1 and aub[0]["id"] == "L2:spell:+",
+       sb["spell_budget"] == 5 and len(aub) == 1 and aub[0]["id"] == "L2:spell:+",
        (sb["spell_budget"], [(x["id"], x["level"]) for x in aub]))
     # ...but a level whose OWN slot is open gets no second slot (one ready slot per level)
     b2 = drive_fresh("barbarian")
     s2b = json.loads(b2.add_level())
     t2b = find_dec(s2b, lambda d: d["slot"] == "talent" and d["level"] == 2)
-    b2.set_decision(t2b["id"], "Remarkable Repertoire")
+    b2.set_decision(t2b["id"], "Spellcasting Expansion")
     s2b = json.loads(b2.set_decision("L2:2", "Spellcaster"))   # path rider leaves an undecided L2 spell
     ok("a short level with its own open slot gets no extra ready slot",
        not [d for d in s2b["decisions"] if d.get("auto") and d["slot"] == "spell"],
        [d["id"] for d in s2b["decisions"] if d.get("auto")])
 
-    # ---- BUG-30 (2026-07-27): an any-list grant (MC Bard Magical Secrets) is not bound by the
-    # character's own schools, so the pool widens while it is held and the off-list picks are counted
-    # against the grant slots (validate-don't-enumerate) rather than filtered out of the picker.
+    # ---- BUG-30 (2026-07-27): an any-list grant (MC Bard Magical Secrets, "any 2 Spells from any Spell
+    # List") is NOT bound by the character's own schools, so it renders its own unfiltered child-slots
+    # under the granting talent. Everything else stays filtered: widening the shared flat pool was the
+    # first attempt and it leaked off-list options into every other picker (Darryl's live-verify).
     b3 = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")
     b3.set_attr("might", 3); b3.set_attr("agility", 1)
     b3.set_attr("charisma", 0); b3.set_attr("intelligence", 0)
@@ -2293,34 +2306,54 @@ def check_option_effects():
     b3.set_decision("cg:school:0", "Invocation")
     b3.set_decision("cg:school:1", "Divination")
     s3b = st(b3)
-    native_n = len([o for o in find_dec(s3b, lambda d: d["id"] == "cg:spell:0")["options"]])
-    ok("Spellblade without an any-list grant sees only its own schools", b3._any_list_slots() == 0)
+    native_n = len(find_dec(s3b, lambda d: d["id"] == "cg:spell:0")["options"])
+    ok("Spellblade without an any-list grant holds 0 any-list slots", b3._any_list_slots() == 0)
     s3b = json.loads(b3.add_level())
     t3b = find_dec(s3b, lambda d: d["slot"] == "talent" and d["level"] == 2)
     s3b = json.loads(b3.set_decision(t3b["id"], "Remarkable Repertoire"))
+    kids = [d for d in s3b["decisions"] if (d.get("id") or "").startswith("GC#L2:")]
     d3b = find_dec(s3b, lambda d: d["id"] == "cg:spell:0")
-    offs = [o["name"] for o in d3b["options"] if o["group"] == "any Spell List"]
     ok("Remarkable Repertoire declares 2 any-list slots from the catalog (BUG-30)",
        b3._any_list_slots() == 2, b3._any_list_slots())
-    ok("the spell pickers widen to every spell, off-list ones grouped as 'any Spell List'",
-       len(d3b["options"]) > native_n and len(offs) > 50
-       and all("any Spell List" in o["label"] for o in d3b["options"] if o["group"] == "any Spell List"),
-       (native_n, len(d3b["options"]), len(offs)))
-    au3 = [d for d in s3b["decisions"] if d.get("auto") and d["slot"] == "spell"]
-    b3.set_decision(au3[0]["id"], offs[0])
-    au3 = [d for d in json.loads(b3.state())["decisions"] if d.get("auto") and d["slot"] == "spell"]
-    s3b = json.loads(b3.set_decision(au3[0]["id"], offs[1]))
-    ok("2 off-list picks are legal (they fit the 2 slots)", s3b["catalog_problems"] == [],
-       s3b["catalog_problems"])
-    s3b = json.loads(b3.set_decision("cg:spell:0", offs[2]))
-    ok("a 3rd off-list pick is flagged against the slot count, not silently allowed",
-       any("any-list grant slot" in p for p in s3b["catalog_problems"]), s3b["catalog_problems"])
-    s3b = json.loads(b3.set_decision("cg:spell:0",
-                                     next(o["name"] for o in d3b["options"] if o["group"] == "Invocation")))
-    ok("swapping back to a native pick clears the flag", s3b["catalog_problems"] == [],
-       s3b["catalog_problems"])
-    ok("canon Bonan's long-form 'MC Bard: Remarkable Repertoire' is recognised as 2 any-list slots",
-       builder_api.BuilderAPI("bonan", CATPATHS)._any_list_slots() == 2)
+    ok("it renders 2 spell_any children glued under the talent, offering EVERY spell",
+       len(kids) == 2 and all(k["slot"] == "spell_any" for k in kids)
+       and all(len(k["options"]) == len(builder_build.extract_spell_meta(
+           os.path.join(REPO, "rules", "spells.md"))) for k in kids),
+       [(k["id"], k["slot"], len(k["options"])) for k in kids])
+    ok("the OTHER pickers stay filtered to the character's own lists (no leak)",
+       len(find_dec(st(b3), lambda d: d["id"] == "cg:spell:0")["options"]) == native_n
+       and not any(o["group"] == "any Spell List" for o in d3b["options"]),
+       (native_n, len(d3b["options"])))
+    off = next(o["name"] for o in kids[0]["options"]
+               if o["name"] not in {x["name"] for x in d3b["options"]})
+    s3b = json.loads(b3.set_decision(kids[0]["id"], off))
+    ok("an off-school spell picked in the child is legal and fills the budget",
+       s3b["catalog_problems"] == [] and s3b["spell_have"] == 1
+       and b3.ledger["levels"][2][1]["granted_spells"][0] == off,
+       (off, s3b["catalog_problems"], s3b["spell_have"]))
+    s3b = json.loads(b3.set_decision(t3b["id"], "Wild Form"))
+    ok("swapping the talent away removes the children and their budget",
+       not [d for d in s3b["decisions"] if (d.get("id") or "").startswith("GC#L2:")]
+       and s3b["spell_budget"] == 2 and not s3b["catalog_problems"],
+       (s3b["spell_budget"], s3b["catalog_problems"]))
+    # canon Bonan: her 2 Magical Secrets spells are childed under the long-form talent name
+    ab = builder_api.BuilderAPI("bonan", CATPATHS)
+    sb2 = st(ab)
+    bkids = [d for d in sb2["decisions"] if (d.get("id") or "").startswith("GC#L2:")]
+    ok("canon Bonan: long-form 'MC Bard: Remarkable Repertoire' resolves to 2 any-list slots",
+       ab._any_list_slots() == 2, ab._any_list_slots())
+    ok("canon Bonan: Command + Charm render as her talent's children, Frost Bolt stays flat, 3 of 3",
+       [k.get("current") for k in bkids] == ["Command", "Charm"]
+       and any(d["slot"] == "spell" and d.get("current") == "Frost Bolt" for d in sb2["decisions"])
+       and sb2["spell_have"] == 3 and sb2["spell_budget"] == 3 and clean(sb2),
+       ([k.get("current") for k in bkids], sb2["spell_have"]))
+    # the flat-pool tolerance survives for received files that left such spells flat (Bonan's old shape)
+    ab2 = builder_api.BuilderAPI("bonan", CATPATHS)
+    tal_e = [e for e in ab2.ledger["levels"][2] if e.get("slot") == "talent"][0]
+    tal_e.pop("granted_spells", None)
+    ab2.ledger["levels"][2] += [{"slot": "spell", "pick": "Command"}, {"slot": "spell", "pick": "Charm"}]
+    ok("a received file with those spells left FLAT is tolerated up to the slot count",
+       not [p for p in ab2.catalog_problems() if "any-list" in p], ab2.catalog_problems())
     ok("the readout also reports a MET count (no more vanishing when complete)",
        "of ${budget} recorded</b>`);" in builder_build.TEMPLATE
        and "var(--ok)" in builder_build.TEMPLATE)

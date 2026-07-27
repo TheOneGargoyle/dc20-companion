@@ -128,7 +128,8 @@ FR20_CAT = {
     # 2: ancestry
     'ancestry_trait': 2, 'ancestry_traits': 2,
     # 3: resources (spells, maneuvers, skill/trade point-buy carriers + their children)
-    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spell_sourced': 3, 'spells': 3, 'maneuvers': 3,
+    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spell_sourced': 3, 'spell_any': 3,
+    'spells': 3, 'maneuvers': 3,
     'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
 }
 FR20_DEFAULT_RANK = 3
@@ -774,49 +775,49 @@ class BuilderAPI:
             return None
         return src, (sa.get('schools') or None)
 
+    def _any_list_defs(self):
+        # catalog defs whose spell grant reaches ANY Spell List (`spell_access: {any: true}`); today
+        # just MC Bard's Remarkable Repertoire / Magical Secrets. Data-driven, so a second one is a
+        # catalog edit.
+        return {t['name']: t for t in (self.cat['talents']['mc_features']
+                                      + self.cat['talents']['general'])
+                if (t.get('spell_access') or {}).get('any')}
+
+    def _spell_grant_any(self, parent):
+        # BUG-30: does THIS entry carry an any-list spell grant? The any-list sibling of
+        # _spell_grant_tag / _spell_grant_source: it turns the entry's {spells: N} into N unfiltered
+        # spell child-slots glued under it, so the reach belongs to the spells the feature pays for
+        # instead of leaking into every other picker. Ledgers write a multiclass feature either bare
+        # (what the picker sets) or in the documented "MC <Class>: <Feature>" long form, so match both.
+        if int((parent.get('grants') or {}).get('spells', 0) or 0) <= 0:
+            return False
+        nm = base_name(str(parent.get('pick') or parent.get('name') or ''))
+        defs = self._any_list_defs()
+        return bool(defs.get(nm)
+                    or (defs.get(nm.split(':', 1)[-1].strip()) if nm.startswith('MC ') else None))
+
     def _any_list_slots(self):
         # BUG-30: how many spells this character may take from ANY Spell List, i.e. the sum of the
         # `spells` grants on held features whose catalog def carries `spell_access: {any: true}`
         # (today: MC Bard's Remarkable Repertoire / Magical Secrets). Data-driven off the catalog,
         # the same way _spell_grant_tag reads subclass_grants, so a second any-list feature is a
         # data edit. Only counts DECIDED picks at or below the current level.
-        defs = {t['name']: t for t in (self.cat['talents']['mc_features']
-                                      + self.cat['talents']['general'])
-                if (t.get('spell_access') or {}).get('any')}
-        if not defs:
-            return 0
         n = 0
         for lvl in sorted(self.ledger.get('levels') or {}):
             if lvl > self.ledger['current_level']:
                 continue
             for e in self.ledger['levels'][lvl] or []:
-                # ledgers write a multiclass feature either bare (what the picker sets) or in the
-                # documented "MC <Class>: <Feature>" long form (bonan.yaml), so match both.
-                nm = base_name(str(e.get('pick')))
-                row = defs.get(nm) or defs.get(nm.split(':', 1)[-1].strip() if nm.startswith('MC ') else nm)
-                if row:
-                    n += int((row.get('grants') or {}).get('spells', 0) or 0)
+                if self._spell_grant_any(e):
+                    n += int((e.get('grants') or {}).get('spells', 0) or 0)
         return n
 
-    def _spell_access(self, native=False):
-        # -> (options set, describe(name) -> why-legal string or None)
-        # native=True returns ONLY the character's own access (class schools/source + tag and school
-        # grants), with no any-list widening: that is the baseline catalog_problems counts off-list
-        # picks against, so the widening cannot silently legalise everything.
+    def _spell_access(self):
+        # -> (options set, describe(name) -> why-legal string or None) for the character's OWN access
+        # (class schools/source + tag and school grants). An any-list grant (BUG-30) deliberately does
+        # NOT widen this: its spells are picked in their own child-slots under the granting feature
+        # (see _grant_children), so every other picker stays honestly filtered. This set is also what
+        # catalog_problems counts hand-authored off-list flat picks against.
         model = self.ccat['spellcasting']['model']
-        anyslots = 0 if native else self._any_list_slots()
-
-        def widen(names, why):
-            # BUG-30: an any-list grant reaches the WHOLE spell list, so every spell becomes a legal
-            # option while one is held. The flat pool carries no provenance (the deliberate
-            # grants-only boundary), so the count is policed by catalog_problems rather than by
-            # hiding options: validate-don't-enumerate.
-            if not anyslots:
-                return names, why
-
-            def why2(n):
-                return why(n) or ('any Spell List grant' if n in self.meta else None)
-            return set(self.meta.keys()), why2
         if model == 'schools':
             chosen = [s for s in (list(self.ledger['chargen'].get('spell_schools') or [])
                                   + self._ssi_schools()) if str(s) != UNDECIDED]
@@ -834,7 +835,7 @@ class BuilderAPI:
                     return 'school ' + m['school']
                 hit = set(m['tags']) & tags
                 return ('tag ' + '/'.join(sorted(hit))) if hit else None
-            return widen(names, why)
+            return names, why
         if model == 'source':
             src = self.ccat['spellcasting']['source']
             names = {sp for sch in self.cat['spell_sources']['sources'][src].values() for sp in sch}
@@ -846,26 +847,24 @@ class BuilderAPI:
                 if src in m['sources']:
                     return src + ' source'
                 return ('Arcane grant slot' if 'Arcane' in m['sources'] else None)
-            return widen(names, why)
-        # model none: path-rider list choice unrecorded -> existence only (already every spell, so an
-        # any-list grant adds nothing to widen)
+            return names, why
+        # model none: path-rider list choice unrecorded -> existence only
         return set(self.meta.keys()), (lambda n: 'path-rider list (unpinned)' if n in self.meta else None)
 
     def _spell_options(self):
         names, why = self._spell_access()
-        # BUG-30: when an any-list grant widens the pool, group the spells that are NOT on the
-        # character's own lists under "any Spell List" so the picker says WHY they are offered (and
-        # they cluster together instead of hiding among the class-legal ones).
-        native = self._spell_access(native=True)[0] if self._any_list_slots() else names
-        out = []
-        for n in sorted(names):
-            sch = (self.meta.get(n) or {}).get('school', '?')
-            if n in native:
-                out.append({'name': n, 'group': sch, 'label': '%s (%s)' % (n, sch)})
-            else:
-                out.append({'name': n, 'group': 'any Spell List',
-                            'label': '%s (%s, any Spell List)' % (n, sch)})
-        return out
+        return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
+                 'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
+                for n in sorted(names)]
+
+    def _spell_any_options(self):
+        # BUG-30: options for an ANY-LIST spell child-slot = every spell in spells.md, grouped by
+        # school. No filtering is needed because the grant itself reaches every list ("any 2 Spells of
+        # your choice from any Spell List"); the point of the child-slot is that this reach applies to
+        # the 2 spells the feature pays for and to nothing else.
+        return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
+                 'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
+                for n in sorted(self.meta.keys())]
 
     def _spell_tagged_options(self):
         # FR-8 slice 5: options for a tag-constrained spell child-slot = accessible spells that carry
@@ -1131,6 +1130,8 @@ class BuilderAPI:
                      'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
         if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
             return self._spell_tagged_options()
+        if slot == 'spell_any':      # BUG-30 any-list spell grant-child (MC Bard Magical Secrets)
+            return self._spell_any_options()
         if slot == 'spell_sourced':  # FR-13a source-constrained spell grant-child; options are per-
             return []                # parent (the source constraint), so _grant_children sets them
         if slot == 'ancestry_origin':  # BUG-24: per-ancestry Origin damage type; options are per-
@@ -1147,10 +1148,13 @@ class BuilderAPI:
     # ---------- catalog-level legality (the layer the engine does not do) ----------
     def catalog_problems(self):
         probs = []
-        # BUG-30: legality is judged against NATIVE access, then off-list picks are counted against the
-        # any-list grant slots (the same shape as the off-source / Arcane-grant-slot count below), so
-        # the widened picker cannot legalise an unlimited number of off-list spells.
-        names, why = self._spell_access(native=True)
+        # BUG-30: an any-list grant's own spells are childed under the granting feature and are legal by
+        # construction (their picker offers every spell), so they never reach this flat sweep. What this
+        # DOES cover is a hand-authored / received ledger that left such spells in the flat pool (the
+        # shape bonan.yaml had before the BUG-30 migration): those off-list picks are tolerated up to the
+        # number of any-list slots the character holds, and flagged beyond it. Same shape as the
+        # off-source / Arcane-grant-slot count below.
+        names, why = self._spell_access()
         anyslots = self._any_list_slots()
         off_any = 0
         model = self.ccat['spellcasting']['model']
@@ -1320,6 +1324,12 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d spell (tag) undecided' % lvl)
+                if self._spell_grant_any(e):   # BUG-30 any-list spell grant-child
+                    _n = int((e.get('grants') or {}).get('spells', 0) or 0)
+                    _lst = e.get('granted_spells') or []
+                    for _k in range(_n):
+                        if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                            probs.append('builder: L%d spell (any list) undecided' % lvl)
         # FR-3 slice 2 / FR-17: planned levels ENFORCE their skill AND trade point budgets (Darryl's
         # call), POINTS-based rather than per-slot, because a cap+ pick costs 2 points. So a level with
         # N points is under-spent while decided picks total < N, and over-spent if they total > N (only
@@ -1658,6 +1668,23 @@ class BuilderAPI:
                                      pick, None, False, editable,
                                      plan=level > self.ledger['current_level'],
                                      plan_editable=editable and level > self.ledger['current_level']))
+        # BUG-30: an ANY-LIST spell grant (MC Bard Magical Secrets: "any 2 Spells of your choice from
+        # any Spell List") materialises N UNFILTERED spell child-slots glued under the granting feature.
+        # Same shape as the tag / source branches (resource 'spells' -> granted_spells, consumed by the
+        # budget, so the flat count is unchanged). Doing it here rather than widening the flat pool is
+        # what keeps every OTHER picker honestly filtered to the character's own lists, and it shows
+        # the player which 2 spells the talent is paying for.
+        if self._spell_grant_any(parent):
+            n = int(grants.get('spells', 0) or 0)
+            lst = parent.get('granted_spells') or []
+            opts = self._spell_any_options()
+            for k in range(n):
+                pick = lst[k] if k < len(lst) else UNDECIDED
+                d = self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_any',
+                              pick, None, False, editable,
+                              plan=level > cur, plan_editable=editable and level > cur)
+                d['options'] = list(opts)
+                out.append(d)
         # FR-13a: a SOURCE-constrained spell grant (e.g. Innate Power / Intuitive Magic -> N spells
         # of the chosen Sorcerer Source) materialises source-filtered spell child-slots. Same shape
         # as the tag branch (resource 'spells' -> granted_spells, consumed by the budget), options
@@ -1674,7 +1701,7 @@ class BuilderAPI:
                                  cur_src, None, False, editable,
                                  plan=level > cur, plan_editable=editable and level > cur))
         gsrc = self._spell_grant_source(parent)
-        if gsrc and not self._spell_grant_tag(parent):
+        if gsrc and not self._spell_grant_tag(parent) and not self._spell_grant_any(parent):
             src, schools = gsrc
             n = int(grants.get('spells', 0) or 0)
             lst = parent.get('granted_spells') or []
@@ -1744,7 +1771,8 @@ class BuilderAPI:
         # child resource. Plain {spells:N} grants (the other five) are NOT tag-constrained, so this is a
         # no-op for them and they keep the flat-pool model. (On a real change the granted_spells pop
         # above already fired; here we rebuild it to the new count, all UNDECIDED.)
-        if self._spell_grant_tag(entry):
+        # BUG-30: an any-list spell grant (MC Bard Magical Secrets) resizes granted_spells the same way.
+        if self._spell_grant_tag(entry) or self._spell_grant_any(entry):
             n = int(grants.get('spells', 0) or 0)
             if n <= 0:
                 entry.pop('granted_spells', None)
@@ -3148,7 +3176,7 @@ function render(s){
         : '';
       body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
     }
-    const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
+    const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced'||t.slot==='spell_any') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
                     : (t.slot==='source_choice') ? 'sorcerer source'                 // FR-13a slice 2: Sorcerous Origin node
                     : (t.slot==='ancestry_origin') ? (t.slotlabel||'origin') : t.slot;  // BUG-24: per-ancestry Origin picker
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;

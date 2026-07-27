@@ -33,13 +33,12 @@ chargen:
 levels:
   2:
     - {slot: talent, pick: "MC Bard: Remarkable Repertoire", grants: {spells: 2, skill_points: 2},
-       note: "2 Skill Points, 2 Spells, Expression (Auditory)"}
+       granted_spells: [Command, Charm],
+       note: "2 Skill Points, 2 Spells, Expression (Auditory). BUG-30 (2026-07-27): Magical Secrets reaches ANY Spell List, so its 2 spells are now CHILDED here (granted_spells) instead of sitting in the flat pool, which is what lets every other picker stay filtered to the character's own lists. Which 2 of the 3 L2 spells came from the talent vs the Spellcaster path rank is not recorded (see the note below), so Command + Charm is an assumption; all three are legal either way and the counts are identical. The {spells:2} grant is CONSUMED by these children (the engine counts it via grant totals, not by name), so the spell total is unchanged."}
     - {slot: path, pick: Spellcaster, inferred: true,
        note: "Both paths rank 1 on sheet, not level-tagged; Spellcaster assumed L2 (pairs with the Bard talent). ASK ED."}
-    # grants-only unification (2026-07-19): de-bundled the composite "Command, Charm, Frost Bolt (order unknown)" into three named flat picks. These are CHOICE-grant spells (MC Bard: Remarkable Repertoire {spells:2} + class table), so they belong in the free pool; order is immaterial in a flat pool.
-    - {slot: spell, pick: Command, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
-    - {slot: spell, pick: Charm, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
-    - {slot: spell, pick: Frost Bolt, inferred: true, note: "MC Bard / L2 choice-grant spell (order across L2 sources unknown)."}
+    # grants-only unification (2026-07-19): de-bundled the composite "Command, Charm, Frost Bolt (order unknown)" into three named picks. Two are now childed under the MC Bard talent (BUG-30); Frost Bolt stays a flat pick, funded by the Spellcaster path rank.
+    - {slot: spell, pick: Frost Bolt, inferred: true, note: "L2 choice-grant spell, funded by the Spellcaster path rank (order across L2 sources unknown)."}
   3:
     - {slot: subclass, pick: "Elemental Fury (Raging Elements: Fire)", note: "Elemental Affinity, Elemental Blast, Erupting Elements"}
     - {slot: attribute, pick: charisma, inferred: true, note: "Destination unconfirmed (C2->3 assumed). ASK ED."}
