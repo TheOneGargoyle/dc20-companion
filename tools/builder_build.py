@@ -620,6 +620,52 @@ class BuilderAPI:
                     return True
         return False
 
+    def _res_have_at(self, resource, lvl):
+        # named picks RECORDED at one level: chargen (lvl 1) = the flat chargen list + the fixed-grant
+        # names childed on chargen class choices / ancestry traits; lvl > 1 = that level's flat entries
+        # + their grant children. Summed over 1..cur this equals _res_have.
+        gkey = 'granted_%s' % resource
+        slot = self._res_slot(resource)
+        n = 0
+        if lvl == 1:
+            n += sum(1 for x in (self.ledger['chargen'].get(resource) or [])
+                     if str(x) != UNDECIDED and not is_composite(x))
+            for c in (self.ledger['chargen'].get('class_choices') or []):
+                n += sum(1 for g in (c.get(gkey) or []) if str(g) != UNDECIDED)
+            for t in (self.ledger['chargen'].get('ancestry_traits') or []):
+                if isinstance(t, dict):
+                    n += sum(1 for g in (t.get(gkey) or []) if str(g) != UNDECIDED)
+        for e in ((self.ledger.get('levels') or {}).get(lvl) or []):
+            if e.get('slot') == slot and str(e.get('pick')) != UNDECIDED and not is_composite(e.get('pick')):
+                n += 1
+            n += sum(1 for g in (e.get(gkey) or []) if str(g) != UNDECIDED)
+        return n
+
+    def _res_ready_level(self, resource):
+        # BUG-23 (2026-07-27): the maneuver/spell analog of _anc_ready_level. The ready slot belongs
+        # at the level where the gap actually IS, not always back at chargen L1. A Barbarian who takes
+        # MC Bard Remarkable Repertoire at L2 gains 2 spells there; rendering its ready slot in the L1
+        # block (where the Barbarian table grants none) read as "not granting the spells" - the same
+        # mis-placement BUG-18 fixed for ancestry points.
+        # Attribution is data-free: the engine budget DELTA per level says how many that level granted,
+        # and _res_have_at says how many are recorded there, so the slot lands at the LOWEST level that
+        # is short. Works for ANY grant source (class table, path rider, talent, subclass, trait) with
+        # no per-feature knowledge. A genuinely unattributable gap falls back to chargen, which is also
+        # the audit case (a canon ledger missing an old L1 pick) and keeps that slot where it belongs.
+        # Only called when a shortfall exists, so the extra replays stay off the hot path.
+        cur = self.ledger['current_level']
+        lbl = 'Maneuvers known' if resource == 'maneuvers' else 'Spells known'
+        prev = 0
+        for lvl in range(1, cur + 1):
+            try:
+                v = int(eng.replay(self.ledger, lvl).derived.get(lbl) or 0)
+            except Exception:
+                continue
+            gained, prev = v - prev, v
+            if gained > 0 and self._res_have_at(resource, lvl) < gained:
+                return lvl
+        return 1
+
     def _traits(self):
         for t in self.ledger['chargen'].get('ancestry_traits') or []:
             yield t
@@ -1312,12 +1358,16 @@ class BuilderAPI:
         # chaining one at a time. Advisory only - being under the known count is legal-but-
         # unfinished (surfaced by the readout + this row), not an illegal state, so it raises
         # no problem and leaves the baseline clean.
+        # BUG-23 (2026-07-27): and it renders at the level that most recently RAISED the budget
+        # (_res_ready_level), not always at chargen - the BUG-18 treatment for maneuvers/spells.
         for resource in ('maneuvers', 'spells'):
             if self._res_have(resource) < self._res_budget(resource) \
                     and not self._res_has_undecided(resource) \
                     and self._options_for(self._res_slot(resource)):
-                sid = 'cg:man:+' if resource == 'maneuvers' else 'cg:spell:+'
-                auto = self._dec(sid, 1, self._res_slot(resource), UNDECIDED, None, False, True)
+                rl = self._res_ready_level(resource)
+                short = 'man' if resource == 'maneuvers' else 'spell'
+                sid = 'cg:%s:+' % short if rl == 1 else 'L%d:%s:+' % (rl, short)
+                auto = self._dec(sid, rl, self._res_slot(resource), UNDECIDED, None, False, True)
                 auto['auto'] = True
                 ds.append(auto)
         return self._reorder_decisions(ds)
@@ -1889,6 +1939,18 @@ class BuilderAPI:
                 {'name': UNDECIDED, 'cost': 0, 'note': BUILDER_NOTE})
             self._set_trait(self.ledger['chargen']['ancestry_traits'][-1], value)
             return self.state()
+        if did.startswith('L') and (did.endswith(':man:+') or did.endswith(':spell:+')):
+            # BUG-23: the ready maneuver/spell slot rendered at the level that granted the budget
+            # (the level analog of cg:man:+ / cg:spell:+, mirroring the BUG-18 trait sentinel).
+            # Materialise a real LEVEL entry so the pick is recorded where it was earned, which is
+            # also how the six canon ledgers record level-granted picks (see bonan.yaml L2 spells).
+            # Handled before the generic 'L<lvl>:<idx>' branch, which cannot parse this sentinel.
+            lvl = int(did[1:].split(':')[0])
+            slot = 'maneuver' if did.endswith(':man:+') else 'spell'
+            if value != UNDECIDED:
+                self.ledger.setdefault('levels', {}).setdefault(lvl, []).append(
+                    {'slot': slot, 'pick': value, 'note': BUILDER_NOTE})
+            return self.state()
         if did in ('cg:man:+', 'cg:spell:+'):
             # grants-only auto-heal: materialise a real chargen maneuver/spell from the ready
             # slot (mirrors cg:trait:+). Next state() re-derives whether another ready slot is
@@ -1997,17 +2059,25 @@ class BuilderAPI:
             t['source'] = lst
             # Scratch-mode option-effects layer (2026-07-25): copy the catalog option's mechanical
             # effect onto the ledger entry so a picked trait actually APPLIES its effect (previously a
-            # scratch pick applied its cost but nothing else - BUG-27 etc). Only NUMERIC grants live in
-            # the ancestry catalog (mp/hp/jump/jump_from); spell grants stay ledger-authored via the
-            # FR-13a child machinery. On a real change the spell provenance was cleared just above, so
-            # replacing grants with the new trait's numeric catalog grants is safe; an UNCHANGED re-pick
-            # leaves the entry (and any hand-authored childed spell grant) untouched.
+            # scratch pick applied its cost but nothing else - BUG-27 etc). On a real change the spell
+            # provenance was cleared just above, so replacing grants with the new trait's catalog
+            # grants is safe; an UNCHANGED re-pick leaves the entry (and any hand-authored childed
+            # spell grant) untouched.
+            # BUG-25 (2026-07-27): the copy now carries CHOICE spell grants too. A def with
+            # `grants: {spells: N}` + `spell_access: {source, schools}` (Fiendish Magic, Celestial
+            # Magic) becomes a source-constrained grant parent on pick, so the existing FR-13a
+            # cgtrait child machinery renders N filtered spell pickers under the trait. Previously
+            # those two traits granted nothing in scratch mode because the pair was hand-authored
+            # per ledger entry (Scaletrix only).
             if changed:
                 cat_grants = dict(row.get('grants') or {})
                 if cat_grants:
                     t['grants'] = cat_grants
                 else:
                     t.pop('grants', None)
+                cat_access = row.get('spell_access')
+                if cat_access and int(cat_grants.get('spells', 0) or 0) > 0:
+                    t['spell_access'] = dict(cat_access)
         was_added = BUILDER_NOTE in str(t.get('note', ''))
         t['note'] = ('%s; cost %s from catalog (%s).'
                      % (BUILDER_NOTE if was_added else 'Edited in builder',

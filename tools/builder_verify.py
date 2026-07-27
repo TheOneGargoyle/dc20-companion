@@ -2074,8 +2074,11 @@ def check_grants_only():
 def check_option_effects():
     """2026-07-25 option-effects layer: a scratch-mode ancestry pick must APPLY its catalog
     effect, not just its cost. Numeric ancestry grants (mp/hp/jump/jump_from) flow from the
-    catalog onto the ledger entry via _set_trait, and a re-pick clears them."""
-    print("## (OE) Option-effects: scratch ancestry grants apply + clear")
+    catalog onto the ledger entry via _set_trait, and a re-pick clears them.
+    2026-07-27: extended to CHOICE spell grants (BUG-25, Fiendish Magic / Celestial Magic ->
+    source-filtered child pickers) and to ready-slot level placement (BUG-23, a level's granted
+    spells/maneuvers spawn their ready slot AT that level and record a level entry)."""
+    print("## (OE) Option-effects: scratch ancestry grants apply + clear; spell grants; slot level")
 
     def stat(s, n):
         v = next(r[1] for r in s["stats"] if r[0] == n)
@@ -2141,6 +2144,89 @@ def check_option_effects():
     ok("canon Scaletrix loads both origins seeded to Fire (no undecided)",
        len(od2) == 2 and all(x["current"] == "Fire" for x in od2),
        [(x.get("slotlabel"), x["current"]) for x in od2])
+
+    # ---- BUG-25 (2026-07-27): a CHOICE spell grant flows from the catalog too, so the two
+    # spell-granting ancestry traits render source-filtered child pickers in scratch mode.
+    UND = "(undecided)"
+
+    def gchild(s):
+        return [d for d in s["decisions"] if (d.get("id") or "").startswith("GC#cgtrait:")]
+    a = fresh("druid", "Fiendborn"); b0 = st(a)["spell_budget"]
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    s = json.loads(a.set_decision(d["id"], "Fiendish Magic"))
+    kids = gchild(s)
+    ok("scratch Fiendborn Fiendish Magic grants +1 spell (BUG-25)",
+       s["spell_budget"] == b0 + 1, "%d->%d" % (b0, s["spell_budget"]))
+    ok("Fiendish Magic renders ONE source-constrained spell child under the trait",
+       len(kids) == 1 and kids[0]["slot"] == "spell_sourced" and kids[0]["current"] == UND,
+       [(k["id"], k["slot"]) for k in kids])
+    ok("its options are Arcane, narrowed to Elemental/Enchantment (ancestries.md l.718-726)",
+       bool(kids) and {o["group"] for o in kids[0]["options"]} == {"Elemental", "Enchantment"}
+       and len(kids[0]["options"]) > 10,
+       sorted({o["group"] for o in kids[0]["options"]}) if kids else None)
+    pick = kids[0]["options"][0]["name"]
+    sp = json.loads(a.set_decision(kids[0]["id"], pick))
+    ok("picking the child records it as the trait's granted spell and fills the budget",
+       a.ledger["chargen"]["ancestry_traits"][-1].get("granted_spells") == [pick]
+       and sp["spell_have"] == 1,
+       (a.ledger["chargen"]["ancestry_traits"][-1].get("granted_spells"), sp["spell_have"]))
+    sr = json.loads(a.set_decision(d["id"], "Darkvision"))
+    t_after = a.ledger["chargen"]["ancestry_traits"][-1]
+    ok("re-picking the trait clears the spell grant, access AND provenance",
+       sr["spell_budget"] == b0 and not t_after.get("grants")
+       and "spell_access" not in t_after and "granted_spells" not in t_after,
+       (sr["spell_budget"], t_after))
+    # the Angelborn sibling: Divine, any school (l.654-658), so no school narrowing
+    a = fresh("druid", "Angelborn")
+    d = last_trait_slot(json.loads(a.add_trait(1)))
+    s = json.loads(a.set_decision(d["id"], "Celestial Magic"))
+    kids = gchild(s)
+    ok("Angelborn Celestial Magic renders a Divine child with no school narrowing",
+       len(kids) == 1 and len({o["group"] for o in kids[0]["options"]}) > 2,
+       sorted({o["group"] for o in kids[0]["options"]}) if kids else None)
+    # canon regression: Scaletrix's hand-authored "Arcane Spell" entry is untouched by the copy
+    sc = st(builder_api.BuilderAPI("scaletrix", CATPATHS))
+    ok("canon Scaletrix still resolves 10 of 10 spells with Command childed under the trait",
+       sc["spell_have"] == 10 and sc["spell_budget"] == 10
+       and any(k.get("current") == "Command" for k in gchild(sc)),
+       (sc["spell_have"], [k.get("current") for k in gchild(sc)]))
+
+    # ---- BUG-23 (2026-07-27): the maneuver/spell ready slot renders at the level that granted
+    # the budget, not always at chargen (the BUG-18 treatment), and materialises a LEVEL entry.
+    a = drive_fresh("barbarian")
+    s = json.loads(a.add_level())
+    tal = [d for d in s["decisions"] if d.get("id") and d["slot"] == "talent"][0]
+    a.set_decision(tal["id"], "Remarkable Repertoire")   # MC Bard: 2 spells + 2 skill points
+    s = json.loads(a.set_decision("L2:2", "Spellcaster"))  # path rider: +1 spell -> budget 3
+    ok("Barbarian + MC Bard Remarkable Repertoire at L2 budgets 3 spells (BUG-23 root)",
+       s["spell_budget"] == 3 and s["spell_have"] == 0, (s["spell_have"], s["spell_budget"]))
+    rider = [d for d in s["decisions"] if d["slot"] == "spell" and d["level"] == 2]
+    a.set_decision(rider[0]["id"], rider[0]["options"][0]["name"])
+    s = json.loads(a.state())
+    autos = [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"]
+    ok("the ready spell slot renders AT L2, the level that granted it (not cg:spell:+)",
+       len(autos) == 1 and autos[0]["id"] == "L2:spell:+" and autos[0]["level"] == 2,
+       [(x["id"], x["level"]) for x in autos])
+    for _ in range(2):
+        au = [d for d in json.loads(a.state())["decisions"]
+              if d.get("auto") and d["slot"] == "spell"]
+        if au:
+            a.set_decision(au[0]["id"], next(o["name"] for o in au[0]["options"]
+                                             if o["name"] not in
+                                             {e.get("pick") for e in a.ledger["levels"][2]}))
+    s = json.loads(a.state())
+    l2 = [e for e in a.ledger["levels"][2] if e.get("slot") == "spell"]
+    ok("chaining fills 3 of 3 and every pick is recorded as an L2 entry",
+       s["spell_have"] == 3 and s["spell_budget"] == 3 and len(l2) == 3
+       and not [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"],
+       (s["spell_have"], [e.get("pick") for e in l2]))
+    rt = yaml.safe_load(a.export_yaml())
+    ok("the L2 spells round-trip through export",
+       len([e for e in rt["levels"][2] if e.get("slot") == "spell"]) == 3,
+       [e.get("pick") for e in rt["levels"][2] if e.get("slot") == "spell"])
+    ok("both level sentinels are wired in API_PY",
+       ":spell:+" in builder_build.API_PY and ":man:+" in builder_build.API_PY
+       and "_res_ready_level" in builder_build.API_PY)
 
 
 def main():

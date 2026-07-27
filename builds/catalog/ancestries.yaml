@@ -1,4 +1,4 @@
-# CURATED cross-cutting cost list — ancestry-trait point costs.
+# CURATED cross-cutting cost list: ancestry-trait point costs.
 # Source: rules/ancestries.md (Human l.329-352, Elf l.354-383, Dwarf l.385-417, Halfling
 # l.418-453, Dragonborn l.522-597, Giantborn l.598-634, Angelborn l.635-693, Fiendborn
 # l.694-763, Beastborn l.764-973 incl. the Beast Traits list). Costs are the (N) prefix on
@@ -18,6 +18,18 @@
 # source_aliases: ledger `source:` names that map onto a curated list here.
 # aliases on a trait: ledger names for the same rules-text trait (e.g. Scaletrix's "Arcane
 # Spell" is the Fiendborn trait the rules call "Fiendish Magic": learn 1 Arcane spell).
+#
+# Option effects (2026-07-25 / 2026-07-27). A trait def may carry:
+#   grants:       the mechanical effect the builder copies onto the ledger entry on pick, so a
+#                 scratch pick APPLIES its effect and not just its cost. Numeric keys feed the
+#                 engine directly (mp/hp/jump/jump_from); `spells: N` is a CHOICE grant.
+#   spell_access: {source, schools} - the FR-13a constraint that turns a `spells: N` grant into
+#                 N source-filtered spell child-pickers glued under the trait (BUG-25). Only the
+#                 two spell-granting ancestry traits carry it: Fiendish Magic (Arcane, Elemental
+#                 or Enchantment, l.718-726) and Celestial Magic (Divine, any school, l.654-658).
+#                 The damage-type rider on Fiendish Magic ("must match your Fiendish damage") is
+#                 the BUG-24 Origin's business, not a filterable spell property, so it is not
+#                 enforced here.
 
 catalog_version: 1
 source_aliases: {Beast: Beastborn}
@@ -129,6 +141,7 @@ ancestries:
     # Default Traits
     - {name: Fiendish Resistance, cost: 2}
     - {name: Fiendish Magic, cost: 2, aliases: [Arcane Spell],
+       grants: {spells: 1}, spell_access: {source: Arcane, schools: [Elemental, Enchantment]},
        note: "learn 1 Arcane spell (Elemental or Enchantment school, Fiendish damage type)"}
     - {name: Darkvision, cost: 1}
     - {name: Light's Bane, cost: 0}
@@ -147,7 +160,9 @@ ancestries:
     # Reachable by Redemption Fiendborn via the Redeemed trait (Scaletrix's Umbral Weakness).
     - {name: Fallen, cost: 0, opens: Fiendborn, note: "may spend Ancestry Points on Fiendborn Traits"}
     - {name: Radiant Resistance, cost: 1}
-    - {name: Celestial Magic, cost: 2}
+    - {name: Celestial Magic, cost: 2,
+       grants: {spells: 1}, spell_access: {source: Divine},
+       note: "learn 1 Divine spell (any school; ancestries.md l.654)"}
     - {name: Healing Touch, cost: 2}
     - {name: Divine Glow, cost: 0}
     - {name: Mana Increase, cost: 1, grants: {mp: 1}}
@@ -161,7 +176,7 @@ ancestries:
   Beastborn:
     # Origin
     - {name: Beastkind, cost: 0}
-    # Beast Traits — Senses
+    # Beast Traits: Senses
     - {name: Darkvision, cost: 1}
     - {name: Echolocation, cost: 1}
     - {name: Keen Sense, cost: 1, note: "hearing, sight, or smell; repeatable"}

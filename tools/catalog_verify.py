@@ -533,6 +533,40 @@ for a in (anc.get("origins") or {}):
            f"{a} origin list: catalog {cat_types} vs ancestries.md {md_types}")
     print(f"  {a} origin: {len(cat_types)} damage types match ancestries.md")
 
+# spell-granting ancestry traits (BUG-25): a def carrying `grants: {spells: N}` must also carry the
+# spell_access constraint that turns it into N source-filtered child pickers, its rules line must
+# actually say it teaches a Spell, and the source + any schools must be real names. Guards against a
+# grant that silently reaches the whole spell list.
+SPELL_SOURCES = {"Arcane", "Divine", "Primal"}
+n_spellgrant = 0
+for a in anc["ancestries"]:
+    body = ancestry_region(anctext, a)
+    for row in anc["ancestries"][a]:
+        if int((row.get("grants") or {}).get("spells", 0) or 0) <= 0:
+            expect(not row.get("spell_access"),
+                   f"{a}/{row['name']}: spell_access without a spells grant")
+            continue
+        sa = row.get("spell_access") or {}
+        expect(bool(sa.get("source")),
+               f"{a}/{row['name']}: spells grant with no spell_access.source")
+        expect(sa.get("source") in SPELL_SOURCES,
+               f"{a}/{row['name']}: spell_access.source {sa.get('source')!r} is not a real Source")
+        # oracle for school names = every School appearing in spells.md (spell_schools.yaml only
+        # curates the five the six PCs use, and these grants reach outside them).
+        for sch in (sa.get("schools") or []):
+            expect(sch in {m["school"] for m in spell_meta.values()},
+                   f"{a}/{row['name']}: spell_access school {sch!r} is not a real School")
+        m = re.search(re.escape(row["name"]) + r":\s*You learn 1 Spell", body)
+        expect(bool(m), f"{a}/{row['name']}: ancestries.md does not say it teaches 1 Spell")
+        expect(f"{sa['source']} Spell List" in body[m.start():m.start() + 400] if m else False,
+               f"{a}/{row['name']}: ancestries.md does not name the {sa.get('source')} Spell List")
+        n_spellgrant += 1
+        print(f"  {a}/{row['name']}: grants 1 {sa['source']} spell"
+              + (f" ({'/'.join(sa['schools'])} only)" if sa.get("schools") else " (any school)")
+              + " - matches ancestries.md")
+expect(n_spellgrant == 2,
+       f"expected 2 spell-granting ancestry traits (Fiendish Magic, Celestial Magic), found {n_spellgrant}")
+
 # spell-school lists: slice the 'Spells sorted by Schools' block, read each school's bullets
 start = spelltext.index("#### Spells sorted by Schools")
 end = spelltext.index("Astromancy is the magic", start)   # start of the full descriptions
