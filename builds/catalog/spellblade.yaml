@@ -116,6 +116,11 @@ subclass_grants:
   Rune Knight:
     grants:
       runes: 2
+  Paladin:
+    grants:
+      disciplines: 1
+    prefer:
+      disciplines: Acolyte
 spellcasting:
   model: schools
   schools_chosen: 2

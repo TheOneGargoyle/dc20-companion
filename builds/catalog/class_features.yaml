@@ -1,0 +1,106 @@
+# CURATED class-feature names (and their mechanical effects), per class per level.
+# DC20 Beta 0.10.5, source rules/classes.md "#### Level N Class Features" blocks.
+#
+# WHY THIS FILE EXISTS (BUG-19 / BUG-22, 2026-07-27). `class_spines.yaml` carries the CLASS TABLE's
+# generic labels ("Class Features", "Class Feature", "Talent", "Path") because that is literally what
+# the table prints. The real feature NAMES live only in classes.md prose, so the builder had nothing
+# to show: a scratch character got no class features at L1 and a bare "Class Feature" row at L2, and
+# features with numeric effects (Barbarian Berserker) applied nothing.
+#
+# SCOPE (agreed with Darryl 2026-07-27): **levels 1 to 4 for the five walked classes**, which covers
+# every level any player is at (the party is L4). L5-L10 is a data-fill chore, see BACKLOG CH-4.
+# Worth knowing when filling it: classes.md has NO "#### Level 5 Class Features" heading, so the L5
+# feature ("Expert <Class>") sits inside the L4 block. Do not mis-file it; the class table
+# (`class_spines.yaml`) is the authority for which level a feature belongs to (L4 = Talent + Ancestry
+# + Path only, L5 = Class Feature = "Expert <Class>"). For the Spellblade, Expert Spellblade grants
+# **+1 Discipline** (that is the source of Tanrielle's L5 Spell Breaker).
+#
+# SHAPE
+#   <Class>:
+#     <level>:
+#       - name: <feature name as printed in classes.md>
+#         flavor: true              # a "(Flavor Feature)": roleplay, never mechanical
+#         choice: <slot>            # this feature IS an existing picker (disciplines / pact boon),
+#                                   # so it is listed for completeness but its grants live there
+#         grants: {...}             # engine grant keys (hp/mp/sp/speed/jump/jump_from/ad/pd/...)
+#         grants_unarmored: {...}   # applied ONLY while no armour is worn (see the note below)
+#
+# grants_unarmored: DC20 has conditional defences the engine cannot express (it derives one number).
+# Barbarian Berserker Defense is +2 AD "while you aren't wearing Armor" (classes.md l.114-115). The
+# builder applies these only when no equipment item looks like armour (name match on armor/armour),
+# and says so in the row's note, because the equipment model carries no armour TYPE. That heuristic
+# matches how the canon ledgers read: bonan.yaml wears none and his sheet's AD 18 includes the +2.
+
+catalog_version: 1
+ruleset: DC20 0.10.5
+classes:
+
+  Barbarian:   # classes.md l.94-131
+    1:
+      - name: Rage
+      - name: Berserker
+        grants: {speed: 1, jump_from: might}
+        grants_unarmored: {ad: 2}
+        note: "Charge, Berserker Defense (+2 AD unarmoured), Fast Movement (+1 Speed), Mighty Leap (Jump from Might)"
+      - name: Shattering Force
+        flavor: true
+    2:
+      - name: Battlecry
+        note: "1 AP + 1 SP: Fortitude / Fury / Urgent shout in 5 Spaces"
+    3: []      # the class table's L3 feature is the Subclass itself (its own picker)
+    4: []      # L4 grants Talent + 2 Ancestry Points + Path only, no class feature
+
+  Commander:   # classes.md l.~330-370
+    1:
+      - name: Inspiring Presence
+      - name: Commander's Call
+        note: "1 AP + 1 SP: command a willing ally (the command-stack engine)"
+      - name: Natural Leader
+        flavor: true
+    2:
+      - name: Commanding Aura
+        note: "5 Space aura; Help / command range"
+    3: []
+    4: []
+
+  Druid:   # classes.md l.~1600-1700
+    1:
+      - name: Druid Domain
+        note: "1 AP + 1 MP: create Domain Spaces; Domain Actions while you hold them"
+      - name: Wild Form
+        note: "1 AP + 1 MP: transform (Wild Form Stat Block + Trait Points); True Form on reverting"
+    2:
+      - name: Nature's Torrent
+        note: "reaction damage when a creature within 10 Spaces takes Elemental damage"
+    3: []
+    4: []
+
+  Spellblade:   # classes.md l.~2840-2930
+    1:
+      - name: Bound Weapon
+        note: "bond with a weapon on a Quick Rest; Bound Damage"
+      - name: Spellblade Disciplines
+        choice: spellblade_disciplines
+        note: "learn 2 Disciplines from the list; the picker at L1 owns these"
+      - name: Sense Magic
+        flavor: true
+    2:
+      - name: Spellstrike
+        note: "once per turn, ride a Spell on a Martial Attack"
+    3: []
+    4: []
+
+  Warlock:   # classes.md l.~3200-3280
+    1:
+      - name: Warlock Contract
+        note: "the patron bargain; Hasty Bargain / Desperate Bargain"
+      - name: Pact Boon
+        choice: pact_boon
+        note: "Pact Weapon / Armor / Spell / Familiar; the boon picker at L1 owns these"
+      - name: Beseech Patron
+        flavor: true
+    2:
+      - name: Life Tap
+        note: "spend HP in place of MP on an MP Effect"
+    3: []
+    4: []

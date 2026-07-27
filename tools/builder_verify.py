@@ -536,7 +536,7 @@ def check_comments():
 def check_new_features():
     print("## (8) Bug-fix round 2: prereqs, languages picker, cap raise, Attribute Increase")
 
-    # (item 1) ancestry-trait prerequisites: dropping xanwyn's Climb Speed makes her
+    # (item 1) ancestry-trait prerequisites: dropping xanwyn's Climb Speed makes his
     # Spider Climb (requires Climb Speed) illegal; restoring it clears the flag.
     api = builder_api.BuilderAPI("xanwyn", CATPATHS)
     s = st(api)
@@ -962,9 +962,12 @@ def check_slice2():
     UND = "(undecided)"
     print()
     print("## (13) FR-8 slice 2: grants -> typed child picker-slots backbone")
-    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills/trades), excludes maneuvers/spells",
+    # BUG-21 (2026-07-27) added `disciplines` (Paladin Lay on Hands grants one). maneuvers/spells stay
+    # OFF this map by design: they use the flat pool, with their own constrained-child branches.
+    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills/trades/disciplines), excludes maneuvers/spells",
        builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic",
-                                         "skills": "skill", "trades": "trade"},
+                                         "skills": "skill", "trades": "trade",
+                                         "disciplines": "discipline"},
        builder_api.GRANT_CHILD_SLOTS)
 
     # No party ledger grants a pickable resource yet (rune/metamagic catalogs land in slices 3/4),
@@ -1228,7 +1231,7 @@ def check_slice5():
     # ---- (e) FR-13a boundary: a plain {spells:N} grant (NO spell_access) stays flat-pool; a grant
     #     that carries a spell_access SOURCE now gets source-constrained children (Scaletrix Innate
     #     Power). Tag-constrained subclass grants keep the spell_tagged path (Runt, above).
-    #     BUG-30 (2026-07-27) moved bonan OFF this list: her MC Bard talent carries spell_access.any,
+    #     BUG-30 (2026-07-27) moved bonan OFF this list: his MC Bard talent carries spell_access.any,
     #     so it is now a child-bearing parent too (asserted just below). Tanrielle's MC Warlock Pact
     #     Spell and Xanwyn's Spell School Initiate carry no spell_access and hold the flat boundary.
     for other in ("tanrielle", "xanwyn"):
@@ -2013,7 +2016,7 @@ def check_grants_only():
                             for o in d["options"]) for d in pa),
        [(d.get("current"), sorted({_mtype.get(o["name"], "?") for o in d["options"]})) for d in pa])
     # off-list current value stays selectable: a picker's <select> must contain its own current
-    # value or the browser renders it blank (Scaletrix's inferred "Dispel Magic" is not in her
+    # value or the browser renders it blank (Scaletrix's inferred "Dispel Magic" is not in his
     # school-filtered list, so it is prepended as an off-list option).
     ss = st(builder_api.BuilderAPI("scaletrix", CATPATHS))
     dm = next((d for d in ss["decisions"] if d.get("slot") == "spell" and d.get("current") == "Dispel Magic"), None)
@@ -2336,13 +2339,13 @@ def check_option_effects():
        not [d for d in s3b["decisions"] if (d.get("id") or "").startswith("GC#L2:")]
        and s3b["spell_budget"] == 2 and not s3b["catalog_problems"],
        (s3b["spell_budget"], s3b["catalog_problems"]))
-    # canon Bonan: her 2 Magical Secrets spells are childed under the long-form talent name
+    # canon Bonan: his 2 Magical Secrets spells are childed under the long-form talent name
     ab = builder_api.BuilderAPI("bonan", CATPATHS)
     sb2 = st(ab)
     bkids = [d for d in sb2["decisions"] if (d.get("id") or "").startswith("GC#L2:")]
     ok("canon Bonan: long-form 'MC Bard: Remarkable Repertoire' resolves to 2 any-list slots",
        ab._any_list_slots() == 2, ab._any_list_slots())
-    ok("canon Bonan: Command + Charm render as her talent's children, Frost Bolt stays flat, 3 of 3",
+    ok("canon Bonan: Command + Charm render as his talent's children, Frost Bolt stays flat, 3 of 3",
        [k.get("current") for k in bkids] == ["Command", "Charm"]
        and any(d["slot"] == "spell" and d.get("current") == "Frost Bolt" for d in sb2["decisions"])
        and sb2["spell_have"] == 3 and sb2["spell_budget"] == 3 and clean(sb2),
@@ -2357,6 +2360,107 @@ def check_option_effects():
     ok("the readout also reports a MET count (no more vanishing when complete)",
        "of ${budget} recorded</b>`);" in builder_build.TEMPLATE
        and "var(--ok)" in builder_build.TEMPLATE)
+
+
+# --------------------------------------------- class features (BUG-19 / BUG-21 / BUG-22)
+def check_class_features():
+    """2026-07-27: the class-feature trio. `class_features.yaml` names what each class actually gains
+    per level (the class table only prints "Class Feature") and carries the numeric effects, so a
+    scratch build shows its L1 features and gets their bonuses (BUG-19 + BUG-22); the Paladin subclass
+    grants the Acolyte Discipline, or a free pick when it is already held (BUG-21)."""
+    print("## (CF) Class features: named L1/L2 rows, Berserker effects, Paladin's discipline")
+    UND = "(undecided)"
+
+    def stat(s, n):
+        v = next((r[1] for r in s["stats"] if r[0] == n), None)
+        return int(str(v).split()[0]) if v is not None else None
+
+    def cf_rows(s, lvl=None):
+        return [d for d in s["decisions"] if str(d["slot"]).startswith("class_feature")
+                and (lvl is None or d["level"] == lvl)]
+
+    def val(d):   # a read-only class-feature row carries its value in `pick`, not `current`
+        return str(d.get("current") or d.get("pick") or "")
+
+    # BUG-19: a fresh build shows its real L1 features by name (it showed none at all before)
+    a = builder_api.BuilderAPI(None, CATPATHS, new_class="barbarian")
+    s = st(a)
+    rows = cf_rows(s, 1)
+    ok("fresh barbarian L1 lists its real class features by name (BUG-19)",
+       len(rows) == 1 and rows[0]["slot"] == "class_features"
+       and "Rage" in val(rows[0]) and "Berserker" in val(rows[0]),
+       val(rows[0]) if rows else None)
+    # BUG-22: Berserker = +1 Speed, Jump from Might, +2 AD while unarmoured
+    base_ad = 8 + 1 + (-2) + (-2)      # 8 + CM + Might + Charisma, all attributes at -2
+    ok("Berserker grants +1 Speed / Jump-from-Might / +2 AD unarmoured (BUG-22)",
+       stat(s, "Move Speed") == 6 and stat(s, "AD") == base_ad + 2 and stat(s, "Jump Distance") == 1,
+       (stat(s, "Move Speed"), stat(s, "AD"), stat(s, "Jump Distance")))
+    ok("the L1 entry records the grants + an unarmoured caveat in its note",
+       (a.ledger["chargen"]["class_choices"][0].get("grants") or {}).get("ad") == 2
+       and "unarmoured" in a.ledger["chargen"]["class_choices"][0].get("note", ""),
+       a.ledger["chargen"]["class_choices"][0].get("grants"))
+    # armour suppresses the unarmoured-only half (documented name heuristic)
+    b = builder_api.BuilderAPI(None, CATPATHS, new_class="barbarian")
+    b.ledger["equipment"] = [{"name": "Plate Armor", "pd": 2}]
+    sb = json.loads(b.add_level())
+    ok("the same feature at a level notes the unarmoured bonus is NOT applied when armour is worn",
+       any("NOT applied" in str(d.get("note")) for d in cf_rows(sb))
+       or all(val(d) != "Berserker" for d in cf_rows(sb, 2)),
+       [(val(d), d.get("note")) for d in cf_rows(sb)])
+    # BUG-19 second half: a generated level row is NAMED, not a bare "Class Feature"
+    s2 = json.loads(a.add_level())
+    l2 = cf_rows(s2, 2)
+    ok("the L2 class-feature row reads Battlecry, not a bare \"Class Feature\" (BUG-19)",
+       len(l2) == 1 and val(l2[0]) == "Battlecry", [val(d) for d in l2])
+    # every walked class has curated L1 + L2 names
+    for cls, l1, l2n in (("commander", "Inspiring Presence", "Commanding Aura"),
+                         ("druid", "Druid Domain", "Nature's Torrent"),
+                         ("spellblade", "Bound Weapon", "Spellstrike"),
+                         ("warlock", "Warlock Contract", "Life Tap")):
+        api = builder_api.BuilderAPI(None, CATPATHS, new_class=cls)
+        s3 = st(api)
+        s4 = json.loads(api.add_level())
+        ok("%-10s L1 names %s and L2 names %s" % (cls, l1, l2n),
+           l1 in val((cf_rows(s3, 1) or [{}])[0])
+           and any(val(d) == l2n for d in cf_rows(s4, 2)),
+           [(d["level"], val(d)) for d in cf_rows(s4)])
+
+    # BUG-21: Paladin (Spellblade L3) grants the Acolyte Discipline, pre-filled
+    c = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")
+    for _ in range(2):
+        c.add_level()
+    sc = json.loads(c.add_level())
+    sub = find_dec(sc, lambda d: d["slot"] == "subclass")
+    sc = json.loads(c.set_decision(sub["id"], "Paladin"))
+    kids = [d for d in sc["decisions"] if d["slot"] == "discipline"
+            and str(d.get("id")).startswith("GC#")]
+    ok("Paladin grants 1 Discipline, pre-filled with Acolyte (BUG-21)",
+       len(kids) == 1 and kids[0].get("current") == "Acolyte", [k.get("current") for k in kids])
+    ok("...and it is recorded on the subclass entry as granted_disciplines",
+       [e for e in c.ledger["levels"][3]
+        if e.get("slot") == "subclass"][0].get("granted_disciplines") == ["Acolyte"],
+       c.ledger["levels"][3])
+    # ...but if Acolyte is already held it becomes a free pick, with Acolyte filtered out
+    d2 = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")
+    disc = find_dec(st(d2), lambda x: x["slot"] == "discipline" and str(x["id"]).startswith("cg:choice"))
+    d2.set_decision(disc["id"], "Acolyte")
+    for _ in range(2):
+        d2.add_level()
+    sd = json.loads(d2.add_level())
+    sub2 = find_dec(sd, lambda x: x["slot"] == "subclass")
+    sd = json.loads(d2.set_decision(sub2["id"], "Paladin"))
+    kids2 = [x for x in sd["decisions"] if x["slot"] == "discipline"
+             and str(x.get("id")).startswith("GC#")]
+    ok("already holding Acolyte: the grant is an open pick with Acolyte filtered out (BUG-21)",
+       len(kids2) == 1 and kids2[0].get("current") == UND
+       and not any(o["name"] == "Acolyte" for o in kids2[0]["options"]),
+       (kids2[0].get("current"), len(kids2[0]["options"])) if kids2 else None)
+    # Rune Knight is unaffected (no prefer key) and canon Xanwyn still resolves
+    x = st(builder_api.BuilderAPI("xanwyn", CATPATHS))
+    ok("canon Xanwyn (Rune Knight) unaffected: no discipline grant-child, still clean",
+       not [d for d in x["decisions"] if d["slot"] == "discipline"
+            and str(d.get("id")).startswith("GC#")] and clean(x),
+       (x["problems"], x["catalog_problems"], x["builder_problems"]))
 
 
 def main():
@@ -2399,6 +2503,7 @@ def main():
         check_fr23()
         check_grants_only()
         check_option_effects()
+        check_class_features()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)

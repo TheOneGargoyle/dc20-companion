@@ -55,7 +55,8 @@ CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
            "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
-           "class_spines"]  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
+           "class_spines",  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
+           "class_features"]  # BUG-19/22: named class features per class per level (+ their effects)
 
 # ---- scripted spells-metadata extract (the tag/school data the pickers need) ----
 
@@ -105,7 +106,8 @@ FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 # FR-17 (2026-07-18): 'trades' joins the backbone too, so a PLANNED level's trade-point budget
 # materialises editable trade child picker-slots exactly like skills (grants {trades:M} on a per-
 # plan-level carrier, picks in granted_trades). Skills AND trades share the point-buy plan model.
-GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade'}
+GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
+                     'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
 # FR-17: a planned skill/trade pick can buy a Mastery-Limit raise ("cap+", core-rules.md l.991-1005):
 # it may sit ONE tier above the level cap and costs 2 points (the tier step + the limit raise). The
 # purchase is recorded as a " (cap+)" suffix on the granted value ("Awareness: Expert (cap+)"). A
@@ -174,7 +176,37 @@ def is_composite(pick):
             or any(m in s for m in PLACEHOLDER_MARKERS))
 
 
-def blank_ledger(cls, ccat):
+def class_feature_rows(cfcat, cls, level):
+    # BUG-19: the NAMED class features a class gains at one level (class_features.yaml), or [] when
+    # that level has none / is outside the curated range. Flavor features are included (they are real
+    # features, just never mechanical).
+    return list(((cfcat.get('classes') or {}).get(cls) or {}).get(level) or [])
+
+
+def class_feature_grants(rows, unarmored=True):
+    # BUG-22: aggregate the numeric effects of a level's class features. `grants_unarmored` is only
+    # counted when nothing armour-like is worn (Barbarian Berserker Defense, classes.md l.114-115);
+    # grants on a feature that is really an existing picker (`choice:`) are left to that picker.
+    agg = {}
+    for f in rows:
+        if f.get('choice'):
+            continue
+        src = dict(f.get('grants') or {})
+        if unarmored:
+            src.update(f.get('grants_unarmored') or {})
+        for k, v in src.items():
+            agg[k] = (agg.get(k, 0) + v) if isinstance(v, (int, float)) else v
+    return agg
+
+
+def is_unarmored(ledger):
+    # the equipment model carries no armour TYPE, so match on the item name (documented heuristic in
+    # class_features.yaml). A fresh scratch build has no equipment at all, so it reads unarmoured.
+    return not any(re.search(r'armor|armour', str(e.get('name') or ''), re.I)
+                   for e in (ledger.get('equipment') or []))
+
+
+def blank_ledger(cls, ccat, cfcat=None):
     sp1 = ccat['spine'][1]
     cg = {'attribute_method': 'point_buy',
           'attributes': {a: -2 for a in ATTRS},
@@ -182,15 +214,31 @@ def blank_ledger(cls, ccat):
           'spells': [UNDECIDED] * sp1.get('spells', 0),
           'maneuvers': [UNDECIDED] * sp1.get('maneuvers', 0),
           'combat_training': []}
+    # BUG-19 / BUG-22: seed the L1 class features by NAME with their effects applied, so a fresh
+    # character starts with what the class actually gives it (a scratch build previously showed no
+    # class features at all at L1, and Berserker's +1 Speed / Might-Jump / +2 AD did nothing). Canon
+    # ledgers are untouched: they carry their own hand-authored rows (cf. bonan.yaml).
+    rows = class_feature_rows(cfcat or {}, cls, 1)
+    if rows:
+        entry = {'slot': 'class_features', 'picks': [f['name'] for f in rows],
+                 'note': 'L1 class features (auto from class_features.yaml). ' + BUILDER_NOTE}
+        g = class_feature_grants(rows, unarmored=True)
+        if g:
+            entry['grants'] = g
+            if any(f.get('grants_unarmored') for f in rows):
+                entry['note'] += ' Includes an unarmoured-only bonus; drop it if you wear armour.'
+        cg.setdefault('class_choices', []).append(entry)
     sc = ccat.get('spellcasting') or {}
     if sc.get('model') == 'schools':
         cg['spell_schools'] = [UNDECIDED] * sc.get('schools_chosen', 0)
+    # the L1 choice pickers APPEND (the class-features row above may already be there)
     if ccat.get('disciplines_pick_l1'):
-        cg['class_choices'] = [{'slot': 'spellblade_disciplines',
-                                'picks': [UNDECIDED] * ccat['disciplines_pick_l1']}]
+        cg.setdefault('class_choices', []).append(
+            {'slot': 'spellblade_disciplines',
+             'picks': [UNDECIDED] * ccat['disciplines_pick_l1']})
     elif ccat.get('pact_boons_pick_l1'):
-        cg['class_choices'] = [{'slot': 'pact_boons',
-                                'picks': [UNDECIDED] * ccat['pact_boons_pick_l1']}]
+        cg.setdefault('class_choices', []).append(
+            {'slot': 'pact_boons', 'picks': [UNDECIDED] * ccat['pact_boons_pick_l1']})
     return {'schema': 1, 'ruleset': 'DC20 0.10.5', 'character': 'New ' + cls,
             'player': '', 'class': cls, 'subclass': None, 'ancestry': '',
             'background': '', 'current_level': 1, 'chargen': cg, 'levels': {},
@@ -363,7 +411,8 @@ class BuilderAPI:
         self.meta = json.load(open(meta_path, encoding='utf-8'))
         if new_class:
             key = str(new_class).lower()
-            self.ledger = blank_ledger(CLASS_NAMES[key], self.cat[key])
+            self.ledger = blank_ledger(CLASS_NAMES[key], self.cat[key],
+                                       self.cat.get('class_features'))
             self.handle = 'new-' + key
             self.src_text = None
         elif ledger_text is not None:
@@ -946,6 +995,20 @@ class BuilderAPI:
         elif slot == 'spell_school':
             for x in cg.get('spell_schools') or []:
                 add(x)
+        elif slot == 'discipline':
+            # BUG-21: disciplines are held in three places - the L1 chargen picker, flat level rows,
+            # and (new) a subclass grant-child. All three count as "already known", which is what
+            # Paladin's "if you already know that Discipline" clause turns on.
+            for c in cg.get('class_choices') or []:
+                if 'disciplin' in str(c.get('slot')):
+                    for x in c.get('picks') or []:
+                        add(x)
+                for x in c.get('granted_disciplines') or []:
+                    add(x)
+            for lvl in self.ledger.get('levels') or {}:
+                for e in self.ledger['levels'][lvl] or []:
+                    for x in e.get('granted_disciplines') or []:
+                        add(x)
         for lvl in self.ledger.get('levels') or {}:
             for e in self.ledger['levels'][lvl] or []:
                 if e.get('slot') == slot:
@@ -1592,7 +1655,7 @@ class BuilderAPI:
                 m = re.match(r'MC \w+(?: \((?:Novice|Adept|Expert|Master)\))?:\s*(.*)', str(pick))
                 d['current'] = base_name((m.group(1) if m else str(pick)).split(':')[0])
             # A <select> must contain its current value or the browser renders it blank/locked.
-            # An inferred/off-list pick (e.g. Scaletrix's guessed "Dispel Magic", not in her
+            # An inferred/off-list pick (e.g. Scaletrix's guessed "Dispel Magic", not in his
             # school-filtered options) is kept selectable by prepending it as an "(off-list)" option
             # so it shows and can be corrected. UNDECIDED already returned above.
             cur = d.get('current')
@@ -1650,10 +1713,17 @@ class BuilderAPI:
                 continue
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
-                out.append(self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
-                                     pick, None, False, editable,
-                                     plan=level > self.ledger['current_level'],
-                                     plan_editable=editable and level > self.ledger['current_level']))
+                d = self._dec('GC#%s#%s#%d' % (parentref, resource, k), level, singular,
+                              pick, None, False, editable,
+                              plan=level > self.ledger['current_level'],
+                              plan_editable=editable and level > self.ledger['current_level'])
+                if resource == 'disciplines' and d.get('options'):
+                    # BUG-21: "if you already know that Discipline, you gain another one of your
+                    # choice" - so an already-held Discipline is not a legal pick here. Filter them
+                    # out (keeping this slot's own current value selectable, the _dec off-list rule).
+                    held = self._chosen_names('discipline') - {str(pick)}
+                    d['options'] = [o for o in d['options'] if o['name'] not in held]
+                out.append(d)
         # FR-8 slice 5: a TAG-CONSTRAINED spell grant (Eldritch Otherworldly Gift) materialises one
         # constrained spell child-slot. The child id uses resource 'spells' so _set_grant_child writes
         # granted_spells; the slot type 'spell_tagged' filters options to the granted tag. The {spells:1}
@@ -2168,6 +2238,15 @@ class BuilderAPI:
                 e['pick'] = value
                 self.ledger['subclass'] = value
                 self._apply_grants(e, sg.get('grants'), changed)   # FR-8 slice 3
+                # BUG-21: a subclass grant can name the thing it gives (Paladin -> the Acolyte
+                # Discipline). Pre-fill it, unless the character already holds it, in which case the
+                # rules say "you gain another one of your choice" so the slot stays an open pick.
+                for _res, _want in (sg.get('prefer') or {}).items():
+                    _lst = e.get('granted_%s' % _res)
+                    if not _lst or str(_lst[0]) != UNDECIDED:
+                        continue
+                    if _want not in self._chosen_names(GRANT_CHILD_SLOTS.get(_res, _res)):
+                        _lst[0] = _want
                 self._edited(e)
             elif slot == 'pact_boon':
                 changed = base_name(e.get('pick')) != value
@@ -2417,8 +2496,28 @@ class BuilderAPI:
             elif f == 'Class Features':
                 pass
             else:
-                add({'slot': 'class_feature', 'pick': f,
-                     'note': 'auto - see classes.md. ' + BUILDER_NOTE})
+                # BUG-19: the class table prints a generic "Class Feature"; show the REAL feature
+                # name(s) for this level from class_features.yaml, one row each, and apply any
+                # numeric effect (BUG-22). Outside the curated level range we fall back to the
+                # generic label rather than inventing one.
+                rows = class_feature_rows(self.cat.get('class_features') or {}, self.cls, new)
+                if rows:
+                    unarm = is_unarmored(self.ledger)
+                    for fr in rows:
+                        d = {'slot': 'class_feature', 'pick': fr['name'],
+                             'note': ((fr.get('note') + '. ') if fr.get('note') else '')
+                                     + ('flavor feature. ' if fr.get('flavor') else '')
+                                     + BUILDER_NOTE}
+                        g = class_feature_grants([fr], unarmored=unarm)
+                        if g:
+                            d['grants'] = g
+                            if fr.get('grants_unarmored'):
+                                d['note'] += (' Includes an unarmoured-only bonus.' if unarm
+                                              else ' Unarmoured-only bonus NOT applied (armour worn).')
+                        add(d)
+                else:
+                    add({'slot': 'class_feature', 'pick': f,
+                         'note': 'auto - see classes.md. ' + BUILDER_NOTE})
         for _ in range(row.get('spells', 0)):
             add({'slot': 'spell', 'pick': UNDECIDED,
                  'source': 'class table L%d' % new, 'note': BUILDER_NOTE})

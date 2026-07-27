@@ -89,7 +89,12 @@ RUNES = {
 SUBCLASS_GRANTS = {
     "Warlock": {"Eldritch": {"grants": {"spells": 1}, "spell_access": {"tag": "Psychic"},
                              "languages": [{"name": "Deep Speech", "fluency": "Fluent"}]}},
-    "Spellblade": {"Rune Knight": {"grants": {"runes": 2}}},
+    # BUG-21: Paladin's Lay on Hands "You gain the Acolyte Discipline. If you already know that
+    # Discipline, you gain another one of your choice" (classes.md l.3041-3045). So it is a 1-discipline
+    # grant whose DEFAULT is fixed (Acolyte) and which becomes a free pick when Acolyte is already
+    # held - `prefer` carries that, and the builder auto-fills it only when it is still available.
+    "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
+                   "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
 
 CLASS_CONFIG = {
