@@ -1,0 +1,73 @@
+# Run the three harnesses on every push and pull request.
+#
+# WHY. Before this, every check ran on Darryl's machine by hand, and the DOM smoke test
+# (tools/builder_smoke.py) needs a browser, which makes it the one harness least likely to be run
+# locally. CI is its natural home: a runner has the memory and the `--with-deps` root that a Pyodide
+# page in headless chromium wants, and it means a push that breaks the deployed page is caught before
+# anyone loads it. Note the ordering below is deliberate, cheapest signal first.
+#
+#   catalog_verify  - the engine oracle: catalog vs rules/*.md vs the six canon ledgers (90/90)
+#   builder_verify  - the exact API glue the page runs, in CPython, against the real catalog
+#   builder_smoke   - the REAL PAGE in a REAL BROWSER: does the model actually reach the DOM
+#
+# The smoke test runs with --require so a missing browser FAILS here, even though it skips politely
+# on a dev machine that has not installed Playwright.
+
+name: Verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "builds/**"
+      - "tools/**"
+      - "rules/**"
+      - ".github/workflows/verify.yml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install markdown pyyaml pypdf playwright
+
+      - name: Catalog verify (engine oracle, 90/90)
+        run: python3 tools/catalog_verify.py
+
+      - name: Builder verify (API glue in CPython)
+        run: python3 tools/builder_verify.py
+
+      # The page is regenerated from source here rather than trusting the committed copy, for the
+      # same reason deploy.yml does: the committed builds/builder.html is a dev convenience, and the
+      # smoke test must drive what a fresh build actually produces.
+      - name: Regenerate the builder page from source
+        run: python3 tools/builder_build.py
+
+      - name: Install Chromium for the DOM smoke test
+        run: python3 -m playwright install --with-deps chromium
+
+      - name: Builder smoke (real page, real browser)
+        run: python3 tools/builder_smoke.py --require
+
+      - name: Upload the smoke log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: |
+            builds/builder.html
+          retention-days: 5
