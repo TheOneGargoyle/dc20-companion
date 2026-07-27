@@ -39,6 +39,7 @@ Two tables: open work first, completed work below. An item moves from To Do to D
 | BUG-18 | Scratch: ancestry slots don't auto-spawn at L4 (manual add needed) | bug | builder | P2 | DONE - PUSHED + CHROME-VERIFIED (2026-07-19 `654d143`; see note below) |
 | BUG-19 | Class Feature renders bare "Class Feature", shows at L2 not L1, no details | bug | builder+catalog | P2 | DONE - PUSHED `db96d1b` + CHROME-VERIFIED after `649cfb8` (2026-07-27; the class-feature trio, see the note below) |
 | BUG-20 | Scratch: Human Trade Expertise (L1) not granting its cap+level free step | bug | builder+engine | P2 | ready (Tier-2, allocator-coupled: Trade/Skill Expertise raise a CHOSEN trade/skill via limit_raise, not a flat grant - deferred from the 2026-07-25 option-effects slice; also carried as a `todo:` in the FR-44 coverage ledger) |
+| BUG-36 | Ancestry Increase (General Talent) grants nothing: it declares `grants: {ancestry_points: 4}` but `_anc_budget` never reads the key, so the ancestry-point budget stays at 5 | bug | builder | P2 | ready (found 2026-07-28 by FR-46 on its first run, with nobody looking for it; the grant lands on the ledger entry correctly, so this is a CONSUMER gap not a data gap; carried as `RT_KNOWN_FAIL` in builder_verify so the suite stays green and fails loudly when it starts working; see the note below) |
 | BUG-21 | Scratch: Paladin subclass (L3) not granting the Acolyte discipline (or a replacement if already held) | bug | builder+catalog | P2 | DONE - PUSHED `db96d1b` + CHROME-VERIFIED after `649cfb8` (2026-07-27; the class-feature trio, see the note below) |
 | BUG-22 | Scratch: Barbarian L1 Berserker not granting +1 Move Speed / Might-for-Jump / +2 AD unarmoured | bug | catalog | P2 | DONE - PUSHED `db96d1b` + CHROME-VERIFIED after `649cfb8` (2026-07-27; the class-feature trio, see the note below) |
 | BUG-23 | Scratch: Barbarian Remarkable Repertoire (L2) not granting 2 spells (showed 1/3); skill pts OK | bug | builder | P2 | DONE - PUSHED + CHROME-VERIFIED (2026-07-27 `980fb85`; the grant was applying, the ready slot was rendering at chargen - see part 3 below) |
@@ -55,7 +56,7 @@ Two tables: open work first, completed work below. An item moves from To Do to D
 | FR-43 | Build stamp (date + short SHA) on the builder page, like the Companion's About tab | feature | builder | P2 | DONE - PUSHED + CHROME-VERIFIED (2026-07-27 `649cfb8`; Darryl asked for it after the diagnosis round trip) |
 | FR-44 | Option-coverage ledger: every catalog option must declare its effect (modelled / no_effect / todo), gated in catalog_verify | feature | catalog+repo | P1 | DONE - PUSHED (2026-07-27 `cc20be2`; 231 options, 0 bare, burn-down = 18 distinct; see note below) |
 | CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS - Tier-1 DONE, PUSHED + CHROME-VERIFIED (2026-07-27; 7 of 18 closed, burn-down 18 -> 11 distinct; see the note below) |
-| FR-46 | Exhaustive option round-trip: pick every `modelled` option and assert its declared effect arrives (makes FR-44 executable) | feature | repo+builder | P1 | PROPOSED (2026-07-27; the structural answer to the duplicate-list trap that produced BUG-31/32/33; see the proposal section below) |
+| FR-46 | Exhaustive option round-trip: pick every `modelled` option and assert its declared effect arrives (makes FR-44 executable) | feature | repo+builder | P1 | DONE - BUILT + VERIFIED, AWAITING PUSH (2026-07-28; `(RT)` section in builder_verify, 75 checks, 750 total; found BUG-36; answered CH-5's "which of the 11 are broken"; mutation-tested 6 of 6; see the note below) |
 | BUG-33 | Class talents were offered but their grants never applied (both talent lookups omitted `class_talents`) | bug | builder | P1 | DONE - PUSHED + CHROME-VERIFIED (2026-07-27; found by the CH-5 Tier-1 probe; six class talents were inert, incl. Expanded Disciplines' 2 discipline pickers; see note below) |
 | BUG-35 | Paragon subclass grants nothing (should grant a Class Talent + 1 Trade Point at L3, and a Class Talent at L7/L10) on all five classes | bug | catalog+builder | P1 | DONE - BUILT + VERIFIED, AWAITING PUSH (2026-07-27 late; all three levels shipped, not just L3; new `level_riders` catalog shape + `(PG)` harness section; see the note below) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, which is the blind spot that found it; expect the 231 count to rise; FR-46 is the independent answer to the same problem) |
@@ -579,12 +580,66 @@ Three things learned building it, all now comments in the file: a dead renderer 
 | Layer | Question it answers | Status |
 |---|---|---|
 | FR-44 coverage ledger | does every option DECLARE an effect? | done `cc20be2` |
-| FR-46 option round-trip | does every declared effect ARRIVE in the model? | **proposed** |
+| FR-46 option round-trip | does every declared effect ARRIVE in the model? | done 2026-07-28, `(RT)` in builder_verify |
 | FR-45 DOM smoke test | does the model REACH the browser? | built, awaiting push |
 
 Those three in sequence are the full path from catalog to player. The gap that produced BUG-31/32/33 is precisely the middle and right-hand columns, and FR-45 closes the right-hand one today.
 
 **Cost and risk.** Bigger than the Tier-1 slice, smaller than FR-44 was. The work is one driver that can construct a scratch build capable of reaching any given option (the awkward part: some options need a prerequisite, a level, or a specific class), then a per-effect-kind assertion table. Suggest building it in `builder_verify` (CPython, fast, no browser) rather than in the smoke test, and letting the smoke test keep its small canonical sample. Worth doing before the CH-5 engine slice, because it will tell us which of the remaining 11 todo options are actually broken versus merely undeclared.
+
+**BUILT 2026-07-28 (`(RT)` section in `tools/builder_verify.py`, 75 checks, suite 675 -> 750).** The proposal above is now code, and it did on its first run exactly what it was argued for: it found a live bug nobody was looking for (**BUG-36**, Ancestry Increase) and it answered the CH-5 question ("which of the remaining 11 are actually broken") without anyone picking options by hand.
+
+**How it works.** Three layers, each one closing a way the check could lie:
+
+1. **Discovery.** The option list comes from `coverage.walk_options()`, never a hand-kept list, so a new catalog option enters the round-trip automatically.
+2. **Reachability.** Every `modelled` option must be reachable by the probe fleet. Unreachable is a FAILURE, not a skip, unless it sits in `RT_UNREACHABLE` with a written reason, and each of those entries is asserted to STILL be unreachable, so it gets retired rather than rotting.
+3. **Assertion tables keyed by grant key.** Numeric grants assert the derived stat moved by exactly the declared amount; `spells`/`maneuvers` assert the budget; child-slot keys assert that many `GC#` pickers appeared (the key -> slot map is READ from `builder_api.GRANT_CHILD_SLOTS`, not copied); `spell_access` asserts a source-filtered child and its school narrowing; `opens` asserts the named ancestry's traits become offerable; `training` asserts it reaches the sheet. **Any grant key the catalog uses that has no table entry FAILS.** That is trap 2 applied to the harness itself: a new grant key cannot ship unasserted.
+
+**The probe fleet is small on purpose** (9 ancestries on a Druid, five classes at L1 and L2), because reachability is PROVEN rather than assumed. If the fleet is ever too small, the reachability check says so by name.
+
+**Two things worth knowing before touching it.**
+
+- **A probe whose baseline already carries the effect proves nothing.** Mighty Leap (`jump_from: might`) looks completely inert on a Barbarian, because Berserker already re-keyed jump to Might at L1. That is why the ancestry probes are Druids. If a flag assertion ever fails, suspect the probe before the engine.
+- **It shipped with the silent-pass bug it exists to prevent, and that is now a test.** The first cut walked the catalog path with string keys only; `class_features.yaml` keys its levels as INTEGERS (`classes.Barbarian.1`), so all three fixed class features resolved to an empty row, ran zero assertions, printed nothing, and the section still said PASS. Fixed, and guarded two ways: every modelled option's row must resolve AND carry its effect keys, and **every reachable modelled option must produce at least one assertion (silence = FAIL)**.
+
+**Mutation-tested, 6 of 6 caught** (`--only fr46` makes a single section runnable in ~11s, which is what makes this practical in the sandbox):
+
+| Mutation | Caught by |
+|---|---|
+| engine drops numeric grants (`sum_grants` returns 0 for hp) | `moves HP by +1` |
+| the `RT_KNOWN_FAIL` BUG-36 entry is removed | `raises the ancestry-point budget by +4` |
+| a new unrecognised grant key appears in the catalog | `every grant key ... has an assertion table` |
+| `_rt_catalog_row` regressed to string-only keys | `produced at least one assertion (silence = FAIL)` |
+| a name-matched todo goes inert (Speed Increase) | `still moves Move Speed by +1` |
+| a stale `RT_UNREACHABLE` entry becomes reachable | `now reachable via ...` |
+
+Note that mutating the CATALOG is deliberately NOT caught, and should not be: the assertions read the expected amount from the catalog row, so the catalog is the specification. Only an implementation that fails to honour it is a bug.
+
+**A `--only <substring>` flag was added to builder_verify** while doing this. The full pass is ~45s, which does not fit the sandbox's background-process budget, so mutation-testing one section needed a way to run it alone. It prints `PASS - sections matching [...] only (NOT a full pass)` so it can never be mistaken for a clean run, and CI always runs the whole suite.
+
+---
+
+## FR-46's answer to CH-5: which of the 11 todo options are actually broken?
+
+Asked and answered on the first run, and it changes the shape of the CH-5 work.
+
+**Two of the 11 already behave correctly, by name-match.** `Speed Increase` (+1) and `Short-Legged` (-1) both move Move Speed today, because `build_engine.py` l.265-268 matches them by NAME. The data is inert; the player-visible behaviour is not. Same for the Human `Attribute Increase` trait, which is offered as decorated per-attribute variants (`Attribute Increase (charisma)`) and name-matched at l.176.
+
+**So CH-5's item 2 is a refactor with no player-visible change, not a fix.** That is a materially lower-risk job than the old entry implied, and the round-trip now asserts those three keep moving the right stat, so making them data-driven cannot silently change what a player sees. Registry: `RT_NAME_MATCHED` / `RT_VARIANT_MATCHED`, and each entry retires with the refactor.
+
+**Eight are genuinely inert, and confirmed so:** `Attribute Decrease` (the sub-choice one), `Charisma / Intelligence / Might Attribute Decrease` (the three fixed-target ones), `Natural Armor`, `Fiendish Aura`, `Skill Expertise`, `Trade Expertise`. The last two are BUG-20 and stay deferred. The four attribute decreases are the ones needing the per-attribute grant key CH-5 already identified, which the round-trip confirms is the real blocker rather than "one line of data each".
+
+---
+
+## BUG-36, Ancestry Increase grants nothing (found by FR-46, 2026-07-28)
+
+**The symptom.** Take the `Ancestry Increase` General Talent at L2. It declares `grants: {ancestry_points: 4}`, so the ancestry-point budget should go 5 -> 9. It stays at 5, so the talent does nothing at all and a player who spends a talent slot on it gets no ancestry points.
+
+**Where it breaks.** Not in the data: the grant is copied onto the ledger entry correctly (`{'slot': 'talent', 'pick': 'Ancestry Increase', 'grants': {'ancestry_points': 4}}`). The gap is the CONSUMER. `_anc_budget` computes the budget as `5 + 2 * <number of "2 Ancestry Points" class-table features>` and never looks at `ancestry_points` grants at all. The string `ancestry_points` appears ZERO times in `API_PY`.
+
+**Why it went unnoticed.** It is precisely the FR-44 blind spot: the option correctly DECLARES its effect, so the coverage ledger is satisfied, and nothing executed the declaration until now. Exactly the BUG-19/22/24/25/27/30 shape, and the seventh member of that family.
+
+**The fix (not done here, deliberately: this commit is the harness).** `_anc_budget` should add `sum_grants(..., 'ancestry_points')` over the grant-bearing entries, the same way the other numeric budgets are summed. Worth checking at the same time whether the FR-9 ancestry-point readout and the auto ready-slot gate both follow the raised budget, since they read `_anc_budget`. Carried as `RT_KNOWN_FAIL = {"Ancestry Increase": "BUG-36"}` so the suite stays green meanwhile and fails loudly the moment it starts working, which is what retires the entry.
 
 ---
 

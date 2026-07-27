@@ -2832,6 +2832,574 @@ def check_bug34_grant_child_effects():
            not found, found[:2])
 
 
+# ------------------------------------------- (RT) FR-46 exhaustive option round-trip
+# FR-44 built the option-coverage ledger: every one of the catalog's pickable options
+# DECLARES what it does (`modelled` with a real effect, `no_effect: <category>`, or `todo`).
+# Nothing executed that declaration, so the gap between "declared" and "actually arrives in
+# the model" stayed invisible, and it is exactly where BUG-19/22/24/25/27/30/33 all lived.
+#
+# This section makes the ledger EXECUTABLE. For every option declared `modelled` it drives a
+# scratch build, PICKS the option, and asserts the declared effect materialises in the state
+# the page renders from. It is exhaustive rather than exemplary: the guards we write by hand
+# cover the case we just fixed, this covers the ones nobody has thought about yet.
+#
+# Three properties are what make it a structural answer rather than another narrow guard:
+#
+#   1. The option list is DISCOVERED (coverage.walk_options), never hand-kept, so a new
+#      catalog option enters this check automatically.
+#   2. Every modelled option must be REACHABLE by the probe fleet. An option the fleet cannot
+#      reach is a FAILURE, not a silent skip, unless it is in RT_UNREACHABLE with a reason,
+#      and every RT_UNREACHABLE entry is itself asserted to still be unreachable.
+#   3. Every grant KEY the catalog uses must appear in exactly one assertion table below.
+#      An unrecognised key FAILS. That is what stops a new grant key shipping unasserted,
+#      which is the trap-2 "never hand-maintain a list that mirrors another list" rule
+#      applied to this harness itself.
+#
+# A note on observability, learned while building this: a probe whose BASELINE already carries
+# the effect proves nothing. Mighty Leap (`jump_from: might`) looks inert on a Barbarian because
+# Berserker already re-keyed jump to Might at L1. So the ancestry probes run on a Druid, and the
+# flag assertion explicitly requires the baseline NOT to carry the flag already.
+
+# grant key -> the derived-stat row it must move by the granted amount
+RT_STAT = {"hp": "HP", "mp": "MP", "pd": "PD", "ad": "AD",
+           "speed": "Move Speed", "jump": "Jump Distance"}
+# grant key -> the state() budget field it must raise by the granted amount
+RT_BUDGET = {"spells": "spell_budget", "maneuvers": "man_budget"}
+# grant key -> the state()['budgets'] point readout whose "earned" must rise
+RT_POINTS = {"skill_points": "Skill points", "trade_points": "Trade points"}
+# grant key -> it must spawn that many `attribute` rider decisions
+RT_ATTR_SLOTS = {"attribute_points"}
+# grant key -> it must raise the ancestry-point budget
+RT_ANC_POINTS = {"ancestry_points"}
+# NON-numeric flag grants: key -> the derived stat that must re-key when the flag lands
+RT_FLAG = {"jump_from": "Jump Distance"}
+
+# Modelled options the probe fleet legitimately cannot reach, each with the reason. Asserted
+# in BOTH directions: a stale entry (the option became reachable) fails loudly, so these get
+# retired when a fifth class or the BUG-26 multiclass route arrives.
+RT_UNREACHABLE = {
+    "Expanded Meta Magic":
+        "Sorcerer class talent; Sorcerer is not one of the five playable classes and no "
+        "MC feature unlocks another class's talent list (see BUG-26)",
+    "Greater Innate Power":
+        "Sorcerer class talent; as above",
+    "Expanded Spell School":
+        "Wizard class talent; Wizard is not a playable class",
+}
+
+# Modelled options that are FIXED class features rather than picks: they carry an effect but
+# there is no picker to drive, so the round-trip asserts the effect on a plain scratch build
+# of the class. Value is the class that gets it at L1.
+RT_FIXED = {"Berserker": "barbarian",
+            "Spellblade Disciplines": "spellblade",
+            "Pact Boon": "warlock"}
+
+# Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
+# records the failure without turning the suite red. Same discipline as builder_smoke.py's
+# KNOWN_FAIL registry: if one of these starts PASSING, that is a FAILURE, so the entry is
+# retired with the fix instead of rotting.
+RT_KNOWN_FAIL = {
+    "Ancestry Increase": "BUG-36",   # grants {ancestry_points: 4}; _anc_budget never reads it
+}
+
+# Declared `todo` (the CH-5 burn-down) but the engine NAME-MATCHES them, so they already move
+# the right stat today: the data is inert, the behaviour is not. CH-5 makes these data-driven,
+# which must not change what a player sees, so they are asserted to keep moving. Every other
+# todo option is asserted INERT, which is what makes this the answer to "which of the 11 are
+# genuinely broken".
+RT_NAME_MATCHED = {
+    "Speed Increase": ("Move Speed", 1),      # build_engine.py l.265 name-match
+    "Short-Legged": ("Move Speed", -1),       # build_engine.py l.267 name-match
+}
+# `todo` options offered as decorated per-attribute variants ("Attribute Increase (might)")
+# rather than under their catalog name; build_engine.py l.176 name-matches them.
+RT_VARIANT_MATCHED = {"Attribute Increase": "Attribute Increase (charisma)"}
+
+# Option names that produced at least one real assertion this run. Populated by _rt_ok and
+# checked at the end: a modelled option that asserts nothing is a FAILURE, not a pass.
+RT_ASSERTED = set()
+
+
+def _rt_ok(option_name, label, cond, detail=""):
+    """ok() that also records the option as having been genuinely asserted."""
+    RT_ASSERTED.add(option_name)
+    ok(label, cond, detail)
+
+
+def _rt_stats(s):
+    return {r[0]: r[1] for r in s["stats"]}
+
+
+def _rt_num(v):
+    """First integer in a stat cell ('12', '6', 'Mig 3 / ...' -> 3 is not wanted, so callers
+    only use this on single-number rows)."""
+    try:
+        return int(str(v).split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def _rt_earned(s, label):
+    """The 'earned N' number out of the state()['budgets'] readout line for `label`."""
+    for line in s["budgets"]:
+        if line.startswith(label):
+            m = re.search(r"earned (\d+)", line)
+            if m:
+                return int(m.group(1))
+    return None
+
+
+def _rt_snap(api):
+    """Everything the assertions can look at, in one shot."""
+    s = json.loads(api.state())
+    return {
+        "s": s,
+        "stats": _rt_stats(s),
+        "spell_budget": s["spell_budget"], "man_budget": s["man_budget"],
+        "anc_budget": s["anc_budget"],
+        "skill_earned": _rt_earned(s, "Skill points"),
+        "trade_earned": _rt_earned(s, "Trade points"),
+        "decs": [(str(d.get("id")), d["slot"]) for d in s["decisions"]],
+    }
+
+
+def _rt_new_decs(before, after, slot=None, prefix=None):
+    new = [d for d in after["decs"] if d not in before["decs"]]
+    if slot is not None:
+        new = [d for d in new if d[1] == slot]
+    if prefix is not None:
+        new = [d for d in new if d[0].startswith(prefix)]
+    return new
+
+
+def _rt_probe_ancestry(anc):
+    """Druid, so no Berserker jump_from/speed grant masks an ancestry one."""
+    return _fresh_at("druid", anc)
+
+
+def _rt_open_trait(api):
+    """Open a fresh ancestry-trait slot and return (state, decision-id, offered-names)."""
+    s = json.loads(api.add_trait(1))
+    d = [x for x in s["decisions"] if x["slot"] == "ancestry_trait"][-1]
+    return s, d["id"], {o["name"] for o in d["options"]}
+
+
+def _rt_probe_talent(cls, lvl=2):
+    """A scratch `cls` advanced to `lvl` with its talent slot located."""
+    api = _fresh_at(cls, "Human", levels=lvl - 1)
+    s = json.loads(api.state())
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == lvl]
+    return api, (tal[0] if tal else None)
+
+
+def _rt_fleet():
+    """The probe fleet, and the reachability index it produces.
+
+    Deliberately small and shaped by what actually gates an option: ancestry traits are
+    gated by ancestry, talents by class, chargen choices by class. It does NOT need to be
+    the full cross-product, because the reachability assertion below PROVES the fleet
+    covers every modelled option rather than assuming it.
+
+    Returns {option name -> [(probe label, slot)]}.
+    """
+    index = {}
+
+    def note(name, label, slot):
+        index.setdefault(name, []).append((label, slot))
+
+    ancestries = sorted(yaml.safe_load(
+        open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"])
+    for anc in ancestries:
+        api = _rt_probe_ancestry(anc)
+        _, _, offered = _rt_open_trait(api)
+        for name in offered:
+            note(name, "druid/%s L1" % anc, "ancestry_trait")
+
+    for cls in sorted(builder_api.CLASS_NAMES):
+        # chargen choices (disciplines, pact boons, spell schools) at L1
+        s = json.loads(_fresh_at(cls, "Human").state())
+        for d in s["decisions"]:
+            for o in (d.get("options") or []):
+                note(o["name"], "%s L1" % cls, d["slot"])
+        # talents at L2
+        api, tal = _rt_probe_talent(cls, 2)
+        if tal:
+            for o in tal["options"]:
+                note(o["name"], "%s L2" % cls, "talent")
+    return index
+
+
+def check_fr46_round_trip():
+    print("## (RT) FR-46: exhaustive option round-trip (every declared effect must ARRIVE)")
+    import coverage                                    # noqa: PLC0415  (repo-local, tools/)
+    options, _ = coverage.walk_options()
+    modelled = [o for o in options if o.kind == "modelled"]
+    todos = [o for o in options if o.kind == "todo"]
+
+    # ---- 0. the ledger this section executes is the one catalog_verify reports
+    ok("the coverage ledger walks the whole option surface (231+ options, 44 modelled)",
+       len(options) >= 231 and len(modelled) >= 44,
+       "%d options, %d modelled" % (len(options), len(modelled)))
+
+    # ---- 1a. every modelled option's catalog row must RESOLVE, and must still carry the
+    # effect keys coverage.py classified it by. Without this the section can pass vacuously:
+    # an unresolvable row yields {}, which asserts nothing at all and prints nothing either.
+    unresolved = []
+    for o in modelled:
+        row = _rt_catalog_row(o)
+        if not row or not (coverage.EFFECT_KEYS & set(row)):
+            unresolved.append("%s/%s/%s" % (o.filename, o.path, o.name))
+    ok("every modelled option's catalog row resolves and still carries its effect keys",
+       not unresolved, unresolved)
+
+    # ---- 1b. every grant KEY in the catalog is covered by an assertion table above.
+    # An unknown key fails here rather than passing silently downstream, which is the whole
+    # point: a new grant key cannot ship unasserted.
+    known = (set(RT_STAT) | set(RT_BUDGET) | set(RT_POINTS) | RT_ATTR_SLOTS
+             | RT_ANC_POINTS | set(RT_FLAG) | set(builder_api.GRANT_CHILD_SLOTS))
+    used = set()
+    for o in modelled:
+        row = _rt_catalog_row(o)
+        for key in ("grants", "grants_unarmored"):
+            used |= set((row.get(key) or {}))
+    ok("every grant key the catalog uses has an assertion table (unknown key = FAIL)",
+       used <= known, "unasserted keys: %s" % sorted(used - known))
+
+    # ---- 2. reachability: the fleet must reach every modelled option
+    index = _rt_fleet()
+    unreached = sorted({o.name for o in modelled
+                        if o.name not in index and o.name not in RT_FIXED})
+    ok("the probe fleet reaches every modelled option it is supposed to",
+       set(unreached) == set(RT_UNREACHABLE), "unreached=%s expected=%s"
+       % (unreached, sorted(RT_UNREACHABLE)))
+    for name, why in sorted(RT_UNREACHABLE.items()):
+        # a stale entry (it became reachable) must fail, so these get retired not rotted
+        ok("RT_UNREACHABLE %-22s still genuinely unreachable" % name,
+           name not in index, "now reachable via %s - retire the entry (%s)"
+           % (index.get(name), why))
+    for name in sorted(RT_FIXED):
+        ok("RT_FIXED %-24s is a fixed class feature, so no picker offers it" % name,
+           name not in index, "now offered as a pick via %s" % (index.get(name),))
+
+    # ---- 3. the round-trip itself, per modelled option
+    RT_ASSERTED.clear()
+    for o in sorted(modelled, key=lambda x: (x.filename, x.path, x.name)):
+        _rt_check_option(o, index)
+
+    # ---- 4. the fixed class features: effect applied without a pick
+    _rt_check_fixed(modelled)
+
+    # ---- 4b. no modelled option may pass by asserting NOTHING. This is the guard against the
+    # failure mode this section itself shipped with on the first run: the three fixed class
+    # features resolved to an empty catalog row, so the dispatch below ran zero assertions for
+    # them and the section still printed PASS. Silence is now a failure.
+    want = {o.name for o in modelled} - set(RT_UNREACHABLE)
+    silent = sorted(want - set(RT_ASSERTED))
+    ok("every reachable modelled option produced at least one assertion (silence = FAIL)",
+       not silent, "asserted nothing: %s" % silent)
+
+    # ---- 5. the todo burn-down: which of the 11 are genuinely inert?
+    _rt_check_todos(todos)
+
+
+def _rt_catalog_row(o):
+    """The raw catalog dict behind a coverage Option (re-read, so nothing is mirrored).
+
+    Returns {} when the row cannot be resolved, which is a BUG in this harness rather than in
+    the catalog, so check_fr46_round_trip asserts every modelled option resolves. That check
+    exists because the first cut of this function walked the path with string keys only, and
+    class_features.yaml keys its levels as INTEGERS (`classes.Barbarian.1`). All three fixed
+    class features silently resolved to {} and their assertions vanished without a failure:
+    the empty-list-passes-vacuously trap, inside the very section meant to catch it.
+    """
+    data = yaml.safe_load(open(CATPATHS[o.filename[:-5]], encoding="utf-8"))
+    node = data
+    for part in o.path.split("."):
+        if not isinstance(node, dict):
+            return {}
+        if part in node:
+            node = node[part]
+        else:
+            try:                                  # class_features.yaml keys levels as ints
+                node = node[int(part)]
+            except (ValueError, KeyError):
+                return {}
+    if isinstance(node, list):
+        for row in node:
+            if isinstance(row, dict) and row.get("name") == o.name:
+                return row
+    return {}
+
+
+def _rt_assert_grants(name, label, before, after, grants, unarmored=False):
+    """The assertion table applied: every key in `grants` must be observable."""
+    for key, amount in sorted(grants.items()):
+        tag = "%s %s%s" % (label, key, " (unarmored)" if unarmored else "")
+        _rt = lambda lbl, cond, det="": _rt_ok(name, lbl, cond, det)   # noqa: E731
+        if key in RT_FLAG:
+            # A non-numeric flag (jump_from: might) re-keys which attribute feeds the stat, so
+            # the assertion is "the stat changed", and it is only meaningful on a probe whose
+            # baseline does NOT already carry the flag. That is why the ancestry probes are
+            # Druids: on a Barbarian, Berserker has already re-keyed jump at L1 and Mighty Leap
+            # looks inert. If this ever fails, check the probe before the engine.
+            stat = RT_FLAG[key]
+            _rt("%-64s re-keys %s (baseline must not already carry it)" % (tag, stat),
+               after["stats"].get(stat) != before["stats"].get(stat),
+               "%s unchanged at %r - is the flag already granted on this probe?"
+               % (stat, before["stats"].get(stat)))
+        elif key in RT_STAT:
+            stat = RT_STAT[key]
+            b, a = _rt_num(before["stats"].get(stat)), _rt_num(after["stats"].get(stat))
+            _rt("%-64s moves %s by %+d" % (tag, stat, amount),
+               b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
+        elif key in RT_BUDGET:
+            fld = RT_BUDGET[key]
+            _rt("%-64s raises %s by %+d" % (tag, fld, amount),
+               after[fld] - before[fld] == amount,
+               "%s -> %s" % (before[fld], after[fld]))
+        elif key in RT_POINTS:
+            fld = "skill_earned" if key == "skill_points" else "trade_earned"
+            _rt("%-64s raises %s earned by %+d" % (tag, RT_POINTS[key], amount),
+               (after[fld] or 0) - (before[fld] or 0) == amount,
+               "%s -> %s" % (before[fld], after[fld]))
+        elif key in RT_ATTR_SLOTS:
+            new = _rt_new_decs(before, after, slot="attribute")
+            _rt("%-64s spawns %d attribute rider(s)" % (tag, amount),
+               len(new) == amount, [d[0] for d in new])
+        elif key in RT_ANC_POINTS:
+            _rt("%-64s raises the ancestry-point budget by %+d" % (tag, amount),
+               after["anc_budget"] - before["anc_budget"] == amount,
+               "%s -> %s" % (before["anc_budget"], after["anc_budget"]))
+        elif key in builder_api.GRANT_CHILD_SLOTS:
+            slot = builder_api.GRANT_CHILD_SLOTS[key]
+            new = _rt_new_decs(before, after, slot=slot, prefix="GC#")
+            _rt("%-64s spawns %d %s child picker(s)" % (tag, amount, slot),
+               len(new) == amount, [d[0] for d in new])
+        else:
+            _rt("%-64s has an assertion table entry" % tag, False,
+               "unknown grant key %r" % key)
+
+
+def _rt_check_option(o, index):
+    """Drive one modelled option and assert its declared effect arrives."""
+    name = o.name
+    if name in RT_FIXED or name in RT_UNREACHABLE:
+        return                                    # handled by _rt_check_fixed / reachability
+    row = _rt_catalog_row(o)
+    grants = row.get("grants") or {}
+    grants_un = row.get("grants_unarmored") or {}
+    where = "%s/%s" % (o.filename[:-5], o.path.split(".")[-1])
+    label = "%s %s" % (where, name)
+    known_bug = RT_KNOWN_FAIL.get(name)
+
+    # --- build the right probe and pick the option
+    if o.filename == "ancestries.yaml":
+        anc = o.path.split(".")[-1]
+        api = _rt_probe_ancestry(anc)
+        before = _rt_snap(api)
+        _, did, offered = _rt_open_trait(api)
+        if name not in offered:
+            _rt_ok(name, "%-64s is offered on %s" % (label, anc), False, sorted(offered))
+            return
+        api.set_decision(did, name)
+    elif o.filename == "talents.yaml":
+        cls = _rt_class_offering(name, index)
+        if not cls:
+            _rt_ok(name, "%-64s is offered by some class at L2" % label, False,
+                   "no class offers it")
+            return
+        api, tal = _rt_probe_talent(cls, 2)
+        before = _rt_snap(api)
+        api.set_decision(tal["id"], name)
+    else:
+        # chargen choice children: disciplines (spellblade), pact boons (warlock)
+        cls, slot = _rt_chargen_slot(name, index)
+        if not cls:
+            _rt_ok(name, "%-64s is offered in a chargen choice" % label, False,
+                   "not found in the fleet")
+            return
+        api = _fresh_at(cls, "Human")
+        before = _rt_snap(api)
+        s = json.loads(api.state())
+        d = [x for x in s["decisions"] if x["slot"] == slot
+             and name in {o2["name"] for o2 in (x.get("options") or [])}][0]
+        api.set_decision(d["id"], name)
+
+    after = _rt_snap(api)
+
+    # --- assert the declared effect
+    if known_bug:
+        # KNOWN_FAIL: record it, and fail if it starts working so the entry gets retired
+        moved = _rt_any_movement(before, after, grants)
+        _rt_ok(name, "%-64s KNOWN %s (declared effect does not arrive)" % (label, known_bug),
+               not moved, "it now WORKS - retire the RT_KNOWN_FAIL entry for %s" % name)
+    else:
+        if grants:
+            _rt_assert_grants(name, label, before, after, grants)
+        if grants_un:
+            _rt_assert_grants(name, label, before, after, grants_un, unarmored=True)
+
+    if "spell_access" in row:
+        _rt_assert_spell_access(name, label, before, after, row["spell_access"])
+    if "choice" in row:
+        _rt_assert_choice(name, label, before, after, row["choice"])
+    if "opens" in row:
+        _rt_assert_opens(name, label, api, row["opens"])
+    if "training" in row:
+        _rt_ok(name, "%-64s brings its combat training to the sheet" % label,
+               set(row["training"]) <= set(json.loads(api.sheet()).get("combat_training") or []),
+               json.loads(api.sheet()).get("combat_training"))
+
+
+def _rt_any_movement(before, after, grants):
+    """Did ANY observable the grant claims to move actually move?"""
+    for key, amount in (grants or {}).items():
+        if key in RT_STAT:
+            if _rt_num(after["stats"].get(RT_STAT[key])) != _rt_num(before["stats"].get(RT_STAT[key])):
+                return True
+        elif key in RT_BUDGET and after[RT_BUDGET[key]] != before[RT_BUDGET[key]]:
+            return True
+        elif key in RT_ANC_POINTS and after["anc_budget"] != before["anc_budget"]:
+            return True
+        elif key in RT_POINTS:
+            fld = "skill_earned" if key == "skill_points" else "trade_earned"
+            if after[fld] != before[fld]:
+                return True
+    return False
+
+
+def _rt_class_offering(name, index):
+    for label, slot in index.get(name, []):
+        if slot == "talent":
+            return label.split()[0]
+    return None
+
+
+def _rt_chargen_slot(name, index):
+    for label, slot in index.get(name, []):
+        if "L1" in label:
+            return label.split()[0], slot
+    return None, None
+
+
+def _rt_assert_spell_access(name, label, before, after, access):
+    """A spell_access declaration must render a CONSTRAINED spell child, not a flat pool one."""
+    kids = [d for d in _rt_new_decs(before, after, prefix="GC#")
+            if d[1] in ("spell_sourced", "spell_any", "spell_tagged")]
+    _rt_ok(name, "%-64s renders a constrained spell child (%s)"
+       % (label, "any" if access.get("any") else access.get("source")),
+       bool(kids), [d for d in _rt_new_decs(before, after, prefix="GC#")])
+    if not kids:
+        return
+    want_any = bool(access.get("any"))
+    _rt_ok(name, "%-64s child is %s" % (label, "an any-list slot" if want_any else "source-filtered"),
+       (kids[0][1] == "spell_any") == want_any, kids[0])
+    if access.get("schools"):
+        dec = [d for d in after["s"]["decisions"] if str(d.get("id")) == kids[0][0]][0]
+        groups = {o.get("group") for o in (dec.get("options") or [])}
+        _rt_ok(name, "%-64s narrows to the declared schools %s" % (label, access["schools"]),
+           groups == set(access["schools"]), sorted(groups))
+
+
+def _rt_assert_choice(name, label, before, after, choice):
+    """A `choice` declaration must spawn its named picker(s)."""
+    slot = builder_api.SHEET_SLOT_ALIAS.get(choice, choice)
+    new = [d for d in _rt_new_decs(before, after) if d[1] == slot]
+    _rt_ok(name, "%-64s spawns its %r picker" % (label, slot), bool(new),
+       "new decisions: %s" % _rt_new_decs(before, after))
+
+
+def _rt_assert_opens(name, label, api, opened):
+    """An `opens` declaration must make the named ancestry's traits offerable."""
+    _, _, offered = _rt_open_trait(api)
+    data = yaml.safe_load(open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"]
+    want = {r["name"] for r in (data.get(opened) or []) if isinstance(r, dict)}
+    _rt_ok(name, "%-64s opens the %s trait list" % (label, opened),
+       bool(want & offered), "none of %d %s traits offered" % (len(want), opened))
+
+
+def _rt_check_fixed(options):
+    """The modelled options that are FIXED class features: there is no picker to drive, so the
+    effect has to be observed a different way.
+
+    For numeric grants the only available baseline is a class that does NOT get the feature,
+    which makes this a cross-class comparison rather than a true before/after. That is weaker
+    than the picked-option round-trip and it is deliberately limited to the specific stats the
+    catalog row declares, so an unrelated class-table difference cannot make it pass.
+    For `choice` features the assertion is exact: the declared picker must exist at L1.
+    """
+    by_name = {o.name: o for o in options}
+    ref_cls = "druid"                     # gets none of the three
+    ref = _rt_stats(json.loads(_fresh_at(ref_cls, "Human").state()))
+    for name, cls in sorted(RT_FIXED.items()):
+        o = by_name.get(name)
+        if o is None:
+            _rt_ok(name, "fixed/%-58s is still in the coverage ledger" % name, False,
+                   "not found - retire the RT_FIXED entry")
+            continue
+        row = _rt_catalog_row(o)
+        cur = _rt_stats(json.loads(_fresh_at(cls, "Human").state()))
+        for key, amount in sorted((row.get("grants") or {}).items()):
+            if key in RT_STAT:
+                stat = RT_STAT[key]
+                _rt_ok(name, "fixed/%-24s %-32s %s is %+d vs a %s"
+                   % (name, key, stat, amount, ref_cls),
+                   _rt_num(cur[stat]) - _rt_num(ref[stat]) == amount,
+                   "%s %s vs %s %s" % (cls, cur[stat], ref_cls, ref[stat]))
+            elif key in RT_FLAG:
+                stat = RT_FLAG[key]
+                _rt_ok(name, "fixed/%-24s %-32s re-keys %s vs a %s" % (name, key, stat, ref_cls),
+                   _rt_num(cur[stat]) != _rt_num(ref[stat]),
+                   "%s %s vs %s %s" % (cls, cur[stat], ref_cls, ref[stat]))
+        if "choice" in row:
+            slot = builder_api.SHEET_SLOT_ALIAS.get(row["choice"], row["choice"])
+            s = json.loads(_fresh_at(cls, "Human").state())
+            got = [d for d in s["decisions"] if d["slot"] == slot]
+            _rt_ok(name, "fixed/%-24s spawns its %r picker(s) at L1 without a pick" % (name, slot),
+               bool(got), sorted({d["slot"] for d in s["decisions"]}))
+
+
+def _rt_check_todos(todos):
+    """The CH-5 burn-down, answered: a `todo` declares an effect that is NOT modelled, so the
+    expectation is that nothing moves. Two documented exceptions move anyway because
+    build_engine.py name-matches them; CH-5 makes those data-driven, and this asserts the
+    player-visible behaviour does not change when it does."""
+    by_name = {}
+    for o in todos:
+        by_name.setdefault(o.name, []).append(o)
+    for name in sorted(by_name):
+        rows = [r for r in by_name[name] if r.filename == "ancestries.yaml"]
+        if not rows:
+            continue                              # non-ancestry todos have no trait probe
+        anc = rows[0].path.split(".")[-1]
+        pick = RT_VARIANT_MATCHED.get(name, name)
+        api = _rt_probe_ancestry(anc)
+        before = _rt_snap(api)
+        _, did, offered = _rt_open_trait(api)
+        if pick not in offered:
+            ok("todo/%-26s is offered on %s" % (name, anc), False, sorted(offered))
+            continue
+        api.set_decision(did, pick)
+        after = _rt_snap(api)
+        if name in RT_NAME_MATCHED:
+            stat, delta = RT_NAME_MATCHED[name]
+            b, a = _rt_num(before["stats"][stat]), _rt_num(after["stats"][stat])
+            ok("todo/%-26s still moves %s by %+d (engine name-match; CH-5 keeps this)"
+               % (name, stat, delta), a - b == delta, "%s -> %s" % (b, a))
+        elif name in RT_VARIANT_MATCHED:
+            ok("todo/%-26s the %r variant moves an attribute (engine name-match; CH-5)"
+               % (name, pick),
+               after["stats"]["Attributes"] != before["stats"]["Attributes"],
+               "%r -> %r" % (before["stats"]["Attributes"], after["stats"]["Attributes"]))
+        else:
+            moved = [k for k in ("spell_budget", "man_budget", "anc_budget")
+                     if before[k] != after[k]]
+            moved += ["stat " + k for k in before["stats"]
+                      if before["stats"][k] != after["stats"].get(k)]
+            ok("todo/%-26s is INERT, so the burn-down row is a real gap" % name,
+               not moved, "it moves %s - re-declare it `modelled`" % moved)
+
+
 def _all_grant_bearers(ledger):
     cg = ledger.get("chargen") or {}
     out = list(cg.get("class_choices") or []) + list(cg.get("ancestry_traits") or [])
@@ -2842,8 +3410,27 @@ def _all_grant_bearers(ledger):
 
 def main():
     global CATPATHS, builder_api
-    check_page()
-    check_fr6()
+    # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
+    # check function name (so `--only fr46` runs check_fr46_round_trip). The full pass is ~45s,
+    # which does not fit the Claude sandbox's background-process budget, so mutation-testing a
+    # single section needs a way to run it alone. CI always runs the whole suite: --only is a
+    # development convenience, never a way to make a red build green.
+    only = []
+    for i, a in enumerate(sys.argv):
+        if a == "--only" and i + 1 < len(sys.argv):
+            only = [x.strip() for x in sys.argv[i + 1].split(",") if x.strip()]
+
+    def want(fn):
+        return not only or any(o in fn.__name__ for o in only)
+
+    def run(fn):
+        if want(fn):
+            fn()
+
+    if want(check_page):
+        check_page()
+    if want(check_fr6):
+        check_fr6()
     tmp = stage()
     old = os.getcwd()
     os.chdir(tmp)
@@ -2853,39 +3440,16 @@ def main():
     globals()["builder_api"] = importlib.reload(_ba)
     CATPATHS = {c: c + ".yaml" for c in builder_build.CATALOG}
     try:
-        check_baseline()
-        check_trips()
-        check_scratch()
-        check_addlevel()
-        check_received()
-        check_comments()
-        check_new_features()
-        check_sheet()
-        check_newstats()
-        check_replace_hatch()
-        check_wave2()
-        check_slice2()
-        check_slice3()
-        check_slice4()
-        check_slice5()
-        check_fr3()
-        check_fr3_slice2()
-        check_fr17()
-        check_fr20()
-        check_fr9()
-        check_bug16()
-        check_fr36()
-        check_fr21()
-        check_fr4()
-        check_fr23()
-        check_grants_only()
-        check_option_effects()
-        check_class_features()
-        check_sheet_groups()
-        check_ch5_tier1()
-        check_bug33_class_talents()
-        check_bug35_paragon()
-        check_bug34_grant_child_effects()
+        for _fn in (check_baseline, check_trips, check_scratch, check_addlevel,
+                    check_received, check_comments, check_new_features, check_sheet,
+                    check_newstats, check_replace_hatch, check_wave2, check_slice2,
+                    check_slice3, check_slice4, check_slice5, check_fr3,
+                    check_fr3_slice2, check_fr17, check_fr20, check_fr9, check_bug16,
+                    check_fr36, check_fr21, check_fr4, check_fr23, check_grants_only,
+                    check_option_effects, check_class_features, check_sheet_groups,
+                    check_ch5_tier1, check_bug33_class_talents, check_bug35_paragon,
+                    check_bug34_grant_child_effects, check_fr46_round_trip):
+            run(_fn)
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2895,6 +3459,14 @@ def main():
         for f in FAILS:
             print("  - " + f)
         sys.exit(1)
+    if only:
+        print("PASS - sections matching %s only (NOT a full pass)" % only)
+        sys.exit(0)
+    _print_pass_summary()
+    sys.exit(0)
+
+
+def _print_pass_summary():
     print("PASS - builder page, six baselines, widget trips, fresh-L1 x5,")
     print("       add-a-level (promote + generate + undo), received-file safety,")
     print("       comment-preserving export, round-2 bug fixes, character sheet,")
@@ -2918,7 +3490,7 @@ def main():
     print("       BUG-33 class talents resolve in the pick path and apply their grants (anti-mirror guard)")
     print("       BUG-35 Paragon grants a class-talent picker + 1 Trade Point on all five classes (L3/L7/L10)")
     print("       BUG-34 a grant-bearing grant-child applies its own effects (derived granted_effects + training)")
-    sys.exit(0)
+    print("       FR-46 exhaustive option round-trip: every DECLARED effect arrives in the model")
 
 
 if __name__ == "__main__":
