@@ -2283,6 +2283,48 @@ def check_option_effects():
        not [d for d in s2b["decisions"] if d.get("auto") and d["slot"] == "spell"],
        [d["id"] for d in s2b["decisions"] if d.get("auto")])
 
+    # ---- BUG-30 (2026-07-27): an any-list grant (MC Bard Magical Secrets) is not bound by the
+    # character's own schools, so the pool widens while it is held and the off-list picks are counted
+    # against the grant slots (validate-don't-enumerate) rather than filtered out of the picker.
+    b3 = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")
+    b3.set_attr("might", 3); b3.set_attr("agility", 1)
+    b3.set_attr("charisma", 0); b3.set_attr("intelligence", 0)
+    b3.set_ancestry("Human", "-")
+    b3.set_decision("cg:school:0", "Invocation")
+    b3.set_decision("cg:school:1", "Divination")
+    s3b = st(b3)
+    native_n = len([o for o in find_dec(s3b, lambda d: d["id"] == "cg:spell:0")["options"]])
+    ok("Spellblade without an any-list grant sees only its own schools", b3._any_list_slots() == 0)
+    s3b = json.loads(b3.add_level())
+    t3b = find_dec(s3b, lambda d: d["slot"] == "talent" and d["level"] == 2)
+    s3b = json.loads(b3.set_decision(t3b["id"], "Remarkable Repertoire"))
+    d3b = find_dec(s3b, lambda d: d["id"] == "cg:spell:0")
+    offs = [o["name"] for o in d3b["options"] if o["group"] == "any Spell List"]
+    ok("Remarkable Repertoire declares 2 any-list slots from the catalog (BUG-30)",
+       b3._any_list_slots() == 2, b3._any_list_slots())
+    ok("the spell pickers widen to every spell, off-list ones grouped as 'any Spell List'",
+       len(d3b["options"]) > native_n and len(offs) > 50
+       and all("any Spell List" in o["label"] for o in d3b["options"] if o["group"] == "any Spell List"),
+       (native_n, len(d3b["options"]), len(offs)))
+    au3 = [d for d in s3b["decisions"] if d.get("auto") and d["slot"] == "spell"]
+    b3.set_decision(au3[0]["id"], offs[0])
+    au3 = [d for d in json.loads(b3.state())["decisions"] if d.get("auto") and d["slot"] == "spell"]
+    s3b = json.loads(b3.set_decision(au3[0]["id"], offs[1]))
+    ok("2 off-list picks are legal (they fit the 2 slots)", s3b["catalog_problems"] == [],
+       s3b["catalog_problems"])
+    s3b = json.loads(b3.set_decision("cg:spell:0", offs[2]))
+    ok("a 3rd off-list pick is flagged against the slot count, not silently allowed",
+       any("any-list grant slot" in p for p in s3b["catalog_problems"]), s3b["catalog_problems"])
+    s3b = json.loads(b3.set_decision("cg:spell:0",
+                                     next(o["name"] for o in d3b["options"] if o["group"] == "Invocation")))
+    ok("swapping back to a native pick clears the flag", s3b["catalog_problems"] == [],
+       s3b["catalog_problems"])
+    ok("canon Bonan's long-form 'MC Bard: Remarkable Repertoire' is recognised as 2 any-list slots",
+       builder_api.BuilderAPI("bonan", CATPATHS)._any_list_slots() == 2)
+    ok("the readout also reports a MET count (no more vanishing when complete)",
+       "of ${budget} recorded</b>`);" in builder_build.TEMPLATE
+       and "var(--ok)" in builder_build.TEMPLATE)
+
 
 def main():
     global CATPATHS, builder_api

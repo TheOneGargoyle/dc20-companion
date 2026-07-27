@@ -1,7 +1,7 @@
-# CURATED cross-cutting cost list — the Talent catalog (the talent names a ledger's
+# CURATED cross-cutting cost list: the Talent catalog (the talent names a ledger's
 # `slot: talent` pick may resolve to).
-# Sources: rules/character-creation.md — General Talents l.327-366, Class Talents l.367-672
-# (per-class sections), Multiclass Talents l.673-726 — plus rules/classes.md for the class
+# Sources: rules/character-creation.md, General Talents l.327-366, Class Talents l.367-672
+# (per-class sections), Multiclass Talents l.673-726, plus rules/classes.md for the class
 # FEATURES reachable through Multiclass talents (mc_features below).
 #
 # Ledger conventions this catalog resolves (see the six builds/*.yaml):
@@ -65,7 +65,13 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      note: "one of the 4 Pact Boon options; an existing known Spell becomes the Pact Spell"}
   - {name: Wild Form, class: Druid, feature_level: 1, via: Novice Multiclass}
   - {name: Remarkable Repertoire, class: Bard, feature_level: 1, via: Novice Multiclass,
-     grants: {spells: 2, skill_points: 2},
+     grants: {spells: 2, skill_points: 2}, spell_access: {any: true},
+     # spell_access.any (BUG-30): Magical Secrets is "any 2 Spells of your choice from ANY Spell
+     # List" (classes.md l.360-361), so its 2 spells are NOT bound by the character's own schools
+     # or source. The builder widens the flat spell pool while this is held and counts the
+     # off-list picks against these slots. The only any-list grant in the rules we cover;
+     # Spellcasting Expansion (general talent) instead adds 1 Source or 3 Schools, a CHOSEN
+     # widening that needs its own sub-choice node (see BACKLOG FR-42).
      note: "Jack of All Trades 2 SP + Magical Secrets 2 spells from ANY Spell List + Expression"}
   - {name: Innate Power, class: Sorcerer, feature_level: 1, via: Novice Multiclass,
      grants: {mp: 1},
