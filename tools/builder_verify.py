@@ -2795,6 +2795,16 @@ def check_bug34_grant_child_effects():
        json.loads(ref.sheet()).get("combat_training") == ["Heavy Armor", "Heavy Shield"],
        json.loads(ref.sheet()).get("combat_training"))
     canon = builder_api.BuilderAPI("xanwyn", CATPATHS)
+    # FR-48 guard: with nothing granted and no base list, the sheet must render NO training row
+    # rather than "None recorded", which would read as "trained in nothing" on a scratch build.
+    bare = _fresh_at("spellblade", "Human")
+    ok("a scratch build with no granted training reports an empty list (row hidden, not 'None')",
+       json.loads(bare.sheet()).get("combat_training") == [],
+       json.loads(bare.sheet()).get("combat_training"))
+    page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("...and the GENERATED page emits that row conditionally (ctRow), never a bare placeholder",
+       "const ctRow=ct.length" in page and "Combat Training</span>" in page,
+       "ctRow guard missing from the generated sheet renderer")
     ok("a canon ledger still shows its hand-authored combat training, unchanged",
        json.loads(canon.sheet()).get("combat_training")
        == ["Weapons", "Spell Focuses", "Light Armor", "Light Shields"],

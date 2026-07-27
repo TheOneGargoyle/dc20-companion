@@ -3150,8 +3150,15 @@ function shBuild(d){
     ? sr.map(t=>`<b>${t.label}:</b> ${t.text}`).join('<br>')+(sr.length>1?'<br><span class="sh-note">Only 1 Stamina Regen benefit per Round.</span>':'')
     : 'None (no Stamina Regen)';
   // BUG-34: Combat Training (base + option-granted, e.g. the Warrior Discipline's Heavy Armor).
+  // The row is HIDDEN when the list is empty rather than printed as "None recorded", because a
+  // scratch build has no BASE training yet (a class's own training is not catalog data: FR-48), so
+  // an empty line would read as "this character is trained in nothing", which is wrong rather than
+  // merely incomplete. Canon ledgers hand-author the base list, so they show the full picture.
+  // When FR-48 lands the base is always present and this guard stops mattering.
   const ct=d.combat_training||[];
-  const ctStr=ct.length?ct.map(shEsc).join(' &middot; '):'None recorded';
+  const ctRow=ct.length
+    ? `<div class="sh-kv" style="display:block"><span class="lbl">Combat Training</span><div style="font-weight:400;font-size:11px;margin-top:2px">${ct.map(shEsc).join(' &middot; ')}</div></div>`
+    : '';
   const order=['Prime','Might','Agility','Charisma','Intelligence'];
   const byAttr={};
   d.skills.forEach(s=>{(byAttr[s.attr]=byAttr[s.attr]||[]).push(s);});
@@ -3226,7 +3233,7 @@ function shBuild(d){
           </div>
           <div class="sh-kv"><span class="lbl">Initiative</span><span class="val">+${c['Initiative']}</span></div>
           <div class="sh-kv"><span class="lbl">Spells / Maneuvers known</span><span class="val">${c['Spells known']} / ${c['Maneuvers known']}</span></div>
-          <div class="sh-kv" style="display:block"><span class="lbl">Combat Training</span><div style="font-weight:400;font-size:11px;margin-top:2px">${ctStr}</div></div>
+          ${ctRow}
         </div>
         <div class="sh-sec"><h3>Skills</h3>${skillHtml||'<div class="sh-note">None</div>'}</div>
         <div class="sh-sec"><h3>Trades</h3>${tradeHtml}</div>
