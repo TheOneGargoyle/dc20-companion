@@ -2228,6 +2228,61 @@ def check_option_effects():
        ":spell:+" in builder_build.API_PY and ":man:+" in builder_build.API_PY
        and "_res_ready_level" in builder_build.API_PY)
 
+    # ---- BUG-28 (2026-07-27): re-picking a grant-bearing entry away must not leave the picks it
+    # funded behind, and an over-recorded count must never be silent.
+    s = json.loads(a.set_decision(tal["id"], "Wild Form"))   # MC Druid: no spell grant
+    l2 = [e for e in a.ledger["levels"][2] if e.get("slot") == "spell"]
+    ok("swapping the talent away prunes the spells it funded (3 of 3 -> 1 of 1)",
+       s["spell_have"] == 1 and s["spell_budget"] == 1 and len(l2) == 1
+       and not s["builder_problems"],
+       (s["spell_have"], s["spell_budget"], [e.get("pick") for e in l2], s["builder_problems"]))
+    ok("the path-rider spell survives the prune (its path is still chosen)",
+       bool(l2) and str(l2[0].get("source", "")).startswith("path rider"),
+       l2[0].get("source") if l2 else None)
+    s = json.loads(a.set_decision(tal["id"], "Remarkable Repertoire"))
+    au = [d for d in s["decisions"] if d.get("auto") and d["slot"] == "spell"]
+    ok("swapping the talent back re-opens the ready slot at L2 (1 of 3)",
+       s["spell_have"] == 1 and s["spell_budget"] == 3
+       and len(au) == 1 and au[0]["id"] == "L2:spell:+",
+       (s["spell_have"], s["spell_budget"], [x["id"] for x in au]))
+    # canon rows are NEVER pruned: hand-authored picks are a data question, so they raise the advisory
+    c = builder_api.BuilderAPI("bonan", CATPATHS)
+    sc0 = st(c)
+    tb = find_dec(sc0, lambda d: d["slot"] == "talent" and d["level"] == 2)
+    sc = json.loads(c.set_decision(tb["id"], "Wild Form"))
+    kept = [e.get("pick") for e in c.ledger["levels"][2] if e.get("slot") == "spell"]
+    ok("canon Bonan: swapping her MC Bard talent away keeps her 3 authored spells",
+       sc0["spell_have"] == 3 and len(kept) == 3, (sc0["spell_have"], kept))
+    ok("...and flags the overflow instead of going silent (BUG-28)",
+       any("3 spells recorded but only 1 granted" in p for p in sc["builder_problems"]),
+       sc["builder_problems"])
+    ok("the readout renders the over-budget branch too (not just under)",
+       "recorded, only ${budget} granted" in builder_build.TEMPLATE
+       and "var(--bad)" in builder_build.TEMPLATE)
+
+    # ---- BUG-29 (2026-07-27): ready-slot suppression is per level, so a short level still gets its
+    # slot while another level has an open one of its own.
+    b = builder_api.BuilderAPI(None, CATPATHS, new_class="spellblade")
+    b.set_attr("might", 3); b.set_attr("agility", 1)
+    b.set_attr("charisma", 0); b.set_attr("intelligence", 0)
+    b.set_ancestry("Human", "-")
+    sb = json.loads(b.add_level())
+    tsb = find_dec(sb, lambda d: d["slot"] == "talent" and d["level"] == 2)
+    sb = json.loads(b.set_decision(tsb["id"], "Remarkable Repertoire"))
+    aub = [d for d in sb["decisions"] if d.get("auto") and d["slot"] == "spell"]
+    ok("Spellblade L2 talent spells get a ready slot at L2 while L1 spells are undecided (BUG-29)",
+       sb["spell_budget"] == 4 and len(aub) == 1 and aub[0]["id"] == "L2:spell:+",
+       (sb["spell_budget"], [(x["id"], x["level"]) for x in aub]))
+    # ...but a level whose OWN slot is open gets no second slot (one ready slot per level)
+    b2 = drive_fresh("barbarian")
+    s2b = json.loads(b2.add_level())
+    t2b = find_dec(s2b, lambda d: d["slot"] == "talent" and d["level"] == 2)
+    b2.set_decision(t2b["id"], "Remarkable Repertoire")
+    s2b = json.loads(b2.set_decision("L2:2", "Spellcaster"))   # path rider leaves an undecided L2 spell
+    ok("a short level with its own open slot gets no extra ready slot",
+       not [d for d in s2b["decisions"] if d.get("auto") and d["slot"] == "spell"],
+       [d["id"] for d in s2b["decisions"] if d.get("auto")])
+
 
 def main():
     global CATPATHS, builder_api
