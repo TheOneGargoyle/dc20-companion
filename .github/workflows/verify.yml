@@ -61,13 +61,32 @@ jobs:
         run: python3 -m playwright install --with-deps chromium
 
       - name: Builder smoke (real page, real browser)
-        run: python3 tools/builder_smoke.py --require
+        run: python3 tools/builder_smoke.py --require 2>&1 | tee smoke.log
 
-      - name: Upload the smoke log on failure
+      # The job summary is what you see without clicking into a step, so put the actual failing
+      # lines there. The first red run of this workflow told us only "exit code 1", which meant a
+      # round trip just to find out which harness was unhappy.
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Verify"
+            echo ""
+            if [ -f smoke.log ]; then
+              echo '```'
+              grep -E "FAIL|KNOWN|PASS -|^  - " smoke.log | head -40 || true
+              echo '```'
+            else
+              echo "The smoke test did not run; an earlier step failed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs and the built page on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: smoke-artifacts
           path: |
+            smoke.log
             builds/builder.html
           retention-days: 5

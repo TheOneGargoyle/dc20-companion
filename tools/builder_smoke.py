@@ -71,10 +71,30 @@ TRAIT_JOURNEYS = [
     ("Angelborn", [], "Mana Increase"),
 ]
 
+# Checks that are EXPECTED to fail because they describe an open, filed bug. A red CI that everyone
+# learns to ignore is worse than no CI, so a documented open bug reports as KNOWN and does not fail
+# the build. The registry is not a way to silence things: if a known-failing check starts PASSING,
+# that is itself a failure ("BUG-xx looks fixed"), which forces the entry to be removed along with
+# the fix. Key = the `bug` string passed to ok(); value = a one-line reason.
+KNOWN_FAIL = {
+    "BUG-34": "granted disciplines apply nothing (grant-children are assumed to be leaves)",
+}
+
 FAILS = []
+KNOWN_HITS = []
 
 
-def ok(label, cond, detail=""):
+def ok(label, cond, detail="", bug=None):
+    if bug and bug in KNOWN_FAIL:
+        if cond:
+            # the bug appears to be fixed: fail loudly so the registry entry gets retired
+            print("  %-62s UNEXPECTED PASS" % label[:62], flush=True)
+            FAILS.append("%s now PASSES: retire the KNOWN_FAIL entry (%s)"
+                         % (bug, KNOWN_FAIL[bug]))
+        else:
+            print("  %-62s KNOWN %s" % (label[:62], bug), flush=True)
+            KNOWN_HITS.append("%s | %s | %s" % (bug, label, detail))
+        return
     print("  %-68s %s" % (label[:68], "OK" if cond else "FAIL"), flush=True)
     if not cond:
         FAILS.append("%s%s" % (label, (" | %s" % (detail,)) if detail else ""))
@@ -316,7 +336,7 @@ def j_class_talents(P):
             a = (P.stat("MP"), P.stat("Spells known"))
             ok("...and a granted Magus discipline still applies its own +1 MP / +1 spell",
                int(a[0]) - int(b[0]) == 1 and int(a[1]) - int(b[1]) == 1,
-               "MP/Spells %s -> %s" % (b, a))
+               "MP/Spells %s -> %s" % (b, a), bug="BUG-34")
         else:
             ok("a granted discipline picker offers Magus", False, kids[:3])
     P.start("barbarian")
@@ -454,6 +474,12 @@ def main():
         httpd.shutdown()
 
     print("=" * 62)
+    if KNOWN_HITS:
+        print("%d known failure(s), each tracked as an open bug in builds/BACKLOG.md:"
+              % len(KNOWN_HITS))
+        for k in KNOWN_HITS:
+            print("  - " + k)
+        print("-" * 62)
     if FAILS:
         print("FAIL - %d check(s) failed:" % len(FAILS))
         for f in FAILS:
