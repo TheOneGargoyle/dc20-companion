@@ -95,19 +95,30 @@ disciplines:
   - Heavy Armor
   - Heavy Shield
 - name: Acolyte
+  no_effect: situational
 - name: Hex Warrior
+  no_effect: situational
 - name: Spell Breaker
+  no_effect: situational
 - name: Spell Warder
+  no_effect: situational
 - name: Blink Blade
+  no_effect: situational
 - name: Sense Magic
   flavor: true
 runes:
 - name: Earth
+  no_effect: situational
 - name: Flame
+  no_effect: situational
 - name: Frost
+  no_effect: situational
 - name: Lightning
+  no_effect: situational
 - name: Water
+  no_effect: situational
 - name: Wind
+  no_effect: situational
 subclasses:
 - Paladin
 - Rune Knight

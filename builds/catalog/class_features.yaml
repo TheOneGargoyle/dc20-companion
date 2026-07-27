@@ -38,6 +38,7 @@ classes:
   Barbarian:   # classes.md l.94-131
     1:
       - name: Rage
+        no_effect: situational
       - name: Berserker
         grants: {speed: 1, jump_from: might}
         grants_unarmored: {ad: 2}
@@ -47,19 +48,23 @@ classes:
     2:
       - name: Battlecry
         note: "1 AP + 1 SP: Fortitude / Fury / Urgent shout in 5 Spaces"
+        no_effect: situational
     3: []      # the class table's L3 feature is the Subclass itself (its own picker)
     4: []      # L4 grants Talent + 2 Ancestry Points + Path only, no class feature
 
   Commander:   # classes.md l.~330-370
     1:
       - name: Inspiring Presence
+        no_effect: situational
       - name: Commander's Call
         note: "1 AP + 1 SP: command a willing ally (the command-stack engine)"
+        no_effect: situational
       - name: Natural Leader
         flavor: true
     2:
       - name: Commanding Aura
         note: "5 Space aura; Help / command range"
+        no_effect: situational
     3: []
     4: []
 
@@ -67,11 +72,14 @@ classes:
     1:
       - name: Druid Domain
         note: "1 AP + 1 MP: create Domain Spaces; Domain Actions while you hold them"
+        no_effect: situational
       - name: Wild Form
         note: "1 AP + 1 MP: transform (Wild Form Stat Block + Trait Points); True Form on reverting"
+        no_effect: situational
     2:
       - name: Nature's Torrent
         note: "reaction damage when a creature within 10 Spaces takes Elemental damage"
+        no_effect: situational
     3: []
     4: []
 
@@ -79,6 +87,7 @@ classes:
     1:
       - name: Bound Weapon
         note: "bond with a weapon on a Quick Rest; Bound Damage"
+        no_effect: situational
       - name: Spellblade Disciplines
         choice: spellblade_disciplines
         note: "learn 2 Disciplines from the list; the picker at L1 owns these"
@@ -87,6 +96,7 @@ classes:
     2:
       - name: Spellstrike
         note: "once per turn, ride a Spell on a Martial Attack"
+        no_effect: situational
     3: []
     4: []
 
@@ -94,6 +104,7 @@ classes:
     1:
       - name: Warlock Contract
         note: "the patron bargain; Hasty Bargain / Desperate Bargain"
+        no_effect: situational
       - name: Pact Boon
         choice: pact_boon
         note: "Pact Weapon / Armor / Spell / Familiar; the boon picker at L1 owns these"
@@ -102,5 +113,6 @@ classes:
     2:
       - name: Life Tap
         note: "spend HP in place of MP on an MP Effect"
+        no_effect: situational
     3: []
     4: []

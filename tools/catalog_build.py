@@ -47,11 +47,11 @@ CLASSES_MD = os.path.join(ROOT, "rules", "classes.md")
 SPELLBLADE_DISCIPLINES = {
     "Magus": {"grants": {"mp": 1, "spells": 1}},
     "Warrior": {"grants": {"maneuvers": 1}, "training": ["Heavy Armor", "Heavy Shield"]},
-    "Acolyte": {},
-    "Hex Warrior": {},
-    "Spell Breaker": {},
-    "Spell Warder": {},
-    "Blink Blade": {},
+    "Acolyte": {"no_effect": "situational"},
+    "Hex Warrior": {"no_effect": "situational"},
+    "Spell Breaker": {"no_effect": "situational"},
+    "Spell Warder": {"no_effect": "situational"},
+    "Blink Blade": {"no_effect": "situational"},
     "Sense Magic": {"flavor": True},
 }
 
@@ -61,8 +61,10 @@ SPELLBLADE_DISCIPLINES = {
 WARLOCK_PACT_BOONS = {
     "Pact Weapon": {"grants": {"maneuvers": 2}, "maneuver_type": "Attack", "note": "2 Attack Maneuvers of your choice (classes.md l.3244); Weapon Training; Spell Focus property"},
     "Pact Armor": {"grants": {"maneuvers": 2}, "maneuver_type": "Defense", "note": "2 Defensive Maneuvers of your choice (classes.md l.3269); Armor Training; +1 AD & MDR while worn (contextual, not a grant)"},
-    "Pact Spell": {"note": "an existing known Spell becomes the Pact Spell (no resource delta)"},
-    "Pact Familiar": {"note": "summons a familiar (no resource delta)"},
+    "Pact Spell": {"no_effect": "situational",
+                   "note": "an existing known Spell becomes the Pact Spell (no resource delta)"},
+    "Pact Familiar": {"no_effect": "situational",
+                      "note": "summons a familiar (no resource delta)"},
 }
 
 # Spellblade Rune Knight runes (classes.md l.3080-3116): "You learn 2 Runes from the following
@@ -70,12 +72,12 @@ WARLOCK_PACT_BOONS = {
 # effects are passive / on-Smite riders), so no `grants:` - they are pure picks that flow from the
 # Rune Knight subclass grant (runes: 2) via the FR-8 slice-2 child-slot backbone.
 RUNES = {
-    "Earth": {},
-    "Flame": {},
-    "Frost": {},
-    "Lightning": {},
-    "Water": {},
-    "Wind": {},
+    "Earth": {"no_effect": "situational"},
+    "Flame": {"no_effect": "situational"},
+    "Frost": {"no_effect": "situational"},
+    "Lightning": {"no_effect": "situational"},
+    "Water": {"no_effect": "situational"},
+    "Wind": {"no_effect": "situational"},
 }
 
 # Subclass resource grants the walked ledgers record (cross-checked below):

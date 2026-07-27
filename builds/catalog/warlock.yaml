@@ -92,8 +92,10 @@ pact_boons:
   note: 2 Defensive Maneuvers of your choice (classes.md l.3269); Armor Training; +1 AD & MDR while worn
     (contextual, not a grant)
 - name: Pact Spell
+  no_effect: situational
   note: an existing known Spell becomes the Pact Spell (no resource delta)
 - name: Pact Familiar
+  no_effect: situational
   note: summons a familiar (no resource delta)
 subclasses:
 - Eldritch

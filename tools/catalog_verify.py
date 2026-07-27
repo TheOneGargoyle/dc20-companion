@@ -16,6 +16,9 @@ Three checks, in order:
       existence + path-rider note); every maneuver is a real 0.10.5 maneuver (Bonan's "Recovery" was a typo for Recover,
       placeholder whitelisted); every talent resolves to a catalog talent or multiclass feature;
       disciplines / pact boons / subclasses exist and their grants match the ledgers.
+  (4) The option-coverage ledger (tools/coverage.py) - every pickable option must DECLARE
+      its effect (modelled / no_effect+category / todo+note); undeclared is a failure, and
+      no walked ledger may depend on an option whose effect is still an open todo.
   (3) Curated lists vs rules/*.md - the hand-curated ancestry costs, spell-school lists,
       spell-SOURCE lists (parent-source headings, the SS11 wrinkle), maneuver names and talent
       names must match their source text (catches transcription drift).
@@ -33,6 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from build_engine import replay, load_class_tables  # noqa: E402
+import coverage  # noqa: E402  (the option-coverage ledger: one walker, no mirrored lists)
 
 # FR-12.0: the class spines are authored data now, read by the engine AND catalog_build.
 CLASS_SPINES = load_class_tables(os.path.join(ROOT, "builds", "catalog", "class_spines.yaml"))
@@ -787,6 +791,67 @@ expect(_xan_ss["amount"] == 1, "damage_addons: Xan Spellstrike (Umbral Bolt) sho
 expect(_dmg["characters"]["min"]["base"] == 3, "damage_addons: Minimus crossbow base should be 3")
 expect(_dmg["characters"]["runt"]["base"] == 2, "damage_addons: Runt Lightning Bolt base should be 2 (incl. Powerful)")
 print(f"  {len(_resolved)} characters resolve; defs + rules grounding reconcile")
+
+# ---- (4) option-coverage ledger -------------------------------------------
+# Every pickable catalog option must DECLARE its effect: modelled, no_effect with a
+# category, or todo with a note. BARE (undeclared) is a failure. See tools/coverage.py
+# for why: through July 2026 the largest single bug family was "option X does not apply
+# its effect", arriving one player at a time because nothing distinguished "correctly
+# needs nothing" from "we forgot". The todo count below is the burn-down, and it should
+# only ever go DOWN.
+print("\n[4] option-coverage ledger")
+_cov_opts, (_used_files, _used_paths) = coverage.walk_options()
+_cov_totals, _cov_per_file = coverage.summarise(_cov_opts)
+for _fn in sorted(_cov_per_file):
+    _b = _cov_per_file[_fn]
+    print("  %-24s %s" % (_fn, " ".join("%s=%d" % (k, _b[k]) for k in sorted(_b))))
+print("  TOTAL %s" % "  ".join("%s=%d" % (k, _cov_totals[k]) for k in sorted(_cov_totals)))
+
+_bare = [o for o in _cov_opts if o.kind == "BARE"]
+expect(not _bare,
+       "coverage: %d option(s) declare no effect disposition (add grants / no_effect / todo): %s"
+       % (len(_bare), ", ".join("%s:%s" % (o.filename, o.name) for o in _bare[:8])))
+_badcat = [o for o in _cov_opts if o.kind == "bad_category"]
+expect(not _badcat,
+       "coverage: %d option(s) use an unknown no_effect category (allowed: %s): %s"
+       % (len(_badcat), ", ".join(sorted(coverage.NO_EFFECT_CATEGORIES)),
+          ", ".join("%s:%s=%s" % (o.filename, o.name, o.detail) for o in _badcat[:8])))
+# A stale exclusion is a silent hole, so it fails too (the anti-mirror rule: the only
+# hand-kept lists in coverage.py are the two EXCLUDE sets, and both are checked here).
+for _fn in coverage.EXCLUDE_FILES:
+    expect(_fn in _used_files,
+           f"coverage: EXCLUDE_FILES names {_fn!r} but no such catalog file exists (stale exclusion)")
+for _key in coverage.EXCLUDE_PATHS:
+    expect(_key in _used_paths,
+           f"coverage: EXCLUDE_PATHS names {_key} but that list was not found (stale exclusion)")
+# Every todo must actually say what is missing, or it is not a burn-down item.
+for _o in _cov_opts:
+    if _o.kind == "todo":
+        expect(len(_o.detail.strip()) > 10,
+               f"coverage: {_o.filename}:{_o.name} todo needs a note saying what it should grant")
+_todo_names = sorted({o.name for o in _cov_opts if o.kind == "todo"})
+print("  %d options; burn-down = %d rows / %d distinct: %s"
+      % (len(_cov_opts), _cov_totals.get("todo", 0), len(_todo_names), ", ".join(_todo_names[:6]) + " ..."))
+# Canon safety net: no walked ledger may DEPEND on a todo option, because a todo option is
+# by definition not applying its effect. Tanrielle's three are the documented exceptions -
+# the engine name-matches Speed Increase / Attribute Increase (build_engine.py l.176/265)
+# and her Trade Expertise cap is hand-authored in her trades block, which is why 90/90 holds.
+_TODO_CANON_OK = {"Attribute Increase", "Speed Increase", "Trade Expertise"}
+for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
+    _led = yaml.safe_load(open(_lf, encoding="utf-8"))
+    if not isinstance(_led, dict):
+        continue
+    _picks = [t.get("name", "") for t in (_led.get("chargen") or {}).get("ancestry_traits", []) or []]
+    for _lvl, _ents in (_led.get("levels") or {}).items():
+        for _e in _ents or []:
+            if _e.get("slot") == "ancestry_trait":
+                _picks.append(_e.get("pick", ""))
+    for _p in _picks:
+        _hit = [t for t in _todo_names if base_name(norm(_p)) == t]
+        expect(not _hit or _hit[0] in _TODO_CANON_OK,
+               f"coverage: {os.path.basename(_lf)} picks {_p!r}, whose effect is an open todo "
+               f"(so its derived stats are wrong)")
+print("  no walked ledger depends on an un-modelled option (Tanrielle's 3 are engine/ledger-covered)")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

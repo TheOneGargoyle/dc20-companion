@@ -28,42 +28,42 @@ general:
   - {name: Spellcasting Expansion, grants: {spells: 3}, once: true,
      note: "Combat Training (Spell Focuses) + 1 Spell Source or 3 Spell Schools added to Spell List"}
 multiclass:
-  - {name: Novice Multiclass, repeatable: true, gives: "a Level 1 Class Feature from any Class"}
-  - {name: Adept Multiclass, requires_level: 4, repeatable: true, gives: "the Level 2 Class Feature of any Class"}
+  - {name: Novice Multiclass, repeatable: true, gives: "a Level 1 Class Feature from any Class", no_effect: delegated}
+  - {name: Adept Multiclass, requires_level: 4, repeatable: true, gives: "the Level 2 Class Feature of any Class", no_effect: delegated}
   - {name: Expert Multiclass, requires_level: 6, repeatable: true,
-     gives: "a Level 5 Class Expert Feature, or the Level 3 Subclass Feature of a Class you have a Feature from"}
+     gives: "a Level 5 Class Expert Feature, or the Level 3 Subclass Feature of a Class you have a Feature from", no_effect: delegated}
   - {name: Master Multiclass, requires_level: 8, repeatable: true,
-     gives: "the Level 7 Subclass Expert Feature of a Subclass you have the L3 feature from"}
+     gives: "the Level 7 Subclass Expert Feature of a Subclass you have the L3 feature from", no_effect: delegated}
 class_talents:
   Barbarian:
-    - {name: Unfathomable Strength, requires: "Rage, Level 3"}
+    - {name: Unfathomable Strength, requires: "Rage, Level 3", todo: "grants {jump: 1} (Titanic Leap, character-creation.md l.381)"}
   Commander:
-    - {name: Seize Momentum, requires: "Commander's Call, Commanding Aura, Level 3"}
-    - {name: Coordinated Command, requires: "Commander's Call, Level 3"}
+    - {name: Seize Momentum, requires: "Commander's Call, Commanding Aura, Level 3", no_effect: situational}
+    - {name: Coordinated Command, requires: "Commander's Call, Level 3", no_effect: situational}
   Druid:
-    - {name: Wild Form Expansion, requires: "Wild Form, Level 3"}
-    - {name: Nature's Vortex, requires: "Nature's Torrent, Level 3"}
+    - {name: Wild Form Expansion, requires: "Wild Form, Level 3", no_effect: situational}
+    - {name: Nature's Vortex, requires: "Nature's Torrent, Level 3", no_effect: situational}
   Sorcerer:
     - {name: Expanded Meta Magic, requires: "Meta Magic", grants: {mp: 2}}
     - {name: Greater Innate Power, requires: "Innate Power, Level 3", grants: {mp: 1}}
-    - {name: Font of Magic, requires: "Meta Magic, Level 3"}
+    - {name: Font of Magic, requires: "Meta Magic, Level 3", no_effect: situational}
   Spellblade:
     - {name: Expanded Disciplines, requires: "Spellblade Disciplines", grants: {disciplines: 2}}
-    - {name: Sling-Blade, requires: "Bound Weapon, Spellstrike, Level 3"}
-    - {name: Adaptive Bond, requires: "Bound Weapon, Level 3"}
+    - {name: Sling-Blade, requires: "Bound Weapon, Spellstrike, Level 3", no_effect: situational}
+    - {name: Adaptive Bond, requires: "Bound Weapon, Level 3", no_effect: situational}
   Warlock:
     - {name: Expanded Boon, requires: "Pact Boon",
-       note: "grants = the chosen Pact Boon's grants (see warlock.yaml pact_boons)"}
+       note: "grants = the chosen Pact Boon's grants (see warlock.yaml pact_boons)", no_effect: situational}
     - {name: Pact Bane, requires: "Pact Boon, Level 3", grants: {spells: 1}}
-    - {name: Warlock Subcontract, requires: "Warlock Contract, Level 3"}
+    - {name: Warlock Subcontract, requires: "Warlock Contract, Level 3", no_effect: situational}
   Wizard:
     - {name: Expanded Spell School, requires: "Spell School Initiate", grants: {spells: 2}}
-    - {name: Crowned Sigil, requires: "Arcane Sigil Feature, Level 3"}
-    - {name: Overly Prepared Spellcaster, requires: "Prepared Spell, Spell School Initiate, Level 3"}
+    - {name: Crowned Sigil, requires: "Arcane Sigil Feature, Level 3", no_effect: situational}
+    - {name: Overly Prepared Spellcaster, requires: "Prepared Spell, Spell School Initiate, Level 3", no_effect: situational}
 mc_features:   # class features the six ledgers reach via Multiclass talents (rules/classes.md)
   - {name: Pact Spell, class: Warlock, feature_level: 1, via: Novice Multiclass,
-     note: "one of the 4 Pact Boon options; an existing known Spell becomes the Pact Spell"}
-  - {name: Wild Form, class: Druid, feature_level: 1, via: Novice Multiclass}
+     note: "one of the 4 Pact Boon options; an existing known Spell becomes the Pact Spell", no_effect: situational}
+  - {name: Wild Form, class: Druid, feature_level: 1, via: Novice Multiclass, no_effect: situational}
   - {name: Remarkable Repertoire, class: Bard, feature_level: 1, via: Novice Multiclass,
      grants: {spells: 2, skill_points: 2}, spell_access: {any: true},
      # spell_access.any (BUG-30): Magical Secrets is "any 2 Spells of your choice from ANY Spell
@@ -79,7 +79,7 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
   - {name: Spell School Initiate, class: Wizard, feature_level: 1, via: Novice Multiclass,
      grants: {spells: 2},
      note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}
-  - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass}
+  - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass, no_effect: situational}
   - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass,
      grants: {metamagic: 2},
      note: "gain 2 unique Spell Enhancements from the Meta Magic list (classes.md l.2618-2639); the 2 metamagic child-slots flow via the FR-8 slice-2 backbone, options in metamagic.yaml"}

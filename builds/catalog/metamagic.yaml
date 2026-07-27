@@ -11,9 +11,9 @@
 catalog_version: 1
 ruleset: "DC20 0.10.5"
 options:
-  - {name: Careful Spell}
-  - {name: Distant Spell}
-  - {name: Quickened Spell}
-  - {name: Subtle Spell}
-  - {name: Transmuted Spell}
-  - {name: Vicious Spell}
+  - {name: Careful Spell, no_effect: situational}
+  - {name: Distant Spell, no_effect: situational}
+  - {name: Quickened Spell, no_effect: situational}
+  - {name: Subtle Spell, no_effect: situational}
+  - {name: Transmuted Spell, no_effect: situational}
+  - {name: Vicious Spell, no_effect: situational}
