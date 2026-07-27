@@ -36,7 +36,7 @@ multiclass:
      gives: "the Level 7 Subclass Expert Feature of a Subclass you have the L3 feature from", no_effect: delegated}
 class_talents:
   Barbarian:
-    - {name: Unfathomable Strength, requires: "Rage, Level 3", todo: "grants {jump: 1} (Titanic Leap, character-creation.md l.381)"}
+    - {name: Unfathomable Strength, requires: "Rage, Level 3", grants: {jump: 1}}   # Titanic Leap, character-creation.md l.381
   Commander:
     - {name: Seize Momentum, requires: "Commander's Call, Commanding Aura, Level 3", no_effect: situational}
     - {name: Coordinated Command, requires: "Commander's Call, Level 3", no_effect: situational}

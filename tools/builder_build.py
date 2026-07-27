@@ -847,12 +847,24 @@ class BuilderAPI:
             return None
         return src, (sa.get('schools') or None)
 
+    def _talent_rows(self):
+        # BUG-33 (2026-07-27, found by the CH-5 Tier-1 probe): ONE list of every talent row this
+        # character can actually pick, so a lookup can never see fewer rows than _talent_options
+        # offers. `class_talents` was missing from both talent lookups (this one and the set_decision
+        # branch), so the six class talents that carry a real effect were offered, picked, and then
+        # applied NOTHING: Unfathomable Strength {jump:1}, Expanded Meta Magic {mp:2}, Greater Innate
+        # Power {mp:1}, Expanded Disciplines {disciplines:2} (which should spawn two discipline
+        # child-pickers), Pact Bane {spells:1} and Expanded Spell School {spells:2}. Same
+        # duplicate-list root cause as BUG-31/32: two hand-maintained readers of one catalog.
+        t = self.cat['talents']
+        return (list(t['mc_features']) + list(t['general'])
+                + list((t.get('class_talents') or {}).get(self.cls, [])))
+
     def _any_list_defs(self):
         # catalog defs whose spell grant reaches ANY Spell List (`spell_access: {any: true}`); today
         # just MC Bard's Remarkable Repertoire / Magical Secrets. Data-driven, so a second one is a
         # catalog edit.
-        return {t['name']: t for t in (self.cat['talents']['mc_features']
-                                      + self.cat['talents']['general'])
+        return {t['name']: t for t in self._talent_rows()
                 if (t.get('spell_access') or {}).get('any')}
 
     def _spell_grant_any(self, parent):
@@ -2249,10 +2261,9 @@ class BuilderAPI:
                 self._apply_grants(e, row.get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
                 self._edited(e)
             elif slot == 'talent':
-                row = next((t for t in self.cat['talents']['mc_features']
-                            if t['name'] == value), None) \
-                    or next((t for t in self.cat['talents']['general']
-                             if t['name'] == value), None)
+                # BUG-33: one lookup over _talent_rows (general + mc_features + THIS class's
+                # class_talents). The old two-branch lookup omitted class_talents entirely.
+                row = next((t for t in self._talent_rows() if t['name'] == value), None)
                 e['pick'] = value
                 self._apply_grants(e, (row or {}).get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
                 self._edited(e)
@@ -2327,8 +2338,20 @@ class BuilderAPI:
             # cgtrait child machinery renders N filtered spell pickers under the trait. Previously
             # those two traits granted nothing in scratch mode because the pair was hand-authored
             # per ledger entry (Scaletrix only).
+            # CH-5 Tier-1 (2026-07-27): an ancestry trait may also carry `grants_unarmored`, the
+            # conditional-defence shape class features already use (Thick-Skinned / Quick Reactions
+            # +1 AD / +1 PD "while you aren't wearing Armor", ancestries.md l.365/396; Hard Shell
+            # pairs it with an unconditional {speed: -1}). Same documented heuristic as BUG-22: the
+            # equipment model carries no armour TYPE, so is_unarmored() name-matches the items, and
+            # the row's note says which way it resolved. Merged INTO grants (not stored separately)
+            # so the engine's sum_grants picks it up with no engine change.
             if changed:
                 cat_grants = dict(row.get('grants') or {})
+                cat_unarm = dict(row.get('grants_unarmored') or {})
+                if cat_unarm and is_unarmored(self.ledger):
+                    for _k, _v in cat_unarm.items():
+                        cat_grants[_k] = ((cat_grants.get(_k, 0) + _v)
+                                          if isinstance(_v, (int, float)) else _v)
                 if cat_grants:
                     t['grants'] = cat_grants
                 else:
@@ -2340,6 +2363,9 @@ class BuilderAPI:
         t['note'] = ('%s; cost %s from catalog (%s).'
                      % (BUILDER_NOTE if was_added else 'Edited in builder',
                         row['cost'] if row else '?', lst))
+        if row and row.get('grants_unarmored'):
+            t['note'] += (' Includes an unarmoured-only bonus.' if is_unarmored(self.ledger)
+                          else ' Unarmoured-only bonus NOT applied (armour worn).')
         t.pop('inferred', None)
 
     def _edited(self, e):

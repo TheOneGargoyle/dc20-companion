@@ -2520,6 +2520,115 @@ def check_sheet_groups():
        m_st.group(1) if m_st else None)
 
 
+def _fresh_at(cls, anc, levels=0):
+    """A scratch character of `cls`/`anc`, point-buy filled, optionally advanced `levels` times.
+    Deliberately minimal: these checks only read derived stats and decision shapes."""
+    api = builder_api.BuilderAPI(None, CATPATHS, new_class=cls)
+    api.set_attr("might", 3); api.set_attr("agility", 1)
+    api.set_attr("charisma", 0); api.set_attr("intelligence", 0)
+    api.set_ancestry(anc, "-")
+    for _ in range(levels):
+        api.add_level()
+    return api
+
+
+def _pick_trait(api, name):
+    s = json.loads(api.add_trait(1))
+    d = [x for x in s["decisions"] if x["slot"] == "ancestry_trait"][-1]
+    assert name in [o["name"] for o in d["options"]], "%s not offered" % name
+    return json.loads(api.set_decision(d["id"], name))
+
+
+def _stat(s, key):
+    row = [r for r in s["stats"] if r[0] == key]
+    return row[0][1] if row else None
+
+
+def check_ch5_tier1():
+    """CH-5 Tier-1 (2026-07-27): the seven ancestry traits that were priced but inert now MOVE the
+    derived stat they are supposed to move. Four are plain `grants` (the BUG-27 copy path); three are
+    `grants_unarmored`, the conditional-defence shape class features already used (BUG-22), now also
+    honoured on ancestry traits. Asserting the DERIVED STAT, not the catalog row, is the point: the
+    whole bug family was 'the data says it, nothing applies it'."""
+    print("## (CH5) option-effects burn-down, Tier-1 ancestry traits")
+    cases = [("Elf", "Frail", "HP", -2),
+             ("Elf", "Brittle", "AD", -1),
+             ("Elf", "Quick Reactions", "PD", 1),
+             ("Dwarf", "Thick-Skinned", "AD", 1),
+             ("Beastborn", "Reckless", "PD", -1)]
+    for anc, trait, stat, want in cases:
+        before = _stat(json.loads(_fresh_at("barbarian", anc).state()), stat)
+        after = _stat(_pick_trait(_fresh_at("barbarian", anc), trait), stat)
+        got = int(after) - int(before)
+        ok("%-9s %-16s %s %+d" % (anc, trait, stat, want), got == want,
+           "%s -> %s (delta %s)" % (before, after, got))
+    # Hard Shell is the pair case: unconditional {speed:-1} PLUS unarmoured-only {ad:+1}, and it
+    # requires Thick-Skinned, so measure it against a Thick-Skinned-only baseline.
+    base = _pick_trait(_fresh_at("barbarian", "Beastborn"), "Thick-Skinned")
+    api = _fresh_at("barbarian", "Beastborn")
+    _pick_trait(api, "Thick-Skinned")
+    after = _pick_trait(api, "Hard Shell")
+    ok("Beastborn Hard Shell AD +1 (unarmoured) and Move Speed -1, over a Thick-Skinned baseline",
+       int(_stat(after, "AD")) - int(_stat(base, "AD")) == 1
+       and int(_stat(after, "Move Speed")) - int(_stat(base, "Move Speed")) == -1,
+       "AD %s->%s  Speed %s->%s" % (_stat(base, "AD"), _stat(after, "AD"),
+                                    _stat(base, "Move Speed"), _stat(after, "Move Speed")))
+    # armour worn => the unarmoured half must NOT apply (the documented name-match heuristic)
+    api = _fresh_at("barbarian", "Dwarf")
+    api.ledger.setdefault("equipment", []).append({"name": "Half Plate Armor"})
+    s = _pick_trait(api, "Thick-Skinned")
+    armoured_ad = int(_stat(s, "AD"))
+    api2 = _fresh_at("barbarian", "Dwarf")
+    api2.ledger.setdefault("equipment", []).append({"name": "Half Plate Armor"})
+    plain_ad = int(_stat(json.loads(api2.state()), "AD"))
+    ok("Thick-Skinned's unarmoured-only +1 AD does NOT apply while armour is worn",
+       armoured_ad == plain_ad, "%s vs %s" % (armoured_ad, plain_ad))
+    trait = [t for t in api.ledger["chargen"]["ancestry_traits"]
+             if str(t.get("name")).startswith("Thick-Skinned")][0]
+    ok("...and the row says so in its note",
+       "NOT applied" in str(trait.get("note", "")), trait.get("note"))
+
+
+def check_bug33_class_talents():
+    """BUG-33 (2026-07-27): _talent_options OFFERED class_talents but both talent lookups read only
+    general + mc_features, so every class talent that carries an effect applied nothing. Same
+    duplicate-list root cause as BUG-31/32, so the guard is the anti-mirror one: every name the
+    picker offers must resolve in the row list the pick path uses."""
+    print("## (CT) class talents: offered rows resolve and apply their grants (BUG-33)")
+    for cls in ("barbarian", "spellblade", "warlock", "commander", "druid"):
+        api = _fresh_at(cls, "Human")
+        offered = {o["name"] for o in api._talent_options()}
+        rows = {r["name"] for r in api._talent_rows()}
+        ok("%-11s every offered talent resolves in _talent_rows" % cls,
+           offered <= rows, sorted(offered - rows)[:5])
+    # and the effects actually land, one per shape: a flat numeric grant and a child-slot grant
+    api = _fresh_at("barbarian", "Human", levels=3)
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "talent"
+         and "Unfathomable Strength" in [o["name"] for o in x["options"]]][-1]
+    before = _stat(s, "Jump Distance")
+    after = _stat(json.loads(api.set_decision(d["id"], "Unfathomable Strength")), "Jump Distance")
+    ok("Barbarian Unfathomable Strength grants +1 Jump Distance (Titanic Leap)",
+       int(after) - int(before) == 1, "%s -> %s" % (before, after))
+    api = _fresh_at("spellblade", "Human", levels=3)
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "talent"
+         and "Expanded Disciplines" in [o["name"] for o in x["options"]]][-1]
+    n_before = len([x for x in s["decisions"] if x["slot"] == "discipline"])
+    s2 = json.loads(api.set_decision(d["id"], "Expanded Disciplines"))
+    n_after = len([x for x in s2["decisions"] if x["slot"] == "discipline"])
+    ok("Spellblade Expanded Disciplines spawns 2 discipline child-pickers",
+       n_after - n_before == 2, "%d -> %d" % (n_before, n_after))
+    api = _fresh_at("warlock", "Human", levels=3)
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "talent"
+         and "Pact Bane" in [o["name"] for o in x["options"]]][-1]
+    before = _stat(s, "Spells known")
+    after = _stat(json.loads(api.set_decision(d["id"], "Pact Bane")), "Spells known")
+    ok("Warlock Pact Bane raises Spells known by 1",
+       int(after) - int(before) == 1, "%s -> %s" % (before, after))
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -2562,6 +2671,8 @@ def main():
         check_option_effects()
         check_class_features()
         check_sheet_groups()
+        check_ch5_tier1()
+        check_bug33_class_talents()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2590,6 +2701,8 @@ def main():
     print("       FR-4 display-name rename for canon/loaded characters (set_meta, handle/deeplink unchanged)")
     print("       FR-23 Stamina Regen trigger(s) on the sheet, catalog-driven (errata Spellblade; Runt two triggers)")
     print("       grants-only unification + maneuver/spell auto-heal (read-only fixed grants; ready-slot chaining; reconcile retired)")
+    print("       CH-5 Tier-1 seven ancestry traits move their derived stat (incl. grants_unarmored on traits)")
+    print("       BUG-33 class talents resolve in the pick path and apply their grants (anti-mirror guard)")
     sys.exit(0)
 
 

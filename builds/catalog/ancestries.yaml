@@ -60,14 +60,14 @@ ancestries:
     - {name: Agile Explorer, cost: 2, no_effect: movement_mode}
     - {name: Discerning Sight, cost: 0, no_effect: adv}
     # Expanded Traits
-    - {name: Quick Reactions, cost: 1, todo: "grants_unarmored {pd: 1}; the BUG-22 unarmoured machinery already exists"}
+    - {name: Quick Reactions, cost: 1, grants_unarmored: {pd: 1}}   # ancestries.md l.365
     - {name: Peerless Sight, cost: 1, no_effect: adv}
     - {name: Climb Speed, cost: 1, no_effect: movement_mode}
     - {name: Speed Increase, cost: 2, todo: "grants {speed: 1}; build_engine.py l.265 name-matches this instead of reading data"}
     - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
     - {name: Plant Knowledge, cost: 1, no_effect: adv}
-    - {name: Brittle, cost: -1, todo: "grants {ad: -1}"}
-    - {name: Frail, cost: -1, todo: "grants {hp: -2}"}
+    - {name: Brittle, cost: -1, grants: {ad: -1}}   # ancestries.md l.380
+    - {name: Frail, cost: -1, grants: {hp: -2}}   # ancestries.md l.381
     - {name: Might Attribute Decrease, cost: -1, todo: "fixed-target attribute -1 (no sub-choice needed)"}
   Dwarf:
     # Default Traits
@@ -76,7 +76,7 @@ ancestries:
     - {name: Physically Sturdy, cost: 2, no_effect: adv}
     - {name: Iron Stomach, cost: 0, no_effect: adv}
     # Expanded Traits
-    - {name: Thick-Skinned, cost: 1, todo: "grants_unarmored {ad: 1}; the BUG-22 unarmoured machinery already exists"}
+    - {name: Thick-Skinned, cost: 1, grants_unarmored: {ad: 1}}   # ancestries.md l.396
     - {name: Natural Combatant, cost: 1, no_effect: training}
     - {name: Stone Blood, cost: 1, no_effect: adv}
     - {name: Minor Tremorsense, cost: 1, no_effect: sense}
@@ -98,7 +98,7 @@ ancestries:
     - {name: Burst of Bravery, cost: 1, no_effect: situational}
     - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
     - {name: Critter Knowledge, cost: 1, no_effect: adv}
-    - {name: Brittle, cost: -1, todo: "grants {ad: -1}"}
+    - {name: Brittle, cost: -1, grants: {ad: -1}}   # ancestries.md l.380
     - {name: Intelligence Attribute Decrease, cost: -1, todo: "fixed-target attribute -1 (no sub-choice needed)"}
     - {name: Short-Legged, cost: -1, todo: "grants {speed: -1}; build_engine.py l.267 name-matches this instead of reading data"}
   Giantborn:
@@ -126,7 +126,7 @@ ancestries:
     - {name: Reptilian Superiority, cost: 0, no_effect: adv}
     # Expanded Traits
     - {name: Mana Increase, cost: 1, grants: {mp: 1}}
-    - {name: Thick-Skinned, cost: 1, todo: "grants_unarmored {ad: 1}; the BUG-22 unarmoured machinery already exists"}
+    - {name: Thick-Skinned, cost: 1, grants_unarmored: {ad: 1}}   # ancestries.md l.396
     - {name: Second Breath, cost: 2, requires: Draconic Breath Weapon, no_effect: situational}
     - {name: Concussive Breath, cost: 1, requires: Draconic Breath Weapon, no_effect: situational}
     - {name: Draconic Affinity, cost: 1, no_effect: situational}
@@ -182,7 +182,7 @@ ancestries:
     - {name: Keen Sense, cost: 1, note: "hearing, sight, or smell; repeatable", no_effect: sense}
     - {name: Sunlight Sensitivity, cost: -2, no_effect: adv}
     # Mobility
-    - {name: Quick Reactions, cost: 1, todo: "grants_unarmored {pd: 1}; the BUG-22 unarmoured machinery already exists"}
+    - {name: Quick Reactions, cost: 1, grants_unarmored: {pd: 1}}   # ancestries.md l.365
     - {name: Climb Speed, cost: 1, no_effect: movement_mode}
     - {name: Spider Climb, cost: 1, requires: Climb Speed, no_effect: movement_mode}
     - {name: Web Walk, cost: 1, no_effect: narrative}
@@ -204,14 +204,14 @@ ancestries:
     - {name: Winged Arms, cost: -1, requires: any Flying Beast Trait, no_effect: movement_mode}
     # Body
     - {name: Tough, cost: 1, grants: {hp: 1}}
-    - {name: Thick-Skinned, cost: 1, todo: "grants_unarmored {ad: 1}; the BUG-22 unarmoured machinery already exists"}
+    - {name: Thick-Skinned, cost: 1, grants_unarmored: {ad: 1}}   # ancestries.md l.396
     - {name: Hazardous Hide, cost: 1, no_effect: situational}
     - {name: Powerful Build, cost: 2, no_effect: size}
     - {name: Long-Limbed, cost: 3, no_effect: situational}
     - {name: Additional Limb, cost: 1, no_effect: narrative}
     - {name: Capable Limb, cost: 2, requires: Additional Limb, no_effect: situational}
     - {name: Natural Armor, cost: 2, requires: Thick-Skinned, todo: "unarmoured PDR; the engine dr plumbing is equipment-only today"}
-    - {name: Hard Shell, cost: 1, requires: Thick-Skinned, todo: "grants_unarmored {ad: 1} plus grants {speed: -1}"}
+    - {name: Hard Shell, cost: 1, requires: Thick-Skinned, grants: {speed: -1}, grants_unarmored: {ad: 1}}   # ancestries.md l.896-899
     - {name: Shell Retreat, cost: 1, requires: Hard Shell, no_effect: situational}
     - {name: Camouflage, cost: 2, no_effect: adv}
     - {name: Prowler, cost: 1, no_effect: adv}
@@ -219,7 +219,7 @@ ancestries:
     - {name: Fire Resistance, cost: 2, no_effect: resistance}
     - {name: Short-Legged, cost: -1, todo: "grants {speed: -1}; build_engine.py l.267 name-matches this instead of reading data"}
     - {name: Small-Sized, cost: -1, no_effect: size}
-    - {name: Reckless, cost: -1, todo: "grants {pd: -1}"}
+    - {name: Reckless, cost: -1, grants: {pd: -1}}   # ancestries.md l.520
     # Natural Weapons
     - {name: Natural Weapon, cost: 1, no_effect: narrative}
     - {name: Extended Natural Weapon, cost: 2, no_effect: narrative}
