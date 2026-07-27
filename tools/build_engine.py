@@ -124,29 +124,70 @@ def all_entries(ledger, level):
             yield l, e
 
 
-def sum_grants(ledger, level, key):
-    total = 0
+# BUG-34 (2026-07-27): an entry can carry TWO grant dicts. `grants` is what the option itself
+# DECLARES (Expanded Disciplines: "{disciplines: 2}", i.e. two picks). `granted_effects` is the
+# DERIVED sum of what the chosen grant-children add up to (Magus + Warrior: "{mp:1, spells:1,
+# maneuvers:1}"), written by the builder from the catalog. They are kept apart so re-picking a
+# child rebuilds the derived half without ever touching the declared half. Both are summed here.
+GRANT_KEYS = ("grants", "granted_effects")
+
+
+def _entry_grants(obj, key, fold, val):
+    for gk in GRANT_KEYS:
+        g = obj.get(gk) or {}
+        if key in g:
+            val = fold(val, g[key])
+    return val
+
+
+def _grant_bearers(ledger, level):
     cg = ledger.get("chargen", {})
     for c in (cg.get("class_choices") or []):
-        total += (c.get("grants") or {}).get(key, 0)
+        yield c
     for t in (cg.get("ancestry_traits") or []):
-        total += (t.get("grants") or {}).get(key, 0)
+        yield t
     for _, e in all_entries(ledger, level):
-        total += (e.get("grants") or {}).get(key, 0)
+        yield e
+
+
+def sum_grants(ledger, level, key):
+    total = 0
+    for obj in _grant_bearers(ledger, level):
+        total = _entry_grants(obj, key, lambda a, b: a + b, total)
     return total
 
 
 def grant_flag(ledger, level, key, default=None):
     """Last non-None value of a NON-numeric grant flag (e.g. jump_from: might)."""
     val = default
-    cg = ledger.get("chargen", {})
-    for c in (cg.get("class_choices") or []):
-        val = (c.get("grants") or {}).get(key, val)
-    for t in (cg.get("ancestry_traits") or []):
-        val = (t.get("grants") or {}).get(key, val)
-    for _, e in all_entries(ledger, level):
-        val = (e.get("grants") or {}).get(key, val)
+    for obj in _grant_bearers(ledger, level):
+        val = _entry_grants(obj, key, lambda _a, b: b, val)
     return val
+
+
+def combat_training(ledger, level):
+    """BUG-34: the Combat Training a character actually holds, in acquisition order.
+
+    Base is the hand-authored `chargen.combat_training` (canon ledgers record the class's own
+    training there). On top of that, any option that grants training contributes: `training` on
+    the entry itself (a discipline picked first-class) and `granted_training`, the derived union
+    from grant-children (a discipline picked as a child of Expanded Disciplines). Warrior's
+    "Heavy Armor, Heavy Shield" reached neither before. Union, not sum: duplicates collapse.
+
+    NOTE the known gap this does NOT close: a SCRATCH build starts with an empty
+    chargen.combat_training because the class's base training is not catalog data yet, so a
+    scratch character shows only what its options granted. Filed as FR-48.
+    """
+    out = []
+    for t in (ledger.get("chargen", {}).get("combat_training") or []):
+        if t not in out:
+            out.append(t)
+    for obj in _grant_bearers(ledger, level):
+        for src in ("training", "granted_training"):
+            for t in (obj.get(src) or []):
+                if t not in out:
+                    out.append(t)
+    return out
 
 
 def replay(ledger, level, class_tables=None):

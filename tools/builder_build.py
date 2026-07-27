@@ -454,6 +454,7 @@ class BuilderAPI:
         self.aliases = self.cat['ancestries'].get('source_aliases', {})
         self._undo = []   # a STACK: one snapshot per add_level, so every
                           # level added this session can be undone in turn
+        self._resync_all_granted_effects()   # BUG-34: derived data, rebuilt on load
 
     # ---------- ancestry lists ----------
     def _declared_lists(self):
@@ -1197,6 +1198,23 @@ class BuilderAPI:
     def _skill_plan_options(self, level):
         return self._plan_options('skills', level)
 
+    def _child_pool(self, singular):
+        # BUG-34: the ONE place that answers "which catalog rows sit behind this pickable option
+        # kind". _options_for renders its labels from this, the chargen class-choice aggregate sums
+        # its grants from this, and _sync_granted_effects reads the grants of a CHOSEN child from
+        # this. Three readers, one list, so the offer and the effect cannot diverge (the rule that
+        # came out of BUG-31/32/33). Keyed by the SINGULAR slot name, i.e. the values in
+        # GRANT_CHILD_SLOTS, plus pact_boon which is a parent-only pick.
+        if singular == 'discipline':
+            return list(self.ccat.get('disciplines') or [])
+        if singular == 'pact_boon':
+            return list(self.ccat.get('pact_boons') or [])
+        if singular == 'rune':
+            return list(self.ccat.get('runes') or [])
+        if singular == 'metamagic':
+            return list((self.cat.get('metamagic') or {}).get('options') or [])
+        return []
+
     def _options_for(self, slot, restrict=None):
         if slot == 'ancestry_trait':
             return self._anc_options()
@@ -1218,22 +1236,22 @@ class BuilderAPI:
         if slot == 'discipline':
             return [{'name': d['name'], 'group': '',
                      'label': d['name'] + _fmt_grants(d.get('grants'))}
-                    for d in self.ccat.get('disciplines', [])]
+                    for d in self._child_pool('discipline')]
         if slot == 'pact_boon':
             return [{'name': b['name'], 'group': '',
                      'label': b['name'] + _fmt_grants(b.get('grants'))}
-                    for b in self.ccat.get('pact_boons', [])]
+                    for b in self._child_pool('pact_boon')]
         if slot == 'spell_school':
             return [{'name': s, 'group': '', 'label': s}
                     for s in self.cat['spell_schools']['schools']]
         if slot == 'rune':   # FR-8 slice 3 grant-child pickers (class-scoped: Spellblade runes in ccat)
-            pool = self.ccat.get('runes') or []
             return [{'name': r['name'], 'group': '',
-                     'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
+                     'label': r['name'] + _fmt_grants(r.get('grants'))}
+                    for r in self._child_pool('rune')]
         if slot == 'metamagic':   # FR-8 slice 4 grant-child pickers (cat-level, cross-class: reached via MC Sorcerer)
-            pool = (self.cat.get('metamagic') or {}).get('options') or []
             return [{'name': r['name'], 'group': '',
-                     'label': r['name'] + _fmt_grants(r.get('grants'))} for r in pool]
+                     'label': r['name'] + _fmt_grants(r.get('grants'))}
+                    for r in self._child_pool('metamagic')]
         if slot == 'spell_tagged':   # FR-8 slice 5 constrained spell grant-child (Eldritch Psychic-only)
             return self._spell_tagged_options()
         if slot == 'spell_any':      # BUG-30 any-list spell grant-child (MC Bard Magical Secrets)
@@ -1908,6 +1926,72 @@ class BuilderAPI:
             else:
                 prev = [] if changed else list(entry.get('granted_maneuvers') or [])
                 entry['granted_maneuvers'] = (prev + [UNDECIDED] * n)[:n]
+        self._sync_granted_effects(entry)   # BUG-34: children just changed, redo their derived total
+
+    def _sync_granted_effects(self, entry):
+        # BUG-34 (2026-07-27, Darryl in Chrome; shape (a), his call). The FR-8 child machinery
+        # assumed every grant-child is a LEAF: _set_grant_child writes the pick as a bare name
+        # string into granted_<resource>, and the engine's sum_grants only walks `grants` dicts. That
+        # holds for spells / maneuvers / runes / metamagic, and is false for DISCIPLINES, which carry
+        # their own grants. So a Magus picked as a child of Expanded Disciplines moved neither MP nor
+        # Spells, while the same Magus picked first-class moved both.
+        #
+        # The fix keeps the DECLARED grant and the DERIVED total in separate keys. The parent keeps
+        # `grants: {disciplines: 2}` (what the option promises: two picks), and gains
+        # `granted_effects: {mp: 1, spells: 1, maneuvers: 1}` (what the chosen children add up to),
+        # which the engine sums alongside `grants`. Re-picking a child just rebuilds the derived
+        # dict from scratch, so it can never drift, and no already-exported player ledger changes
+        # shape. `granted_training` is the same idea for the non-numeric half: Warrior's
+        # `training: [Heavy Armor, Heavy Shield]`, which never flowed from a picked discipline on
+        # ANY path (see _sync_training for the first-class half).
+        eff, trained = {}, []
+        for resource, singular in GRANT_CHILD_SLOTS.items():
+            if resource in PLAN_POINTBUY:
+                continue   # skill/trade point-buy children are "Name: Tier" strings, not catalog rows
+            pool = {r['name']: r for r in self._child_pool(singular)}
+            for pick in entry.get('granted_%s' % resource) or []:
+                row = pool.get(base_name(str(pick)))
+                if not row:
+                    continue   # undecided, or a name the catalog does not know
+                for key, val in (row.get('grants') or {}).items():
+                    if isinstance(val, bool) or not isinstance(val, (int, float)):
+                        eff[key] = val          # a non-numeric flag (jump_from: might): last wins
+                    else:
+                        eff[key] = eff.get(key, 0) + val
+                for t in row.get('training') or []:
+                    if t not in trained:
+                        trained.append(t)
+        for key, val in (('granted_effects', eff), ('granted_training', trained)):
+            if val:
+                entry[key] = val
+            else:
+                entry.pop(key, None)
+
+    def _sync_training(self, entry, row):
+        # BUG-34, the first-class half. A discipline's combat training (Warrior -> Heavy Armor,
+        # Heavy Shield) did not flow on ANY path, including a discipline picked normally, because
+        # _apply_grants copies `grants` and nothing else. Kept beside the grants copy rather than
+        # folded into it: training is a named list, not a number, so the engine unions it instead of
+        # summing it (see build_engine.combat_training).
+        t = list((row or {}).get('training') or [])
+        if t:
+            entry['training'] = t
+        else:
+            entry.pop('training', None)
+
+    def _resync_all_granted_effects(self):
+        # BUG-34: granted_effects is DERIVED, so rebuild it for every grant-bearing parent on load.
+        # A ledger written before this change (or hand-authored) then behaves the same as one edited
+        # in the builder, instead of quietly under-counting until the child happens to be re-picked.
+        # Provably a no-op on all six canon ledgers today: none of them carries granted_disciplines,
+        # and every rune / metamagic row is declared no_effect, which is why PARTY_DERIVED does not
+        # move. The harness baselines are the guard.
+        cg = self.ledger.get('chargen') or {}
+        for e in list(cg.get('class_choices') or []) + list(cg.get('ancestry_traits') or []):
+            self._sync_granted_effects(e)
+        for lvl in (self.ledger.get('levels') or {}):
+            for e in self.ledger['levels'][lvl] or []:
+                self._sync_granted_effects(e)
 
     def _set_grant_child(self, did, value):
         # write a grant-child pick into its parent's granted_<resource> list (see _grant_children).
@@ -1932,6 +2016,9 @@ class BuilderAPI:
         lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
         lst[k] = value
         entry['granted_%s' % resource] = lst
+        # BUG-34: a grant-child can itself be grant-bearing (a discipline), so rebuild the parent's
+        # derived total. Harmless for leaf kinds, which contribute nothing.
+        self._sync_granted_effects(entry)
         return self.state()
 
     def _grant_child_entry(self, parentref):
@@ -2182,6 +2269,10 @@ class BuilderAPI:
             'spells': spells, 'equipment': equipment,
             # FR-23: Stamina Regen trigger(s), derived catalog-driven by the shared engine helper.
             'stamina_regen': eng.stamina_regen(self.ledger, self.cat.get('stamina_regen') or {}),
+            # BUG-34: Combat Training, base + anything an option granted. It had no home on the
+            # sheet at all, which is why nobody noticed Warrior's Heavy Armor / Heavy Shield never
+            # arriving. Assert the artifact, not just the model (trap 3).
+            'combat_training': eng.combat_training(self.ledger, cur),
         })
 
     # ---------- edits ----------
@@ -2241,13 +2332,19 @@ class BuilderAPI:
                 changed = base_name(row_ch['picks'][pi]) != value
                 row_ch['picks'][pi] = value
                 # aggregate grants across picks (Magus mp/spells, Pact Weapon maneuvers, ...)
-                pool = ((self.ccat.get('disciplines') or []) + (self.ccat.get('pact_boons') or [])
-                        + (self.ccat.get('runes') or []))
-                agg = {}
+                # BUG-34: pools come from _child_pool, the single source the pickers render from,
+                # so this aggregate can never be offered an option it does not know how to score.
+                pool = (self._child_pool('discipline') + self._child_pool('pact_boon')
+                        + self._child_pool('rune'))
+                agg, trained = {}, []
                 for p in row_ch['picks']:
                     r = next((d for d in pool if d['name'] == p), None)
                     for k2, v2 in ((r or {}).get('grants') or {}).items():
                         agg[k2] = agg.get(k2, 0) + v2
+                    for t in ((r or {}).get('training') or []):   # BUG-34: first-class training
+                        if t not in trained:
+                            trained.append(t)
+                self._sync_training(row_ch, {'training': trained})
                 # FR-8 slice 2: apply grants + rebuild grant children, and clear stale
                 # granted_maneuvers/granted_spells on a real change - the chargen path did NOT do
                 # this before (the known slice-1 gap), now symmetric with the level pact_boon branch.
@@ -2269,10 +2366,11 @@ class BuilderAPI:
             if slot == 'ancestry_trait':
                 self._set_trait(e, value, entry=True)
             elif slot == 'discipline':
-                row = next((d for d in self.ccat.get('disciplines', [])
+                row = next((d for d in self._child_pool('discipline')
                             if d['name'] == value), {})
                 e['pick'] = value
                 self._apply_grants(e, row.get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
+                self._sync_training(e, row)   # BUG-34: Warrior's Heavy Armor / Heavy Shield
                 self._edited(e)
             elif slot == 'talent':
                 # BUG-33: one lookup over _talent_rows (general + mc_features + THIS class's
@@ -3051,6 +3149,9 @@ function shBuild(d){
   const srStr=sr.length
     ? sr.map(t=>`<b>${t.label}:</b> ${t.text}`).join('<br>')+(sr.length>1?'<br><span class="sh-note">Only 1 Stamina Regen benefit per Round.</span>':'')
     : 'None (no Stamina Regen)';
+  // BUG-34: Combat Training (base + option-granted, e.g. the Warrior Discipline's Heavy Armor).
+  const ct=d.combat_training||[];
+  const ctStr=ct.length?ct.map(shEsc).join(' &middot; '):'None recorded';
   const order=['Prime','Might','Agility','Charisma','Intelligence'];
   const byAttr={};
   d.skills.forEach(s=>{(byAttr[s.attr]=byAttr[s.attr]||[]).push(s);});
@@ -3125,6 +3226,7 @@ function shBuild(d){
           </div>
           <div class="sh-kv"><span class="lbl">Initiative</span><span class="val">+${c['Initiative']}</span></div>
           <div class="sh-kv"><span class="lbl">Spells / Maneuvers known</span><span class="val">${c['Spells known']} / ${c['Maneuvers known']}</span></div>
+          <div class="sh-kv" style="display:block"><span class="lbl">Combat Training</span><div style="font-weight:400;font-size:11px;margin-top:2px">${ctStr}</div></div>
         </div>
         <div class="sh-sec"><h3>Skills</h3>${skillHtml||'<div class="sh-note">None</div>'}</div>
         <div class="sh-sec"><h3>Trades</h3>${tradeHtml}</div>

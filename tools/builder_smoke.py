@@ -77,7 +77,8 @@ TRAIT_JOURNEYS = [
 # that is itself a failure ("BUG-xx looks fixed"), which forces the entry to be removed along with
 # the fix. Key = the `bug` string passed to ok(); value = a one-line reason.
 KNOWN_FAIL = {
-    "BUG-34": "granted disciplines apply nothing (grant-children are assumed to be leaves)",
+    # (BUG-34 retired 2026-07-28 with its fix: a grant-child's own grants now reach the model via
+    # the parent's derived `granted_effects`, so the check below is a live assertion again.)
 }
 
 FAILS = []
@@ -336,7 +337,7 @@ def j_class_talents(P):
             a = (P.stat("MP"), P.stat("Spells known"))
             ok("...and a granted Magus discipline still applies its own +1 MP / +1 spell",
                int(a[0]) - int(b[0]) == 1 and int(a[1]) - int(b[1]) == 1,
-               "MP/Spells %s -> %s" % (b, a), bug="BUG-34")
+               "MP/Spells %s -> %s" % (b, a))
         else:
             ok("a granted discipline picker offers Magus", False, kids[:3])
     P.start("barbarian")

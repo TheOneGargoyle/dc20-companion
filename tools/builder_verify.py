@@ -2727,6 +2727,109 @@ def check_bug35_paragon():
        len(plan) == 1 and plan[0]["plan"] and plan[0]["editable"], plan)
 
 
+def check_bug34_grant_child_effects():
+    """BUG-34 (2026-07-27, Darryl in Chrome; shape (a), his call). The FR-8 child machinery assumed
+    every grant-child is a LEAF, so a grant-bearing child applied nothing: a Magus picked under
+    Expanded Disciplines moved neither MP nor Spells, while the same Magus picked first-class moved
+    both. The fix keeps the DECLARED grant (`grants: {disciplines: 2}`) and the DERIVED total
+    (`granted_effects`) in separate keys and sums both in the engine.
+
+    The checks below deliberately measure the FIRST-CLASS pick and the CHILD pick against each
+    other: the whole bug was the two paths disagreeing, so equality is the property worth asserting,
+    not a hard-coded number that would drift with the catalog."""
+    print("## (GE) grant-bearing grant-children apply their own effects (BUG-34)")
+    STATS = ("MP", "Spells known", "Maneuvers known")
+
+    def snap(s):
+        return tuple(int(_stat(s, k)) for k in STATS)
+
+    # first-class reference: a chargen discipline pick, the path that always worked
+    ref = _fresh_at("spellblade", "Human")
+    s0 = json.loads(ref.state())
+    ch = [x for x in s0["decisions"] if x["slot"] == "discipline"]
+    base = snap(s0)
+    magus_first = snap(json.loads(ref.set_decision(ch[0]["id"], "Magus")))
+    warrior_first = snap(json.loads(ref.set_decision(ch[1]["id"], "Warrior")))
+    ok("reference: a first-class Magus moves MP and Spells",
+       tuple(a - b for a, b in zip(magus_first, base)) == (1, 1, 0),
+       "%s -> %s" % (base, magus_first))
+    # the same two disciplines, this time as grant-children of Expanded Disciplines
+    api = _fresh_at("spellblade", "Human", levels=2)
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "subclass"][-1]
+    s = json.loads(api.set_decision(d["id"], "Paragon"))
+    r = [x for x in s["decisions"] if x.get("restrict")][0]
+    s = json.loads(api.set_decision(r["id"], "Expanded Disciplines"))
+    kids = [x for x in s["decisions"]
+            if x["slot"] == "discipline" and str(x["id"]).startswith("GC#")]
+    ok("Expanded Disciplines spawns 2 grant-children", len(kids) == 2, [k["id"] for k in kids])
+    cbase = snap(s)
+    s = json.loads(api.set_decision(kids[0]["id"], "Magus"))
+    ok("a GRANTED Magus applies its own +1 MP / +1 spell, same as first-class",
+       tuple(a - b for a, b in zip(snap(s), cbase))
+       == tuple(a - b for a, b in zip(magus_first, base)),
+       "%s -> %s" % (cbase, snap(s)))
+    mid = snap(s)
+    s = json.loads(api.set_decision(kids[1]["id"], "Warrior"))
+    ok("a GRANTED Warrior applies its own +1 maneuver, same as first-class",
+       tuple(a - b for a, b in zip(snap(s), mid))
+       == tuple(a - b for a, b in zip(warrior_first, magus_first)),
+       "%s -> %s" % (mid, snap(s)))
+    parent = [e for lv in api.ledger["levels"] for e in api.ledger["levels"][lv]
+              if e.get("granted_disciplines")][0]
+    ok("the DECLARED grant is left alone; the derived total lives in granted_effects",
+       parent.get("grants") == {"disciplines": 2}
+       and parent.get("granted_effects") == {"mp": 1, "spells": 1, "maneuvers": 1},
+       (parent.get("grants"), parent.get("granted_effects")))
+    # re-picking a child REBUILDS the derived dict rather than accumulating into it
+    s = json.loads(api.set_decision(kids[0]["id"], "Acolyte"))   # Acolyte is no_effect
+    ok("re-picking a child rebuilds granted_effects (Magus -> Acolyte drops its half)",
+       parent.get("granted_effects") == {"maneuvers": 1}
+       and tuple(a - b for a, b in zip(snap(s), cbase)) == (0, 0, 1),
+       (parent.get("granted_effects"), cbase, snap(s)))
+    # combat training: the non-numeric half, on BOTH paths, and it must reach the sheet
+    ok("a granted Warrior brings its combat training to the sheet",
+       json.loads(api.sheet()).get("combat_training") == ["Heavy Armor", "Heavy Shield"],
+       json.loads(api.sheet()).get("combat_training"))
+    ok("...and so does a first-class Warrior (the gap was on every path)",
+       json.loads(ref.sheet()).get("combat_training") == ["Heavy Armor", "Heavy Shield"],
+       json.loads(ref.sheet()).get("combat_training"))
+    canon = builder_api.BuilderAPI("xanwyn", CATPATHS)
+    ok("a canon ledger still shows its hand-authored combat training, unchanged",
+       json.loads(canon.sheet()).get("combat_training")
+       == ["Weapons", "Spell Focuses", "Light Armor", "Light Shields"],
+       json.loads(canon.sheet()).get("combat_training"))
+    # the BUG-21 sibling path: a SUBCLASS that grants a discipline routes through the same code
+    api = _fresh_at("spellblade", "Human", levels=2)
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "subclass"][-1]
+    s = json.loads(api.set_decision(d["id"], "Paladin"))   # grants 1 discipline, pre-filled Acolyte
+    kid = [x for x in s["decisions"]
+           if x["slot"] == "discipline" and str(x["id"]).startswith("GC#")]
+    pbase = snap(s)
+    ok("Paladin's granted discipline slot exists and pre-fills Acolyte (BUG-21 intact)",
+       len(kid) == 1 and kid[0]["pick"] == "Acolyte", kid and kid[0]["pick"])
+    if kid:
+        s = json.loads(api.set_decision(kid[0]["id"], "Magus"))
+        ok("...and swapping it to Magus applies +1 MP / +1 spell through the subclass path too",
+           tuple(a - b for a, b in zip(snap(s), pbase)) == (1, 1, 0),
+           "%s -> %s" % (pbase, snap(s)))
+    # all six canon ledgers are untouched by the load-time resync (the PARTY_DERIVED guarantee)
+    for h in ("tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"):
+        a = builder_api.BuilderAPI(h, CATPATHS)
+        found = [e for e in _all_grant_bearers(a.ledger) if e.get("granted_effects")]
+        ok("%-10s load-time resync adds no granted_effects (PARTY_DERIVED safe)" % h,
+           not found, found[:2])
+
+
+def _all_grant_bearers(ledger):
+    cg = ledger.get("chargen") or {}
+    out = list(cg.get("class_choices") or []) + list(cg.get("ancestry_traits") or [])
+    for lvl in (ledger.get("levels") or {}):
+        out += list(ledger["levels"][lvl] or [])
+    return out
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -2772,6 +2875,7 @@ def main():
         check_ch5_tier1()
         check_bug33_class_talents()
         check_bug35_paragon()
+        check_bug34_grant_child_effects()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2803,6 +2907,7 @@ def main():
     print("       CH-5 Tier-1 seven ancestry traits move their derived stat (incl. grants_unarmored on traits)")
     print("       BUG-33 class talents resolve in the pick path and apply their grants (anti-mirror guard)")
     print("       BUG-35 Paragon grants a class-talent picker + 1 Trade Point on all five classes (L3/L7/L10)")
+    print("       BUG-34 a grant-bearing grant-child applies its own effects (derived granted_effects + training)")
     sys.exit(0)
 
 
