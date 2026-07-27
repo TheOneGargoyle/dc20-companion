@@ -110,6 +110,20 @@ subclass_grants:
     languages:
     - name: Deep Speech
       fluency: Fluent
+  Paragon:
+    grants:
+      trade_points: 1
+    level_riders:
+      3:
+      - slot: talent
+        restrict: class_talents
+      7:
+      - slot: talent
+        restrict: class_talents
+      10:
+      - slot: talent
+        restrict: class_talents
+    source: character-creation.md l.757-780 (Novice / Expert / Master Paragon)
 spellcasting:
   model: schools
   schools_chosen: 3

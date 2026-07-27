@@ -994,8 +994,16 @@ class BuilderAPI:
         return [{'name': m, 'group': typ, 'label': '%s (%s)' % (m, typ)}
                 for typ, lst in self.cat['maneuvers']['maneuvers'].items() for m in lst]
 
-    def _talent_options(self):
+    def _talent_options(self, restrict=None):
+        # BUG-35: `restrict='class_talents'` narrows the picker to THIS class's class talents, which
+        # is what a Paragon subclass grant owes ("a Class Talent of your choice from your Class").
+        # Same rows _talent_rows() resolves against, just a narrower offer, so the anti-mirror (CT)
+        # check still covers it.
         t = self.cat['talents']
+        if restrict == 'class_talents':
+            return [{'name': r['name'], 'group': self.cls + ' talents',
+                     'label': '%s (%s talent)' % (r['name'], self.cls)}
+                    for r in (t.get('class_talents') or {}).get(self.cls, [])]
         opts = [{'name': r['name'], 'group': 'General', 'label': r['name'] + ' (General)'}
                 for r in t['general']]
         for r in t['class_talents'].get(self.cls, []):
@@ -1189,7 +1197,7 @@ class BuilderAPI:
     def _skill_plan_options(self, level):
         return self._plan_options('skills', level)
 
-    def _options_for(self, slot):
+    def _options_for(self, slot, restrict=None):
         if slot == 'ancestry_trait':
             return self._anc_options()
         if slot == 'spell':
@@ -1199,7 +1207,7 @@ class BuilderAPI:
         if slot == 'maneuver':
             return self._maneuver_options()
         if slot == 'talent':
-            return self._talent_options()
+            return self._talent_options(restrict)   # BUG-35: Paragon's rider is class-talents-only
         if slot == 'attribute':
             # BUG-5: capitalise for display only; value (name) stays lower-case as stored.
             return [{'name': a, 'group': '', 'label': a.title()} for a in ATTRS]
@@ -1542,6 +1550,7 @@ class BuilderAPI:
                                     e.get('cost'), bool(e.get('inferred')), editable,
                                     note=e.get('note'), plan=is_plan, plan_editable=plan_edit,
                                     spell_source=e.get('source'),   # FR-13a slice 2: source-filter flat path spells
+                                    restrict=e.get('restrict'),     # BUG-35: Paragon's class-talents-only rider
                                     # BUG-16: maneuver/spell budget slots are NOT removable. They are a
                                     # fixed-count pool (base class table + path riders + grants) that the
                                     # engine budgets but does NOT count entry-by-entry, and nothing
@@ -1630,7 +1639,7 @@ class BuilderAPI:
         return [t[4] for t in meta]
 
     def _dec(self, did, lvl, slot, pick, cost, inferred, editable, note=None, plan=False,
-             removable=False, plan_editable=False, spell_source=None):
+             removable=False, plan_editable=False, spell_source=None, restrict=None):
         # FR-3: a builder-generated PLAN row (a level above current_level) is an editable
         # picker so a player can fill in the plan; a hand-authored locked plan (e.g.
         # Tanrielle's L5/L6) has no plan_editable flag and stays a read-only preview.
@@ -1640,6 +1649,8 @@ class BuilderAPI:
              'inferred': inferred, 'editable': eff_edit, 'plan': plan,
              'widget': 'picker' if eff_edit else 'fixed',
              'removable': removable}
+        if restrict:
+            d['restrict'] = restrict   # BUG-35: surfaced so the harness can assert the narrowing
         if note:
             d['note'] = note
             if str(note).startswith('Replaced composite') or 'Overflow' in str(note):
@@ -1649,7 +1660,7 @@ class BuilderAPI:
         if (not plan) and not (editable and not plan) and slot in REPLACEABLE_SLOTS \
                 and str(pick) != UNDECIDED and is_composite(pick):
             d['replaceable'] = True
-            d['options'] = self._options_for(slot)
+            d['options'] = self._options_for(slot, restrict)
             # (The old one-click "expand into per-level slots" reconcile that lived here was
             # RETIRED 2026-07-19: it flattened FIXED grants (pact-boon maneuvers) into the flat
             # pool alongside their granted_ list, which is exactly the double-count the grants-only
@@ -1665,7 +1676,10 @@ class BuilderAPI:
                 # through to the class options unchanged.
                 opts = self._spell_sourced_options(spell_source)
             else:
-                opts = self._options_for(slot)
+                # BUG-35: an entry can NARROW its own picker (Paragon's rider talent is restricted
+                # to this class's class talents). Only the talent slot reads it today; the plumbing
+                # is generic so the next constrained grant is a data edit.
+                opts = self._options_for(slot, restrict)
             if slot in FR7_FILTER_SLOTS:  # FR-7: hide options already taken elsewhere
                 mine = base_name(pick) if slot in ('spell', 'maneuver', 'talent') else str(pick)
                 taken = self._chosen_names(slot) - ({mine} if str(pick) != UNDECIDED else set())
@@ -2288,6 +2302,10 @@ class BuilderAPI:
                     if _want not in self._chosen_names(GRANT_CHILD_SLOTS.get(_res, _res)):
                         _lst[0] = _want
                 self._edited(e)
+                # BUG-35: a subclass can owe REAL sibling entries at named levels (Paragon's Class
+                # Talent at L3/L7/L10). Sweep after the pick so switching away from Paragon takes
+                # its rider with it.
+                self._sync_subclass_rider(e)
             elif slot == 'pact_boon':
                 changed = base_name(e.get('pick')) != value
                 row = next((b for b in (self.ccat.get('pact_boons') or []) if b['name'] == value), {})
@@ -2388,6 +2406,59 @@ class BuilderAPI:
         if want:
             ents.append({'slot': want, 'pick': UNDECIDED,
                          'source': 'path rider (%s)' % path, 'note': BUILDER_NOTE})
+
+    def _sync_subclass_rider(self, e=None):
+        # BUG-35: a subclass can owe entries the grants dict cannot express. Paragon owes "a Class
+        # Talent of your choice from your Class" at L3, L7 and L10 (character-creation.md
+        # l.757-780), and a Class Talent carries its own grants, so it has to be a REAL sibling
+        # entry rather than a grant-child (a grant-child is stored as a bare name and treated as a
+        # leaf, which is BUG-34). The catalog declares them as `level_riders: {level: [{slot,
+        # restrict}]}`, so a second subclass with the same shape is a data edit.
+        #
+        # Rebuild-from-scratch, like the path/talent riders: drop every builder-added subclass
+        # rider across ALL levels first, then re-add for the CURRENT subclass. So re-picking
+        # Paragon -> Rune Knight removes the talent slot, and levelling to 7 with Paragon already
+        # held picks up the next one (add_level calls this too). Canon-recorded picks are never
+        # touched: the rider only fires for a builder-touched subclass entry, because a
+        # hand-authored ledger already records the talent it chose as its own entry.
+        levels = self.ledger.get('levels') or {}
+        held = {}   # (level, slot) -> [detached rider entries, in order]
+        for lvl in list(levels):
+            for r in list(levels[lvl] or []):
+                if str(r.get('source', '')).startswith('subclass rider') \
+                        and BUILDER_NOTE in str(r.get('note', '')):
+                    levels[lvl].remove(r)
+                    held.setdefault((int(lvl), r.get('slot')), []).append(r)
+        if e is None:
+            e = next((x for lv in sorted(levels) for x in (levels[lv] or [])
+                      if x.get('slot') == 'subclass'), None)
+        if e is None or 'in builder' not in str(e.get('note', '')):
+            return
+        name = base_name(str(e.get('pick') or ''))
+        sg = (self.ccat.get('subclass_grants') or {}).get(name) or {}
+        cur = self.ledger['current_level']
+        for rlvl, riders in (sg.get('level_riders') or {}).items():
+            rlvl = int(rlvl)
+            if rlvl not in levels:
+                continue   # that level does not exist yet; add_level re-syncs when it does
+            for rider in riders or []:
+                # Re-attach the SAME entry when one was just detached for this level+slot, so a
+                # re-sync (levelling up, re-picking the same subclass) keeps a talent the player
+                # already chose, along with its grants and any child slots. Only a genuine change
+                # of subclass leaves it detached, which is the intended clear.
+                pool = held.get((rlvl, rider['slot'])) or []
+                d = pool.pop(0) if pool else {'slot': rider['slot'], 'pick': UNDECIDED,
+                                              'note': BUILDER_NOTE}
+                d['source'] = 'subclass rider (%s)' % name
+                if rider.get('restrict'):
+                    d['restrict'] = rider['restrict']
+                else:
+                    d.pop('restrict', None)
+                if rlvl > cur:
+                    d['plan_edit'] = True   # FR-3: a rider on a PLANNED level is still fillable
+                else:
+                    d.pop('plan_edit', None)
+                levels[rlvl].append(d)
 
     def _sync_talent_rider(self, lvl, e):
         # the Attribute Increase General Talent grants Attribute Points; spawn that many
@@ -2613,6 +2684,10 @@ class BuilderAPI:
             levels[new] = self._gen_level_slots(new)   # generate slots from the class spine
         # else: PROMOTE the existing plan level - its entries simply become current
         self.ledger['current_level'] = new
+        # BUG-35: a subclass rider owed at THIS level (Paragon's Class Talent at L7/L10) only
+        # becomes placeable once the level block exists. Re-syncing keeps any rider pick already
+        # made on a promoted plan level (see _sync_subclass_rider).
+        self._sync_subclass_rider()
         if self.ledger.get('expected') is not None:
             # the sheet totals documented the OLD level; keep them as history, the new
             # level's numbers now come FROM the builder
@@ -2636,6 +2711,7 @@ class BuilderAPI:
                            'expected': copy.deepcopy(self.ledger.get('expected')),
                            'had_block': new in levels, 'block': copy.deepcopy(levels.get(new))})
         levels[new] = self._gen_level_slots(new, plan=True)
+        self._sync_subclass_rider()   # BUG-35: a planned L7/L10 owes Paragon's next Class Talent
         return self.state()
 
     def undo_add_level(self):

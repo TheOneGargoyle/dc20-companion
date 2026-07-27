@@ -2629,6 +2629,104 @@ def check_bug33_class_talents():
        int(after) - int(before) == 1, "%s -> %s" % (before, after))
 
 
+def _earned_tp(s):
+    """Trade points EARNED, read off the budgets readout (the surface a player actually sees)."""
+    for b in s["budgets"]:
+        if b.startswith("Trade points"):
+            return int(re.search(r"earned (\d+)", b).group(1))
+    return None
+
+
+def _sub_pick(api, name):
+    s = json.loads(api.state())
+    d = [x for x in s["decisions"] if x["slot"] == "subclass"][-1]
+    return d, json.loads(api.set_decision(d["id"], name))
+
+
+def check_bug35_paragon():
+    """BUG-35 (2026-07-27): Paragon is the one UNIVERSAL subclass and it granted NOTHING on any of
+    the five classes. RAW (character-creation.md l.757-780): Novice Paragon at L3 = a Class Talent
+    of your choice FROM YOUR CLASS, plus Jack of one Trade = 1 Trade Point; Expert (L7) and Master
+    (L10) each grant another Class Talent.
+
+    The Class Talent is a REAL sibling entry, not a grant-child, because a class talent carries its
+    own grants and a grant-child is treated as a leaf (BUG-34). So the checks below assert the two
+    halves that matter: the picker is narrowed to this class's class talents, and a talent picked
+    through it moves the derived stat. Plus the artifact (trap 3): it must reach the sheet."""
+    print("## (PG) Paragon subclass: class-talent rider + Trade Point, all five classes (BUG-35)")
+    UND = "(undecided)"
+    for cls in ("barbarian", "spellblade", "warlock", "commander", "druid"):
+        api = _fresh_at(cls, "Human", levels=2)      # -> current level 3, where Subclass is chosen
+        s0 = json.loads(api.state())
+        d, s = _sub_pick(api, "Paragon")
+        riders = [x for x in s["decisions"] if x.get("restrict") == "class_talents"]
+        want = [r["name"] for r in
+                (api.cat["talents"].get("class_talents") or {}).get(api.cls, [])]
+        ok("%-11s Paragon spawns exactly 1 class-talent picker at L3" % cls,
+           len(riders) == 1 and riders[0]["level"] == 3,
+           [(x["level"], x["slot"]) for x in riders])
+        ok("%-11s ...offering this class's class talents and nothing else" % cls,
+           bool(want) and riders and [o["name"] for o in riders[0]["options"]] == want,
+           riders and [o["name"] for o in riders[0]["options"]])
+        ok("%-11s ...and Jack of one Trade adds 1 Trade Point" % cls,
+           _earned_tp(s) - _earned_tp(s0) == 1,
+           "%s -> %s" % (_earned_tp(s0), _earned_tp(s)))
+        # re-picking a DIFFERENT subclass takes the rider and the trade point with it
+        other = [o["name"] for o in d["options"] if o["name"] != "Paragon"][0]
+        s2 = json.loads(api.set_decision(d["id"], other))
+        ok("%-11s ...both are withdrawn when the subclass changes (-> %s)" % (cls, other),
+           not [x for x in s2["decisions"] if x.get("restrict")]
+           and _earned_tp(s2) == _earned_tp(s0),
+           "%d rider(s), TP %s" % (len([x for x in s2["decisions"] if x.get("restrict")]),
+                                   _earned_tp(s2)))
+    # the granted talent APPLIES its grants (the whole point of it being a real entry, not a child)
+    api = _fresh_at("barbarian", "Human", levels=2)
+    before = _stat(json.loads(api.state()), "Jump Distance")
+    _, s = _sub_pick(api, "Paragon")
+    r = [x for x in s["decisions"] if x.get("restrict")][0]
+    s = json.loads(api.set_decision(r["id"], "Unfathomable Strength"))
+    ok("a Paragon-granted class talent applies its grant (+1 Jump Distance)",
+       int(_stat(s, "Jump Distance")) - int(before) == 1,
+       "%s -> %s" % (before, _stat(s, "Jump Distance")))
+    sh = json.loads(api.sheet())
+    ok("...and reaches the character sheet's talent group",
+       any(t.get("pick") == "Unfathomable Strength"
+           for t in (sh.get("abilities") or {}).get("talent") or []),
+       (sh.get("abilities") or {}).get("talent"))
+    # a child-slot grant still spawns its children through the rider (Spellblade)
+    api = _fresh_at("spellblade", "Human", levels=2)
+    _, s = _sub_pick(api, "Paragon")
+    n0 = len([x for x in s["decisions"] if x["slot"] == "discipline"])
+    r = [x for x in s["decisions"] if x.get("restrict")][0]
+    s = json.loads(api.set_decision(r["id"], "Expanded Disciplines"))
+    ok("a Paragon-granted Expanded Disciplines still spawns its 2 discipline child-pickers",
+       len([x for x in s["decisions"] if x["slot"] == "discipline"]) - n0 == 2,
+       "%d -> %d" % (n0, len([x for x in s["decisions"] if x["slot"] == "discipline"])))
+    # L7 / L10: the next Class Talent arrives with the level, and the L3 pick survives the re-sync
+    api = _fresh_at("spellblade", "Human", levels=2)
+    _, s = _sub_pick(api, "Paragon")
+    r = [x for x in s["decisions"] if x.get("restrict")][0]
+    json.loads(api.set_decision(r["id"], "Sling-Blade"))
+    for _ in range(4):                                  # L3 -> L7
+        s = json.loads(api.add_level())
+    got = sorted((x["level"], x["pick"]) for x in s["decisions"] if x.get("restrict"))
+    ok("Expert Paragon adds a second class-talent picker at L7, L3's pick untouched",
+       got == [(3, "Sling-Blade"), (7, UND)], got)
+    for _ in range(3):                                  # L7 -> L10
+        s = json.loads(api.add_level())
+    got = sorted((x["level"], x["pick"]) for x in s["decisions"] if x.get("restrict"))
+    ok("Master Paragon adds a third at L10, earlier picks untouched",
+       got == [(3, "Sling-Blade"), (7, UND), (10, UND)], got)
+    # a PLANNED L7 gets its rider too, and it is fillable (FR-3)
+    api = _fresh_at("commander", "Human", levels=2)
+    _sub_pick(api, "Paragon")
+    for _ in range(4):
+        s = json.loads(api.add_planned_level())
+    plan = [x for x in s["decisions"] if x.get("restrict") and x["level"] == 7]
+    ok("a planned L7 carries the Expert Paragon picker and it is editable",
+       len(plan) == 1 and plan[0]["plan"] and plan[0]["editable"], plan)
+
+
 def main():
     global CATPATHS, builder_api
     check_page()
@@ -2673,6 +2771,7 @@ def main():
         check_sheet_groups()
         check_ch5_tier1()
         check_bug33_class_talents()
+        check_bug35_paragon()
     finally:
         os.chdir(old)
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2703,6 +2802,7 @@ def main():
     print("       grants-only unification + maneuver/spell auto-heal (read-only fixed grants; ready-slot chaining; reconcile retired)")
     print("       CH-5 Tier-1 seven ancestry traits move their derived stat (incl. grants_unarmored on traits)")
     print("       BUG-33 class talents resolve in the pick path and apply their grants (anti-mirror guard)")
+    print("       BUG-35 Paragon grants a class-talent picker + 1 Trade Point on all five classes (L3/L7/L10)")
     sys.exit(0)
 
 

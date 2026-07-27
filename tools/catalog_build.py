@@ -21,6 +21,7 @@ Usage:  python3 tools/catalog_build.py            # writes builds/catalog/<class
         python3 tools/catalog_build.py --check     # build in memory, print, don't write
 """
 import argparse
+import copy
 import os
 import re
 import sys
@@ -99,6 +100,30 @@ SUBCLASS_GRANTS = {
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
 
+# BUG-35: Paragon is the one UNIVERSAL subclass (every class's list ends with it) and it granted
+# nothing at all. character-creation.md l.757-780: Novice Paragon at L3 = "a Class Talent of your
+# choice from your Class" plus Jack of one Trade = 1 Trade Point; Expert Paragon (L7) and Master
+# Paragon (L10) each grant another Class Talent.
+#
+# Two shapes, deliberately different:
+#   * the Trade Point is an ordinary numeric grant (`trade_points`, which is the key the engine's
+#     sum_grants adds to earned_tp - NOT `trades`, which is the FR-3/FR-17 plan point-buy carrier).
+#   * the Class Talents are `level_riders`: REAL sibling talent entries spawned at the named level,
+#     not grant-children. A grant-child is written as a bare name string and the engine assumes it
+#     is a leaf, so a grant-bearing child applies nothing (that is BUG-34); a class talent is very
+#     much grant-bearing (Unfathomable Strength {jump:1}, Expanded Disciplines {disciplines:2}).
+#     As a real entry it goes down the ordinary talent path, which applies grants (BUG-33) and
+#     runs the talent rider, for free.
+#   `restrict: class_talents` narrows the picker to THIS class's class_talents, which is what RAW
+#   says and what the general talent picker cannot express.
+PARAGON = {
+    "grants": {"trade_points": 1},
+    "level_riders": {3: [{"slot": "talent", "restrict": "class_talents"}],
+                     7: [{"slot": "talent", "restrict": "class_talents"}],
+                     10: [{"slot": "talent", "restrict": "class_talents"}]},
+    "source": "character-creation.md l.757-780 (Novice / Expert / Master Paragon)",
+}
+
 CLASS_CONFIG = {
     "Spellblade": {
         "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.2759-3048 + rules/tables.md l.157-170",
@@ -142,6 +167,14 @@ CLASS_CONFIG = {
         "spellcasting": {"model": "source", "source": "Primal"},
     },
 }
+
+# BUG-35: Paragon is offered by EVERY class, so its grants are attached to every class rather
+# than hand-listed five times (a hand-kept mirror of CLASS_CONFIG is exactly the duplicate-list
+# trap behind BUG-31/32/33). A fresh copy per class so the YAML dump never emits an alias, and
+# so a future per-class tweak cannot leak sideways. The name is still checked against the parsed
+# subclass list in build(), so this fails loudly if a class ever stops offering Paragon.
+for _cls in CLASS_CONFIG:
+    SUBCLASS_GRANTS.setdefault(_cls, {})["Paragon"] = copy.deepcopy(PARAGON)
 
 # map CLASS_TABLES keys -> catalog spine keys (human-readable)
 KEYMAP = {"hp": "hp", "attr": "attribute_points", "skill": "skill_points",
