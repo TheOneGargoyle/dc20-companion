@@ -86,17 +86,26 @@ assert t.count(old)==1, 'anchor moved: sum_grants'
 open(p,'w',encoding='utf-8').write(t.replace(old,new,1))
 \""
 
-# 2. The KNOWN_FAIL registry must be load-bearing rather than decorative: drop the BUG-36 entry
-#    and the real, still-open bug has to surface as a failure instead of staying hidden.
-#    RETIRE THIS CASE when BUG-36 is fixed and its RT_KNOWN_FAIL entry is removed.
-run_case "RT_KNOWN_FAIL entry dropped (BUG-36 must resurface)" \
-  "ancestry-point budget" \
+# 2. The RT_KNOWN_FAIL registry must be load-bearing rather than decorative. Until 2026-07-28 this
+#    case proved that by DROPPING the BUG-36 entry so the real bug resurfaced. BUG-36 is now fixed
+#    and the registry is empty, which is trap 4 waiting to happen: an empty collection passes every
+#    assertion about its members, so the reverse-assertion at the bottom of _rt_check_option ("it
+#    now WORKS, retire the entry") would sit there with zero coverage and rot. So the mutation was
+#    inverted: ADD an entry for an option that demonstrably works, and the guard must fire.
+#    This one case buys two things. It exercises the registry machinery, and because the guard only
+#    trips when the budget genuinely MOVES, it also proves the BUG-36 fix is still live. That makes
+#    it a whole-budget grant assertion (nothing spawns, no stat changes), a shape no other case
+#    covers. If a future bug repopulates RT_KNOWN_FAIL, swap the entry here for one that is still
+#    broken and flip the expectation back to the old "must resurface" form.
+run_case "RT_KNOWN_FAIL entry added for a WORKING option (guard must fire)" \
+  "it now WORKS" \
   "python3 -c \"
 p='tools/builder_verify.py'
 t=open(p,encoding='utf-8').read()
-old='    \\\"Ancestry Increase\\\": \\\"BUG-36\\\",'
-assert t.count(old)==1, 'anchor moved: RT_KNOWN_FAIL BUG-36 (fixed? retire this case)'
-open(p,'w',encoding='utf-8').write(t.replace(old,'',1))
+old='RT_KNOWN_FAIL = {}'
+new='''RT_KNOWN_FAIL = {'Ancestry Increase': 'BUG-36'}'''
+assert t.count(old)==1, 'anchor moved: RT_KNOWN_FAIL (repopulated? see the note above)'
+open(p,'w',encoding='utf-8').write(t.replace(old,new,1))
 \""
 
 # 3. A brand-new grant key must not ship unasserted. This is trap 2 (never hand-maintain a list

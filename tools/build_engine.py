@@ -157,6 +157,39 @@ def sum_grants(ledger, level, key):
     return total
 
 
+def ancestry_grant_levels(ledger, level, table):
+    """Every level (<= `level`) at which the character GAINED ancestry points.
+
+    L1 always grants the starting 5. Class tables add 2 at each "2 Ancestry Points" feature
+    (L4/L8). BUG-36: an option can grant them too (the Ancestry Increase General Talent grants
+    4), and those points are gained at the level the option was taken. Drives where the FR-9
+    ready slot renders (BUG-18) and the builder's "add a trait at level L" dropdown, which
+    used to be two hand-maintained copies of the same list (trap 2).
+    """
+    lvls = {1}
+    lvls |= {l for l in range(2, level + 1)
+             if "2 Ancestry Points" in (table.get(l, {}).get("features") or [])}
+    for l, e in all_entries(ledger, level):
+        if _entry_grants(e, "ancestry_points", lambda a, b: a + b, 0):
+            lvls.add(l)
+    return sorted(lvls)
+
+
+def ancestry_budget(ledger, level, table):
+    """The ancestry-point budget: the ONE definition, shared with the builder API.
+
+    5 at L1, +2 per "2 Ancestry Points" class-table feature, plus every `ancestry_points`
+    grant a chosen option declares. BUG-36 (2026-07-28): that last term was missing from both
+    consumers, so the Ancestry Increase General Talent declared {ancestry_points: 4} and the
+    budget stayed at 5. The builder's _anc_budget calls this rather than re-deriving it, so the
+    engine and the builder cannot drift apart again.
+    """
+    return (ANCESTRY_POINTS_L1
+            + 2 * sum(1 for l in range(2, level + 1)
+                      if "2 Ancestry Points" in (table.get(l, {}).get("features") or []))
+            + sum_grants(ledger, level, "ancestry_points"))
+
+
 def grant_flag(ledger, level, key, default=None):
     """Last non-None value of a NON-numeric grant flag (e.g. jump_from: might)."""
     val = default
@@ -240,8 +273,7 @@ def replay(ledger, level, class_tables=None):
     anc_spent = sum(t.get("cost", 0) for t in cg.get("ancestry_traits", []))
     anc_spent += sum(e.get("cost", 0) for _, e in all_entries(ledger, level)
                      if e.get("slot") == "ancestry_trait")
-    anc_budget = ANCESTRY_POINTS_L1 + 2 * sum(
-        1 for l in range(2, level + 1) if "2 Ancestry Points" in table.get(l, {}).get("features", []))
+    anc_budget = ancestry_budget(ledger, level, table)   # BUG-36: includes ancestry_points grants
     if anc_spent != anc_budget:
         rep.problem(f"Ancestry points: {anc_spent} spent vs {anc_budget} budget")
     # BUG-17: Minor Ancestry Traits cost 0 Points and you may choose only ONE

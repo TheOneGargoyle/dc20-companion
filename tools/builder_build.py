@@ -574,11 +574,14 @@ class BuilderAPI:
         return opts
 
     def _anc_budget(self):
-        # FR-9: ancestry points spent vs the granted budget, mirroring the engine
-        # (build_engine.py: anc_spent + ANCESTRY_POINTS_L1 (=5) + 2 per "2 Ancestry Points"
-        # class-table feature at L2..current). Feeds the live "Ancestry points: N of M spent"
-        # readout and gates the auto empty-slot in _decisions. Only counts levels <= current
-        # (planned-level ancestry picks, if any, are speculative like the rest of a plan).
+        # FR-9: ancestry points spent vs the granted budget. Feeds the live "Ancestry points:
+        # N of M spent" readout and gates the auto empty-slot in _decisions. Only counts levels
+        # <= current (planned-level ancestry picks, if any, are speculative like the rest of a
+        # plan), which is also what eng.ancestry_budget's `level` argument enforces.
+        # BUG-36 (2026-07-28): the budget half USED to be re-derived here as 5 + 2 per class-table
+        # feature, a hand-maintained copy of the engine's version that never read `ancestry_points`
+        # grants, so Ancestry Increase ({ancestry_points: 4}) did nothing at all. It now calls the
+        # engine, which owns the one definition (trap 2: two copies of a list always drift).
         cg = self.ledger['chargen']
         cur = self.ledger['current_level']
         spent = sum(int(t.get('cost', 0) or 0) for t in (cg.get('ancestry_traits') or []))
@@ -588,9 +591,7 @@ class BuilderAPI:
             for e in es or []:
                 if e.get('slot') == 'ancestry_trait':
                     spent += int(e.get('cost', 0) or 0)
-        extra = sum(1 for l in sorted(self.ccat['spine'])
-                    if l <= cur and '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or []))
-        return spent, 5 + 2 * extra
+        return spent, eng.ancestry_budget(self.ledger, cur, self.ccat['spine'])
 
     def _anc_has_undecided(self):
         # FR-9: is there already an open (undecided) ancestry-trait slot anywhere? If so, the
@@ -602,15 +603,20 @@ class BuilderAPI:
         return any(e.get('slot') == 'ancestry_trait' and str(e.get('pick')) == UNDECIDED
                    for es in (self.ledger.get('levels') or {}).values() for e in es or [])
 
+    def _anc_grant_levels(self):
+        # Every level (<= current) that GAVE ancestry points. L1 always gives 5, L4/L8 add
+        # '2 Ancestry Points', and BUG-36 adds any level whose pick declares an ancestry_points
+        # grant. Owned by the engine so this and the state() 'anc_levels' dropdown are one list,
+        # not two copies of it. Read by _anc_ready_level (max) and by state().
+        return eng.ancestry_grant_levels(self.ledger, self.ledger['current_level'],
+                                         self.ccat['spine'])
+
     def _anc_ready_level(self):
         # BUG-18: the level at which to render the ready ancestry slot = the highest level
-        # (<= current) that granted ancestry points. L1 always grants 5; L4/L8 add '2 Ancestry
-        # Points'. Points are pooled, so after L4 the ready slot belongs in the L4 block where
-        # the user just gained them, not back at chargen.
-        cur = self.ledger['current_level']
-        lvls = [1] + [l for l in sorted(self.ccat['spine'])
-                      if l <= cur and '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or [])]
-        return max(lvls)
+        # (<= current) that granted ancestry points. Points are pooled, so after L4 the ready
+        # slot belongs in the L4 block where the user just gained them, not back at chargen.
+        # BUG-36: taking Ancestry Increase at L2 likewise surfaces its 4 points at L2.
+        return max(self._anc_grant_levels())
 
     def _anc_minor_count(self):
         # count of chosen Minor (0-cost) ancestry traits (excluding undecided ready slots).
@@ -2144,8 +2150,7 @@ class BuilderAPI:
         # the JS render loop indexes level_grants[lvl]). Supersedes the old cur+1-only
         # next-level echo. L1 (chargen starting kit) is included by design.
         level_grants = {l: self._level_grant(l) for l in list(range(1, cur + 1)) + planned}
-        anc_levels = [1] + [l for l in sorted(self.ccat['spine']) if l <= cur and
-                            '2 Ancestry Points' in (self.ccat['spine'][l].get('features') or [])]
+        anc_levels = self._anc_grant_levels()   # BUG-36: was a second copy of _anc_ready_level's list
         # FR-3: the next level a plan block can be appended to = one above the highest
         # existing level (completed, current, or already-planned), capped at the L10 ceiling.
         plan_level = max([cur] + list((self.ledger.get('levels') or {}).keys())) + 1

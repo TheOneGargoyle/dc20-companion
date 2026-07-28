@@ -35,7 +35,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-40 | Companion collapsible-section consistency pass (naming, stale notes, unlinked spells/maneuvers, missing sections) | feature | companion | P2 | ready (intake 2026-07-19; see note) |
 | FR-41 | Per-PC "signature plays" cheat sheet on the Companion, from the optimisation workshops (08/10-16) | feature | companion | P3 | ready (intake 2026-07-19) |
 | BUG-20 | Scratch: Human Trade Expertise (L1) not granting its cap+level free step | bug | builder+engine | P2 | ready (Tier-2, allocator-coupled; deferred 2026-07-25, see note) |
-| BUG-36 | Ancestry Increase (General Talent) grants nothing: it declares `grants: {ancestry_points: 4}` but `_anc_budget` never reads the key, so the ancestry-point budget stays at 5 | bug | builder | P2 | ready (found 2026-07-28 by FR-46; consumer gap, `RT_KNOWN_FAIL`, see note) |
 | BUG-26 | Scratch: Innate Power (MC Sorcerer, L2) not offering the Sorcerous Origin sub-choice / conditional +2 spells | bug | builder+catalog | P2 | ready (DEFERRED 2026-07-25 by Darryl, needs a design call, see note) |
 | FR-42 | Spellcasting Expansion (general talent) adds 1 Spell Source OR 3 Spell Schools: needs a sub-choice node so its 3 spells are drawn from the chosen widening | feature | builder+catalog | P3 | ready (spotted 2026-07-27 during BUG-30, see note) |
 | CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS (Tier-1 done 2026-07-27, 7 of 18 closed, 11 distinct left, see note) |
@@ -59,7 +58,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 - **The FR-12 / FR-13 epic** (full class + ancestry coverage, then live legality). GO, planned as a phased epic 2026-07-19, architecture in `FR12_PLAN.md`. Phase 0 (= FR-12.0) is done: `class_spines.yaml` is the authored source of truth and `CLASS_TABLES` is retired, so classes are data, not code. Remaining staircase: Phase 2 (full spell/maneuver legality data) -> Phase 3 (FR-12 class coverage) -> Phase 4 (subclass/ancestry breadth) -> Phase 5 (mobile picker UX).
 - **Rules-browser structure pass, one coherent job:** FR-32, FR-33, FR-34, FR-35. Three of the four carry a design call.
-- **Sub-choice and coverage leftovers from the scratch-mode wave:** BUG-20, BUG-26, BUG-36, FR-42, FR-47, FR-48, CH-4, CH-5. BUG-26, FR-42 and CH-5's attribute pickers are all the same sub-choice shape, so they want one slice.
+- **Sub-choice and coverage leftovers from the scratch-mode wave:** BUG-20, BUG-26, FR-42, FR-47, FR-48, CH-4, CH-5 (BUG-36 closed 2026-07-28). BUG-26, FR-42 and CH-5's attribute pickers are all the same sub-choice shape, so they want one slice.
 - **Independent polish:** FR-38, FR-39 (builder), FR-40, FR-41 (Companion), CH-6 (CI), FR-4 (scope call), FR-11 and FR-26 (parked).
 
 ---
@@ -69,14 +68,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 **BUG-20. Trade / Skill Expertise, the Tier-2 allocator-coupled one.** Reframed and deferred out of the 2026-07-25 option-effects slice. These are NOT flat grants: they raise the cap and level of a CHOSEN trade/skill, which the engine models with a `limit_raise` flag on that trade in the allocator. So the fix is a sub-choice plus allocator coupling, not a catalog `grants:` copy. Also carried as a `todo:` in the FR-44 coverage ledger, and FR-46's round-trip confirms both are genuinely inert today (no name-match is quietly covering them).
 
 **BUG-26. Innate Power / Sorcerous Origin. Needs a design call before building** (deferred 2026-07-25, Darryl's call). The reported L2 "Innate Sorcery" bug is really the **MC Sorcerer Innate Power** talent. Per `classes.md` l.2541 it gives +1 MP unconditionally, then a **Sorcerous Origin sub-choice** among Intuitive Magic / Resilient Magic / Unstable Magic, and **only Intuitive Magic grants the +2 spells** (Resilient = Dazed Resistance, Unstable = Wild Magic). The existing FR-13a slice-2 machinery DELIBERATELY conflates this: it models the sub-choice as the spell SOURCE (Arcane/Divine/Primal) and hard-authors Scaletrix's +2 Intuitive spells onto his ledger. Wiring it into scratch mode touches the most delicate builder code, with real regression risk to canon Scaletrix. Two shapes were captured: **(a)** minimal, "assume Intuitive" and reuse the source node, or **(b)** model the 3-way sub-choice and its conditional grant properly.
-
-**BUG-36. Ancestry Increase grants nothing** (found by FR-46 on its first run, 2026-07-28, with nobody looking for it).
-
-- **Symptom.** Take the `Ancestry Increase` General Talent at L2. It declares `grants: {ancestry_points: 4}`, so the ancestry-point budget should go 5 -> 9. It stays at 5, so the talent does nothing at all and a player who spends a talent slot on it gets no ancestry points.
-- **Where it breaks: the CONSUMER, not the data.** The grant is copied onto the ledger entry correctly (`{'slot': 'talent', 'pick': 'Ancestry Increase', 'grants': {'ancestry_points': 4}}`). `_anc_budget` computes the budget as `5 + 2 * <number of "2 Ancestry Points" class-table features>` and never looks at `ancestry_points` grants at all. The string `ancestry_points` appears ZERO times in `API_PY`.
-- **Why it went unnoticed.** Precisely the FR-44 blind spot: the option correctly DECLARES its effect, so the coverage ledger is satisfied, and nothing executed the declaration until FR-46. Seventh member of the BUG-19/22/24/25/27/30 family.
-- **The fix.** `_anc_budget` should add `sum_grants(..., 'ancestry_points')` over the grant-bearing entries, the same way the other numeric budgets are summed. Check at the same time that the FR-9 ancestry-point readout and the auto ready-slot gate both follow the raised budget, since both read `_anc_budget`.
-- **Trap:** it is carried as `RT_KNOWN_FAIL = {"Ancestry Increase": "BUG-36"}` in `builder_verify`, so the suite stays green meanwhile and fails loudly the moment it starts working. Retiring that entry is part of the fix.
 
 ---
 

@@ -2898,9 +2898,10 @@ RT_FIXED = {"Berserker": "barbarian",
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
 # KNOWN_FAIL registry: if one of these starts PASSING, that is a FAILURE, so the entry is
 # retired with the fix instead of rotting.
-RT_KNOWN_FAIL = {
-    "Ancestry Increase": "BUG-36",   # grants {ancestry_points: 4}; _anc_budget never reads it
-}
+# EMPTY is the goal state, not a bug in this file. BUG-36 ("Ancestry Increase") was the only
+# entry and was retired 2026-07-28 when the fix landed; the option is now asserted for real by
+# _rt_assert_grants via RT_ANC_POINTS. Re-populate this only with a filed bug ID.
+RT_KNOWN_FAIL = {}
 
 # Declared `todo` (the CH-5 burn-down) but the engine NAME-MATCHES them, so they already move
 # the right stat today: the data is inert, the behaviour is not. CH-5 makes these data-driven,
