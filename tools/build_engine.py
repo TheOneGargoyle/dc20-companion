@@ -157,6 +157,47 @@ def sum_grants(ledger, level, key):
     return total
 
 
+# The four Attributes. Per-attribute deltas are declared as `attr_<name>` grants
+# (CH-5, 2026-07-28), which is how an ancestry trait like Might Attribute Decrease moves a
+# stat without the engine name-matching the option. ATTR_FLOOR is the rules floor a decrease
+# may not push an Attribute below: "to a minimum of -2" (ancestries.md l.352, 383, 415, 451).
+ATTRIBUTES = ("might", "agility", "charisma", "intelligence")
+ATTR_FLOOR = -2
+ATTR_GRANT_PREFIX = "attr_"
+
+
+def attribute_deltas(ledger, level):
+    """Per-attribute deltas from `attr_<name>` grants, e.g. {"might": -1}.
+
+    The ONE definition, so the builder cannot re-derive a second copy (trap 2). Walks
+    chargen traits, class choices AND level entries via sum_grants, which means an
+    ancestry trait taken AT A LEVEL now moves the attribute too; the name-match this
+    replaced only ever read the chargen list.
+    """
+    return {a: sum_grants(ledger, level, ATTR_GRANT_PREFIX + a) for a in ATTRIBUTES}
+
+
+def unresolved_attribute_grants(ledger, level):
+    """COUNT of entries carrying a bare `attribute` grant, which is always a defect.
+
+    A targeted catalog option (`targets: attributes`) declares `grants: {attribute: N}` as a
+    placeholder; the builder rewrites the key to `attr_<chosen>` when it copies the grant onto the
+    ledger entry. A surviving bare key means some path copied the grant without resolving the
+    target, so it is reported rather than silently ignored: an inert grant is exactly the failure
+    mode the whole BUG-19/22/24/25/27/30/36 family shares.
+
+    Counting entries rather than SUMMING amounts is deliberate. Human offers both a +1 and a -1
+    targeted trait, so a sum would report 0 for the case where BOTH are unresolved, which is the
+    likeliest shape of a real defect here.
+    """
+    n = 0
+    for obj in _grant_bearers(ledger, level):
+        for gk in GRANT_KEYS:
+            if "attribute" in (obj.get(gk) or {}):
+                n += 1
+    return n
+
+
 def ancestry_grant_levels(ledger, level, table):
     """Every level (<= `level`) at which the character GAINED ancestry points.
 
@@ -245,11 +286,21 @@ def replay(ledger, level, class_tables=None):
     buy_cost = sum(v + 2 for v in attrs.values())
     if cg.get("attribute_method") == "point_buy" and buy_cost != POINT_BUY_POINTS:
         rep.problem(f"Point buy spends {buy_cost}, not {POINT_BUY_POINTS}")
-    for t in cg.get("ancestry_traits", []):
-        name = t["name"]
-        if name.startswith("Attribute Increase"):
-            target = name.split("(")[1].rstrip(")").strip().lower()
-            attrs[target] = attrs.get(target, 0) + 1
+    # CH-5 (2026-07-28): per-attribute deltas are DATA. This used to name-match
+    # "Attribute Increase" on the chargen trait list and parse the target out of the
+    # option name; both halves now come from `attr_<name>` grants on the entry.
+    for _a, _d in attribute_deltas(ledger, level).items():
+        if not _d:
+            continue
+        _was = attrs.get(_a, 0)
+        attrs[_a] = max(ATTR_FLOOR, _was + _d)
+        if attrs[_a] != _was + _d:
+            rep.add(f"Note: {_a} {_was}{_d:+d} clamped to the {ATTR_FLOOR} Attribute floor "
+                    f"(ancestries.md: to a minimum of -2)")
+    _stray = unresolved_attribute_grants(ledger, level)
+    if _stray:
+        rep.problem(f"{_stray} entry(s) carry an attribute grant with an unresolved target: "
+                    f"`attribute` was declared but nothing rewrote it to attr_<name>")
     attr_picks = [(l, e) for l, e in all_entries(ledger, level) if e.get("slot") == "attribute"]
     for l, e in attr_picks:
         pick = str(e.get("pick", "")).lower()
@@ -325,20 +376,11 @@ def replay(ledger, level, class_tables=None):
     save_bonus = (sum(it.get("saves", 0) for it in (ledger.get("equipment") or [])
                       if isinstance(it.get("saves"), (int, float)))
                   + sum_grants(ledger, level, "saves"))
-    saves = {a.title(): attrs.get(a, 0) + cm(level) + save_bonus
-             for a in ("might", "agility", "charisma", "intelligence")}
-    # Move Speed: base 5 Spaces (ancestries.md l.154), +1 per Speed Increase
-    # trait, -1 per Short-Legged, plus any numeric `speed` grant.
+    saves = {a.title(): attrs.get(a, 0) + cm(level) + save_bonus for a in ATTRIBUTES}
+    # Move Speed: base 5 Spaces (ancestries.md l.154) plus every numeric `speed` grant.
+    # CH-5 (2026-07-28): Speed Increase (+1) and Short-Legged (-1) were name-matched here
+    # and are now ordinary {speed: +/-1} catalog grants, so this is the whole derivation.
     speed = 5 + sum_grants(ledger, level, "speed")
-    trait_names = [t.get("name", "") for t in cg.get("ancestry_traits", [])]
-    trait_names += [e.get("pick", "") for _, e in all_entries(ledger, level)
-                    if e.get("slot") == "ancestry_trait"]
-    for nm in trait_names:
-        n = str(nm)
-        if n.startswith("Speed Increase"):
-            speed += 1
-        elif n.startswith("Short-Legged"):
-            speed -= 1
     # Jump Distance = Agility (minimum 1) (character-creation.md l.159), plus any
     # numeric `jump` grant. A feature may re-key the base attribute via a
     # `jump_from: <attr>` grant (e.g. Barbarian Mighty Leap uses Might).

@@ -2544,7 +2544,7 @@ def _stat(s, key):
     return row[0][1] if row else None
 
 
-def check_ch5_tier1():
+def check_ch5_burndown():
     """CH-5 Tier-1 (2026-07-27): the seven ancestry traits that were priced but inert now MOVE the
     derived stat they are supposed to move. Four are plain `grants` (the BUG-27 copy path); three are
     `grants_unarmored`, the conditional-defence shape class features already used (BUG-22), now also
@@ -2587,6 +2587,86 @@ def check_ch5_tier1():
              if str(t.get("name")).startswith("Thick-Skinned")][0]
     ok("...and the row says so in its note",
        "NOT applied" in str(trait.get("note", "")), trait.get("note"))
+
+    # ---- Tier-2 (2026-07-28): the engine slice. Move Speed and the per-attribute deltas are
+    # DATA now, not two name-matches in build_engine.py. Six options closed, and the assertion
+    # is still the derived stat: the three that already worked by name-match must keep working
+    # (a refactor that changes what a player sees is a regression, not a refactor), and the
+    # four that were inert must start working.
+    print("## (CH5b) option-effects burn-down, Tier-2: speed + per-attribute grants")
+    for anc, trait, want in (("Elf", "Speed Increase", 1),
+                             ("Beastborn", "Speed Increase", 1),
+                             ("Dwarf", "Short-Legged", -1),
+                             ("Halfling", "Short-Legged", -1)):
+        before = _stat(json.loads(_fresh_at("druid", anc).state()), "Move Speed")
+        after = _stat(_pick_trait(_fresh_at("druid", anc), trait), "Move Speed")
+        ok("%-9s %-16s Move Speed %+d (was an engine name-match)" % (anc, trait, want),
+           int(after) - int(before) == want, "%s -> %s" % (before, after))
+    # fixed-target decreases: inert before Tier-2, and each names its own attribute
+    for anc, trait, attr in (("Elf", "Might Attribute Decrease", "might"),
+                             ("Dwarf", "Charisma Attribute Decrease", "charisma"),
+                             ("Halfling", "Intelligence Attribute Decrease", "intelligence"),
+                             ("Giantborn", "Intelligence Attribute Decrease", "intelligence")):
+        b = _rt_attr_val(_rt_stats(json.loads(_fresh_at("druid", anc).state())), attr)
+        a = _rt_attr_val(_rt_stats(_pick_trait(_fresh_at("druid", anc), trait)), attr)
+        ok("%-9s %-32s %s %+d" % (anc, trait, attr.title(), -1), a - b == -1, "%s -> %s" % (b, a))
+    # the two TARGETED options: the picker offers per-attribute variants and the chosen target
+    # is the one that moves, which is the half a fixed-target row cannot prove
+    for trait, want in (("Attribute Increase", 1), ("Attribute Decrease", -1)):
+        for attr in ("charisma", "intelligence"):
+            pick = "%s (%s)" % (trait, attr)
+            other = "might" if attr != "might" else "agility"
+            base = _rt_stats(json.loads(_fresh_at("druid", "Human").state()))
+            got = _rt_stats(_pick_trait(_fresh_at("druid", "Human"), pick))
+            ok("Human    %-32s %s %+d, and %s does not move"
+               % (pick, attr.title(), want, other.title()),
+               _rt_attr_val(got, attr) - _rt_attr_val(base, attr) == want
+               and _rt_attr_val(got, other) == _rt_attr_val(base, other),
+               "%s %s->%s  %s %s->%s" % (attr, _rt_attr_val(base, attr), _rt_attr_val(got, attr),
+                                         other, _rt_attr_val(base, other),
+                                         _rt_attr_val(got, other)))
+    # the rules floor: "to a minimum of -2" (ancestries.md l.352). A decrease at the floor is a
+    # legal pick that correctly moves nothing, so this is the one case where "it did not move"
+    # is the PASS, and it is asserted explicitly rather than left as an untested branch.
+    api = _fresh_at("druid", "Human")
+    api.set_attr("charisma", -2)
+    floor_before = _rt_attr_val(_rt_stats(json.loads(api.state())), "charisma")
+    floor_after = _rt_attr_val(_rt_stats(_pick_trait(api, "Attribute Decrease (charisma)")),
+                               "charisma")
+    # "it did not move" is the PASS here, which is also what a BROKEN pick looks like, so the same
+    # pick is driven on an unclamped probe in the same breath. Only the pair distinguishes a
+    # working clamp from target resolution having silently stopped working.
+    api2 = _fresh_at("druid", "Human")
+    api2.set_attr("charisma", 0)
+    unclamped = _rt_attr_val(_rt_stats(_pick_trait(api2, "Attribute Decrease (charisma)")),
+                             "charisma")
+    ok("Human    Attribute Decrease clamps at -2 while the same pick still moves 0 -> -1",
+       floor_before == -2 and floor_after == -2 and unclamped == -1,
+       "floor %s -> %s, unclamped 0 -> %s" % (floor_before, floor_after, unclamped))
+    # an ancestry trait taken AT A LEVEL moves the attribute too. The name-match this replaced
+    # read only the chargen list, so this case was silently inert; sum_grants walks both.
+    eng = builder_api.eng
+    led = {"chargen": {}, "levels": {2: [{"slot": "ancestry_trait",
+                                          "pick": "Attribute Increase (might)",
+                                          "grants": {"attr_might": 1}}]}}
+    ok("a level-taken attribute grant is counted (the name-match read chargen only)",
+       eng.attribute_deltas(led, 2)["might"] == 1 and eng.attribute_deltas(led, 1)["might"] == 0,
+       "L2=%s L1=%s" % (eng.attribute_deltas(led, 2), eng.attribute_deltas(led, 1)))
+    # an unresolved placeholder must be LOUD, not inert: that failure mode is the entire
+    # BUG-19/22/24/25/27/30/36 family, so the engine reports it instead of ignoring it.
+    stray = {"chargen": {"ancestry_traits": [{"name": "Attribute Increase",
+                                              "grants": {"attribute": 1}}]}, "levels": {}}
+    ok("an unresolved `attribute` grant is reported, not silently dropped",
+       eng.unresolved_attribute_grants(stray, 1) == 1,
+       eng.unresolved_attribute_grants(stray, 1))
+    # Tanrielle is the atomic-change guard: she holds Speed Increase (L4) AND Attribute
+    # Increase (Might) (chargen), so a half-landed CH-5 shows up as Move Speed 5 / Might 1.
+    tan = yaml.safe_load(open(os.path.join(REPO, "builds", "tanrielle.yaml"), encoding="utf-8"))
+    trep = builder_api.eng.replay(tan, 4)
+    ok("tanrielle canon: Move Speed 6 and Might 2 both still derive (CH-5 atomicity)",
+       trep.derived.get("move") == 6 and builder_api.eng.attribute_deltas(tan, 4)["might"] == 1,
+       "move=%s attr_might delta=%s" % (trep.derived.get("move"),
+                                        builder_api.eng.attribute_deltas(tan, 4)["might"]))
 
 
 def check_bug33_class_talents():
@@ -2903,18 +2983,57 @@ RT_FIXED = {"Berserker": "barbarian",
 # _rt_assert_grants via RT_ANC_POINTS. Re-populate this only with a filed bug ID.
 RT_KNOWN_FAIL = {}
 
-# Declared `todo` (the CH-5 burn-down) but the engine NAME-MATCHES them, so they already move
-# the right stat today: the data is inert, the behaviour is not. CH-5 makes these data-driven,
-# which must not change what a player sees, so they are asserted to keep moving. Every other
-# todo option is asserted INERT, which is what makes this the answer to "which of the 11 are
-# genuinely broken".
-RT_NAME_MATCHED = {
-    "Speed Increase": ("Move Speed", 1),      # build_engine.py l.265 name-match
-    "Short-Legged": ("Move Speed", -1),       # build_engine.py l.267 name-match
-}
-# `todo` options offered as decorated per-attribute variants ("Attribute Increase (might)")
-# rather than under their catalog name; build_engine.py l.176 name-matches them.
-RT_VARIANT_MATCHED = {"Attribute Increase": "Attribute Increase (charisma)"}
+# RT_NAME_MATCHED / RT_VARIANT_MATCHED were RETIRED by CH-5 (2026-07-28), which is what those
+# registries existed for. Speed Increase and Short-Legged now declare {speed: +/-1} and flow
+# through RT_STAT like any other grant; Attribute Increase / Attribute Decrease declare a
+# targeted grant and are driven through _rt_variant_pick below. Every remaining `todo` option is
+# asserted INERT, so _rt_check_todos no longer needs an exception list at all.
+
+# The target used when driving a `targets: attributes` option. CHARISMA on purpose: the probe
+# fleet buys cha 0, so it is clear of BOTH the ATTR_FLOOR (-2, where a decrease would correctly
+# fail to move) and the L1 attribute limit (3, where an increase would trip a problem line). A
+# probe whose baseline sits on a boundary proves nothing, which is the same lesson as Mighty Leap.
+RT_ATTR_TARGET = "charisma"
+
+
+def _rt_attr_keys():
+    """{grant key -> attribute} for the per-attribute keys, DERIVED from the engine's own tuple.
+
+    Never a hand-kept copy: if the engine gains or renames an attribute this follows it, which
+    is the trap-2 rule applied to this harness (BUG-31/32/33 were all mirrored lists)."""
+    eng = builder_api.eng
+    return {eng.ATTR_GRANT_PREFIX + a: a for a in eng.ATTRIBUTES}
+
+
+def _rt_attrs(stats):
+    """Parse the derived "Attributes" row ("Mig 3 / Agi 1 / Cha 0 / Int 0") into {attr: value}.
+
+    Asserting against the RENDERED row rather than the engine's internal dict is deliberate
+    (trap 3: assert the artifact). This row is what the page and the sheet show."""
+    out = {}
+    for part in str(stats.get("Attributes", "")).split("/"):
+        bits = part.split()
+        if len(bits) == 2:
+            out[bits[0].lower()] = int(bits[1])
+    return out
+
+
+def _rt_attr_val(stats, attr):
+    return _rt_attrs(stats).get(str(attr)[:3].lower())
+
+
+def _rt_variant_pick(row, name, grants):
+    """(pick_name, resolved_grants) for a `targets: attributes` option, else (name, grants).
+
+    The picker offers decorated variants ("Attribute Decrease (charisma)") because a target-less
+    pick means nothing to the engine, and the builder rewrites the placeholder `attribute` grant
+    key to attr_<target> on pick. The round-trip therefore has to drive the variant and expect
+    the resolved key, both derived from the catalog row rather than listed by name here."""
+    if row.get("targets") != "attributes" or "attribute" not in (grants or {}):
+        return name, grants
+    resolved = dict(grants)
+    resolved[builder_api.eng.ATTR_GRANT_PREFIX + RT_ATTR_TARGET] = resolved.pop("attribute")
+    return "%s (%s)" % (name, RT_ATTR_TARGET), resolved
 
 # Option names that produced at least one real assertion this run. Populated by _rt_ok and
 # checked at the end: a modelled option that asserts nothing is a FAILURE, not a pass.
@@ -3008,13 +3127,24 @@ def _rt_fleet():
     def note(name, label, slot):
         index.setdefault(name, []).append((label, slot))
 
-    ancestries = sorted(yaml.safe_load(
-        open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"])
+    _anccat = yaml.safe_load(open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"]
+    _targeted = {r["name"] for rows in _anccat.values() if isinstance(rows, list)
+                 for r in rows if isinstance(r, dict) and r.get("targets") == "attributes"}
+    ancestries = sorted(_anccat)
     for anc in ancestries:
         api = _rt_probe_ancestry(anc)
         _, _, offered = _rt_open_trait(api)
         for name in offered:
             note(name, "druid/%s L1" % anc, "ancestry_trait")
+            # CH-5: a `targets: attributes` row is only ever OFFERED as decorated variants
+            # ("Attribute Decrease (charisma)"), so also register the catalog name the coverage
+            # ledger knows it by, or the reachability check would call it unreachable. Gated on
+            # the row really being targeted: registering every base name would hand a free
+            # "reachable" to the next option that happens to carry a parenthetical, which could
+            # wrongly retire an RT_UNREACHABLE entry.
+            base = builder_api.base_name(name)
+            if base != name and base in _targeted:
+                note(base, "druid/%s L1" % anc, "ancestry_trait")
 
     for cls in sorted(builder_api.CLASS_NAMES):
         # chargen choices (disciplines, pact boons, spell schools) at L1
@@ -3056,8 +3186,11 @@ def check_fr46_round_trip():
     # ---- 1b. every grant KEY in the catalog is covered by an assertion table above.
     # An unknown key fails here rather than passing silently downstream, which is the whole
     # point: a new grant key cannot ship unasserted.
+    # `attribute` is the placeholder key a `targets: attributes` row declares; it is asserted
+    # through _rt_variant_pick, which resolves it to the attr_<target> key the engine reads.
     known = (set(RT_STAT) | set(RT_BUDGET) | set(RT_POINTS) | RT_ATTR_SLOTS
-             | RT_ANC_POINTS | set(RT_FLAG) | set(builder_api.GRANT_CHILD_SLOTS))
+             | RT_ANC_POINTS | set(RT_FLAG) | set(builder_api.GRANT_CHILD_SLOTS)
+             | set(_rt_attr_keys()) | {"attribute"})
     used = set()
     for o in modelled:
         row = _rt_catalog_row(o)
@@ -3163,6 +3296,11 @@ def _rt_assert_grants(name, label, before, after, grants, unarmored=False):
             _rt("%-64s raises %s earned by %+d" % (tag, RT_POINTS[key], amount),
                (after[fld] or 0) - (before[fld] or 0) == amount,
                "%s -> %s" % (before[fld], after[fld]))
+        elif key in _rt_attr_keys():
+            attr = _rt_attr_keys()[key]
+            b, a = (_rt_attr_val(before["stats"], attr), _rt_attr_val(after["stats"], attr))
+            _rt("%-64s moves %s by %+d" % (tag, attr.title(), amount),
+               b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
         elif key in RT_ATTR_SLOTS:
             new = _rt_new_decs(before, after, slot="attribute")
             _rt("%-64s spawns %d attribute rider(s)" % (tag, amount),
@@ -3189,6 +3327,7 @@ def _rt_check_option(o, index):
     row = _rt_catalog_row(o)
     grants = row.get("grants") or {}
     grants_un = row.get("grants_unarmored") or {}
+    pick, grants = _rt_variant_pick(row, name, grants)   # CH-5 targeted options
     where = "%s/%s" % (o.filename[:-5], o.path.split(".")[-1])
     label = "%s %s" % (where, name)
     known_bug = RT_KNOWN_FAIL.get(name)
@@ -3199,10 +3338,10 @@ def _rt_check_option(o, index):
         api = _rt_probe_ancestry(anc)
         before = _rt_snap(api)
         _, did, offered = _rt_open_trait(api)
-        if name not in offered:
+        if pick not in offered:
             _rt_ok(name, "%-64s is offered on %s" % (label, anc), False, sorted(offered))
             return
-        api.set_decision(did, name)
+        api.set_decision(did, pick)
     elif o.filename == "talents.yaml":
         cls = _rt_class_offering(name, index)
         if not cls:
@@ -3255,7 +3394,11 @@ def _rt_check_option(o, index):
 def _rt_any_movement(before, after, grants):
     """Did ANY observable the grant claims to move actually move?"""
     for key, amount in (grants or {}).items():
-        if key in RT_STAT:
+        if key in _rt_attr_keys():
+            attr = _rt_attr_keys()[key]
+            if _rt_attr_val(after["stats"], attr) != _rt_attr_val(before["stats"], attr):
+                return True
+        elif key in RT_STAT:
             if _rt_num(after["stats"].get(RT_STAT[key])) != _rt_num(before["stats"].get(RT_STAT[key])):
                 return True
         elif key in RT_BUDGET and after[RT_BUDGET[key]] != before[RT_BUDGET[key]]:
@@ -3362,9 +3505,10 @@ def _rt_check_fixed(options):
 
 def _rt_check_todos(todos):
     """The CH-5 burn-down, answered: a `todo` declares an effect that is NOT modelled, so the
-    expectation is that nothing moves. Two documented exceptions move anyway because
-    build_engine.py name-matches them; CH-5 makes those data-driven, and this asserts the
-    player-visible behaviour does not change when it does."""
+    expectation is that nothing moves, and an option that DOES move must be re-declared
+    `modelled`. The two name-matched exceptions this used to carry were retired by CH-5
+    (2026-07-28) when Speed Increase, Short-Legged and the Attribute Increase / Decrease
+    variants became ordinary data, so there is no exception list here any more."""
     by_name = {}
     for o in todos:
         by_name.setdefault(o.name, []).append(o)
@@ -3373,7 +3517,7 @@ def _rt_check_todos(todos):
         if not rows:
             continue                              # non-ancestry todos have no trait probe
         anc = rows[0].path.split(".")[-1]
-        pick = RT_VARIANT_MATCHED.get(name, name)
+        pick = name
         api = _rt_probe_ancestry(anc)
         before = _rt_snap(api)
         _, did, offered = _rt_open_trait(api)
@@ -3382,23 +3526,12 @@ def _rt_check_todos(todos):
             continue
         api.set_decision(did, pick)
         after = _rt_snap(api)
-        if name in RT_NAME_MATCHED:
-            stat, delta = RT_NAME_MATCHED[name]
-            b, a = _rt_num(before["stats"][stat]), _rt_num(after["stats"][stat])
-            ok("todo/%-26s still moves %s by %+d (engine name-match; CH-5 keeps this)"
-               % (name, stat, delta), a - b == delta, "%s -> %s" % (b, a))
-        elif name in RT_VARIANT_MATCHED:
-            ok("todo/%-26s the %r variant moves an attribute (engine name-match; CH-5)"
-               % (name, pick),
-               after["stats"]["Attributes"] != before["stats"]["Attributes"],
-               "%r -> %r" % (before["stats"]["Attributes"], after["stats"]["Attributes"]))
-        else:
-            moved = [k for k in ("spell_budget", "man_budget", "anc_budget")
-                     if before[k] != after[k]]
-            moved += ["stat " + k for k in before["stats"]
-                      if before["stats"][k] != after["stats"].get(k)]
-            ok("todo/%-26s is INERT, so the burn-down row is a real gap" % name,
-               not moved, "it moves %s - re-declare it `modelled`" % moved)
+        moved = [k for k in ("spell_budget", "man_budget", "anc_budget")
+                 if before[k] != after[k]]
+        moved += ["stat " + k for k in before["stats"]
+                  if before["stats"][k] != after["stats"].get(k)]
+        ok("todo/%-26s is INERT, so the burn-down row is a real gap" % name,
+           not moved, "it moves %s - re-declare it `modelled`" % moved)
 
 
 def _all_grant_bearers(ledger):
@@ -3448,7 +3581,7 @@ def main():
                     check_fr3_slice2, check_fr17, check_fr20, check_fr9, check_bug16,
                     check_fr36, check_fr21, check_fr4, check_fr23, check_grants_only,
                     check_option_effects, check_class_features, check_sheet_groups,
-                    check_ch5_tier1, check_bug33_class_talents, check_bug35_paragon,
+                    check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
                     check_bug34_grant_child_effects, check_fr46_round_trip):
             run(_fn)
     finally:

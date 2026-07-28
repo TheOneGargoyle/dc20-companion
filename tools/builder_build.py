@@ -165,7 +165,10 @@ BUILDER_NOTE = 'Added in builder'
 LANG_COSTS = {'Limited': 1, 'Fluent': 2}
 CLASS_NAMES = {'spellblade': 'Spellblade', 'warlock': 'Warlock', 'commander': 'Commander',
                'barbarian': 'Barbarian', 'druid': 'Druid'}
-ATTRS = ('might', 'agility', 'charisma', 'intelligence')
+# DERIVED from the engine's tuple, not a second copy of it: an ATTRS/ATTRIBUTES divergence
+# would silently change which variants the picker offers and which grant keys it writes
+# (trap 2, and the seam CH-5 added).
+ATTRS = tuple(eng.ATTRIBUTES)
 
 # BUG-10 (2026-07-16): picker labels used to print the raw grants dict
 # (e.g. "Pact Weapon {'maneuvers': 2}"). Format grants into readable text instead.
@@ -561,11 +564,14 @@ class BuilderAPI:
         opts = []
         for lst in self._anc_lists():
             for row in self.cat['ancestries']['ancestries'][lst]:
-                if str(row['name']) == 'Attribute Increase':
+                if row.get('targets') == 'attributes':
                     # emit per-attribute variants; a target-less pick is meaningless to
-                    # the engine (and used to crash its '(target)' parse)
+                    # the engine (and used to crash its '(target)' parse). CH-5 (2026-07-28):
+                    # driven by the catalog row's `targets`, not by matching the name
+                    # 'Attribute Increase', so Attribute Decrease gets the same treatment
+                    # from data alone. Anti-mirror: one flag, no per-name list here.
                     for a in ATTRS:
-                        nm = 'Attribute Increase (%s)' % a
+                        nm = '%s (%s)' % (row['name'], a)
                         opts.append({'name': nm, 'cost': row['cost'], 'group': lst,
                                      'label': '%s (%s, cost %s)' % (nm, lst, row['cost'])})
                     continue
@@ -1719,9 +1725,11 @@ class BuilderAPI:
                 lst, row = self._anc_find(pick)
                 if lst is not None:
                     d['current_group'] = lst   # dedupe same-named traits across lists
-                if base_name(pick) == 'Attribute Increase':
+                if row is not None and row.get('targets') == 'attributes':
+                    # a targeted trait's <select> value is the decorated variant (CH-5)
                     m = re.search(r'\(([^)]+)\)', str(pick))
-                    d['current'] = 'Attribute Increase (%s)' % (m.group(1).strip().lower() if m else 'might')
+                    d['current'] = '%s (%s)' % (row['name'],
+                                                m.group(1).strip().lower() if m else ATTRS[0])
                 elif row is not None:
                     d['current'] = row['name']   # resolve ledger aliases (e.g. Arcane Spell)
             if slot == 'talent':
@@ -2468,6 +2476,17 @@ class BuilderAPI:
             # so the engine's sum_grants picks it up with no engine change.
             if changed:
                 cat_grants = dict(row.get('grants') or {})
+                # CH-5 (2026-07-28): a `targets: attributes` row declares the placeholder
+                # {attribute: N}; the chosen target is carried in the decorated variant name
+                # the picker emitted, so rewrite the key to the engine's attr_<name> here.
+                # Resolving it once, at copy time, is what keeps the ENGINE free of a name
+                # parse. An unresolved key surviving to the ledger is reported by the engine
+                # rather than ignored, so this path cannot fail silently.
+                if row.get('targets') == 'attributes' and 'attribute' in cat_grants:
+                    _m = re.search(r'\(([^)]+)\)', str(value))
+                    _tgt = (_m.group(1).strip().lower() if _m else ATTRS[0])
+                    if _tgt in ATTRS:
+                        cat_grants['attr_' + _tgt] = cat_grants.pop('attribute')
                 cat_unarm = dict(row.get('grants_unarmored') or {})
                 if cat_unarm and is_unarmored(self.ledger):
                     for _k, _v in cat_unarm.items():

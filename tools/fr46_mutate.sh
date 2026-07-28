@@ -12,7 +12,7 @@
 # nothing at all and the suite still said PASS.
 #
 # USAGE
-#   bash tools/fr46_mutate.sh              # all cases (~90s)
+#   bash tools/fr46_mutate.sh              # all cases (~2m, 7 cases)
 #   CASES=1,4 bash tools/fr46_mutate.sh    # just those cases, by number
 #
 # Each case runs in a throwaway copy of the tree under $TMPDIR, so the working tree is never
@@ -143,17 +143,22 @@ assert t.count(old)==1, 'anchor moved: _rt_catalog_row key walk'
 open(p,'w',encoding='utf-8').write(t.replace(old,new,1))
 \""
 
-# 5. CH-5 safety net: Speed Increase and Short-Legged work TODAY by engine name-match. Making
-#    them data-driven must not change what a player sees, so an inert one has to fail here.
-#    UPDATE THIS CASE when CH-5 retires the name-matches (the mutation target moves to the data).
-run_case "name-matched todo goes inert (Speed Increase)" \
-  "still moves Move Speed by +1" \
+# 5. CH-5 (2026-07-28) REPLACED the old "name-matched todo goes inert" case, which mutated the
+#    engine's `startswith("Speed Increase")` branch. That branch no longer exists: Speed Increase
+#    and the per-attribute deltas are data now. The mutation target moved to the seam the refactor
+#    INTRODUCED, which is the builder's target resolution: a `targets: attributes` row declares the
+#    placeholder {attribute: N} and _set_trait rewrites the key to attr_<chosen>. Break that and the
+#    grant reaches the ledger unresolved, so it applies nothing, which is the exact failure mode of
+#    the whole BUG-19/22/24/25/27/30/36 family in a brand-new place. Note this mutates the API, not
+#    the catalog: the catalog still declares the right thing, the implementation stops honouring it.
+run_case "builder stops resolving a targeted grant to attr_<target>" \
+  "moves Charisma by +1" \
   "python3 -c \"
-p='tools/build_engine.py'
+p='tools/builder_build.py'
 t=open(p,encoding='utf-8').read()
-old='if n.startswith(\\\"Speed Increase\\\")'
-assert t.count(old)==1, 'anchor moved: Speed Increase name-match (CH-5 done? update this case)'
-open(p,'w',encoding='utf-8').write(t.replace(old,'if n.startswith(\\\"__off__\\\")',1))
+old='if _tgt in ATTRS:'
+assert t.count(old)==1, 'anchor moved: _set_trait target resolution'
+open(p,'w',encoding='utf-8').write(t.replace(old,'if False:',1))
 \""
 
 # 6. The reachability guard: an RT_UNREACHABLE entry that becomes reachable must be RETIRED, not
@@ -166,6 +171,21 @@ t=open(p,encoding='utf-8').read()
 old='RT_UNREACHABLE = {'
 new='RT_UNREACHABLE = {\n    \\\"Innate Power\\\": \\\"deliberately wrong, for the mutation test\\\",'
 assert t.count(old)==1, 'anchor moved: RT_UNREACHABLE'
+open(p,'w',encoding='utf-8').write(t.replace(old,new,1))
+\""
+
+# 7. The other half of the same seam: the ENGINE must apply the per-attribute keys it is handed.
+#    Case 1 proves this for a summed derived stat (hp); an attribute is a different code path (it
+#    feeds Prime, saves, jump and the Attributes row rather than a single total), and it is the one
+#    CH-5 added, so it gets its own case rather than being assumed covered.
+run_case "engine ignores per-attribute grants (attribute_deltas returns zeros)" \
+  "moves Might by -1" \
+  "python3 -c \"
+p='tools/build_engine.py'
+t=open(p,encoding='utf-8').read()
+old='    return {a: sum_grants(ledger, level, ATTR_GRANT_PREFIX + a) for a in ATTRIBUTES}'
+new='    return {a: 0 for a in ATTRIBUTES}'
+assert t.count(old)==1, 'anchor moved: attribute_deltas'
 open(p,'w',encoding='utf-8').write(t.replace(old,new,1))
 \""
 

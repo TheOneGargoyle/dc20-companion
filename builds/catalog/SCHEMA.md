@@ -149,6 +149,15 @@ list whose count only goes down.
 | Disposition | How it is declared | Meaning |
 |---|---|---|
 | `modelled` | any of `grants` / `grants_unarmored` / `spell_access` / `limit_raise` / `opens` / `choice` / `languages` / `training` | the builder copies the effect onto the ledger entry on pick |
+
+`targets: attributes` is a modifier, not a disposition. It marks a row whose effect needs a
+TARGET the player chooses: the row declares the placeholder `grants: {attribute: N}`, the
+picker offers one decorated variant per attribute (`Attribute Decrease (charisma)`), and the
+builder rewrites the key to `attr_<chosen>` when it copies the grant onto the ledger entry.
+The engine only ever reads `attr_<name>`; a surviving bare `attribute` key is reported as a
+defect rather than ignored. Per-attribute grants are clamped at the -2 Attribute floor
+(`ancestries.md` l.352). Added by CH-5, 2026-07-28, replacing two `build_engine.py`
+name-matches.
 | `no_effect` | `no_effect: <category>` | deliberately no build-time delta, with a reason category |
 | `todo` | `todo: "<what it should grant>"` | a real unmodelled effect; this is the burn-down |
 | BARE | nothing | illegal, `catalog_verify` fails |
@@ -164,11 +173,18 @@ deliberately coarse: it records WHY there is no delta, it does not model the abi
 1. No BARE option, and no unknown `no_effect` category.
 2. Every `todo` carries a note saying what it should grant (otherwise it is not actionable).
 3. **No walked ledger may depend on a `todo` option**, since a todo option is by definition not
-   applying its effect. Tanrielle's three are documented exceptions: `Speed Increase` and
-   `Attribute Increase` are name-matched inside `build_engine.py` (l.265 / l.176) rather than
-   read from data, and her `Trade Expertise` cap raise is hand-authored in her `trades` block.
-   That is exactly why 90/90 held while scratch mode was wrong.
-4. A stale entry in `coverage.EXCLUDE_FILES` / `EXCLUDE_PATHS` fails. Those two sets are the
+   applying its effect. ONE documented exception is left, Tanrielle's `Trade Expertise`, whose cap
+   raise is hand-authored in her `trades` block while BUG-20 is open. That is exactly why 90/90
+   held while scratch mode was wrong. `Speed Increase` and `Attribute Increase` were the other two
+   and CH-5 retired them (2026-07-28): they were allowed only because `build_engine.py` matched
+   them by NAME, and they are ordinary grants now. The allowance list is asserted to still be
+   todos, so an entry that stops being one fails instead of rotting.
+4. **A ledger ancestry-trait entry must carry the numeric `grants` its catalog row declares**, and
+   for a `targets: attributes` row the target in the NAME must match the target in the KEY. The
+   engine reads effects off the entry, so an omitted grant is a priced, inert trait, and a rename
+   without a key change silently keeps moving the old attribute. `grants_unarmored` is excluded:
+   it is equipment-conditional and resolved at pick time.
+5. A stale entry in `coverage.EXCLUDE_FILES` / `EXCLUDE_PATHS` fails. Those two sets are the
    only hand-kept lists in the mechanism, and per the 2026-07-27 duplicate-list lesson a
    hand-kept list that nothing checks is a silent hole waiting to happen.
 

@@ -833,10 +833,16 @@ _todo_names = sorted({o.name for o in _cov_opts if o.kind == "todo"})
 print("  %d options; burn-down = %d rows / %d distinct: %s"
       % (len(_cov_opts), _cov_totals.get("todo", 0), len(_todo_names), ", ".join(_todo_names[:6]) + " ..."))
 # Canon safety net: no walked ledger may DEPEND on a todo option, because a todo option is
-# by definition not applying its effect. Tanrielle's three are the documented exceptions -
-# the engine name-matches Speed Increase / Attribute Increase (build_engine.py l.176/265)
-# and her Trade Expertise cap is hand-authored in her trades block, which is why 90/90 holds.
-_TODO_CANON_OK = {"Attribute Increase", "Speed Increase", "Trade Expertise"}
+# by definition not applying its effect. ONE documented exception is left: Tanrielle's Trade
+# Expertise cap is hand-authored in her trades block, which is why 90/90 holds while BUG-20 is
+# open. CH-5 (2026-07-28) retired the other two, Attribute Increase and Speed Increase, which
+# were allowed here because the engine name-matched them; they are ordinary grants now.
+# The allowance is itself asserted below: an entry that stops being a todo FAILS rather than
+# rotting into a silent hole, the same discipline coverage.py applies to its EXCLUDE sets.
+_TODO_CANON_OK = {"Trade Expertise"}
+expect(_TODO_CANON_OK <= set(_todo_names),
+       f"coverage: stale _TODO_CANON_OK allowance {sorted(_TODO_CANON_OK - set(_todo_names))} "
+       f"is no longer a todo - retire it")
 for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     _led = yaml.safe_load(open(_lf, encoding="utf-8"))
     if not isinstance(_led, dict):
@@ -851,7 +857,58 @@ for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
         expect(not _hit or _hit[0] in _TODO_CANON_OK,
                f"coverage: {os.path.basename(_lf)} picks {_p!r}, whose effect is an open todo "
                f"(so its derived stats are wrong)")
-print("  no walked ledger depends on an un-modelled option (Tanrielle's 3 are engine/ledger-covered)")
+print("  no walked ledger depends on an un-modelled option (Tanrielle's Trade Expertise is ledger-covered)")
+
+# ---- ledger entry grants must agree with the catalog row they name (CH-5, 2026-07-28) --------
+# The engine reads EFFECTS off the ledger entry, never off the pick name. That is the point of
+# CH-5, and it moves a burden onto the hand-authored canon ledgers: an entry whose catalog row
+# declares an effect must carry that effect, or the trait is priced and inert. Before CH-5 the
+# engine name-matched two of these, so the ledgers could get away with omitting them.
+#
+# The sharp case is a RENAME. `Attribute Increase (Might)` carries `grants: {attr_might: 1}`;
+# editing the name to `(Agility)` and forgetting the key leaves it granting Might, silently and
+# forever, because nothing else in the pipeline looks at that parenthetical again. So the target
+# encoded in the NAME is asserted against the target encoded in the KEY.
+#
+# `grants_unarmored` is deliberately excluded: it is equipment-conditional, resolved at pick time
+# against the character's armour, so a hand-authored ledger legitimately may not carry it.
+_ANCROWS = {}
+for _lst, _rr in anc["ancestries"].items():
+    for _r in _rr or []:
+        _ANCROWS.setdefault(_r["name"], _r)
+        for _al in (_r.get("aliases") or []):
+            _ANCROWS.setdefault(_al, _r)
+_recon = 0
+for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
+    _led = yaml.safe_load(open(_lf, encoding="utf-8"))
+    if not isinstance(_led, dict):
+        continue
+    _ents = [(0, t.get("name"), t) for t in (_led.get("chargen") or {}).get("ancestry_traits") or []]
+    for _lvl, _rows in (_led.get("levels") or {}).items():
+        _ents += [(_lvl, _e.get("pick"), _e) for _e in _rows or []
+                  if _e.get("slot") == "ancestry_trait"]
+    for _lvl, _nm, _ent in _ents:
+        _row = _ANCROWS.get(base_name(norm(_nm)))
+        if _row is None:
+            continue                                    # off-catalog picks are caught elsewhere
+        _want = {_k: _v for _k, _v in (_row.get("grants") or {}).items()
+                 if isinstance(_v, (int, float))}
+        if _row.get("targets") == "attributes" and "attribute" in _want:
+            _amt = _want.pop("attribute")
+            _m = re.search(r"\(([^)]+)\)", str(_nm))
+            expect(_m is not None,
+                   f"{os.path.basename(_lf)} L{_lvl} picks {_nm!r}, a targeted trait, with no "
+                   f"(target) in the name, so nothing says which attribute it moves")
+            if _m:
+                _want["attr_" + _m.group(1).strip().lower()] = _amt
+        _have = _ent.get("grants") or {}
+        for _k, _v in _want.items():
+            expect(_have.get(_k) == _v,
+                   f"{os.path.basename(_lf)} L{_lvl} {_nm!r}: catalog declares "
+                   f"grants {{{_k}: {_v}}} but the ledger entry has {_have or '{}'}, so the "
+                   f"trait is priced and inert (the engine reads the entry, not the name)")
+            _recon += 1
+print(f"  {_recon} ledger ancestry-trait grants reconcile with their catalog rows (name target == key target)")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

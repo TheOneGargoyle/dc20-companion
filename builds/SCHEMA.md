@@ -42,9 +42,13 @@ chargen:
   attribute_method: point_buy          # point_buy | standard_array | roll
   attributes: {might: 2, agility: 3, charisma: -2, intelligence: 3}
   ancestry_traits:
-    - {name: Attribute Increase (Might), source: Human, cost: 2}
+    - {name: Attribute Increase (Might), source: Human, cost: 2, grants: {attr_might: 1}}
     - {name: Nimble, source: Elf, cost: 2}
     # cost may be negative (drawback traits refund points); 0-cost minor traits allowed
+    # An entry MUST carry the `grants` its catalog row declares: the engine reads effects off the
+    # entry, never off the pick name (CH-5, 2026-07-28). For a targeted trait the grant key IS the
+    # target, so `(Might)` in the name and `attr_might` in the key have to agree. catalog_verify
+    # reconciles both, so an omitted or mismatched grant fails rather than going quietly inert.
   spell_schools: [Invocation, Divination]   # if the class picks schools at L1
   class_choices:                            # named choice slots the class grants at L1
     - {slot: bound_weapon_options, picks: [Illuminate, Smite, Recall]}

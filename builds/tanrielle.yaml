@@ -20,7 +20,10 @@ chargen:
   # CONFIRMED by Darryl 2026-07-10: Agi & Int maxed from L1 (char concept); Human trait raises
   # Might 0->1, the L3 attribute point raises Might 1->2.
   ancestry_traits:
-    - {name: Attribute Increase (Might), source: Human, cost: 2}
+    # attr_might is the trait's effect as DATA (CH-5 2026-07-28). The engine used to name-match
+    # 'Attribute Increase' and parse the target out of the name; the grant key IS the target now,
+    # so renaming this pick without changing the key would no longer change the stat.
+    - {name: Attribute Increase (Might), source: Human, cost: 2, grants: {attr_might: 1}}
     - {name: Trade Expertise (Herbalism), source: Human, cost: 1,
        note: "Mastery Cap AND Level +1 in Herbalism (free step), ancestries.md l.343"}
     - {name: Discerning Sight, source: Elf, cost: 0}
@@ -53,8 +56,11 @@ levels:
     - {slot: talent, pick: "MC Warlock (Adept): Life Tap",
        note: "HP in place of MP, 1/Long Rest, regain on Initiative. Beseech Patron auto-granted for holding 2 Warlock features (classes.md l.3867-91, narrative-only)."}
     - {slot: path, pick: Martial}
-    - {slot: ancestry_trait, pick: Speed Increase, source: Elf, cost: 2,
+    - {slot: ancestry_trait, pick: Speed Increase, source: Elf, cost: 2, grants: {speed: 1},
        note: "L4 grants 2 ancestry points; budget 5+2=7, all spent"}
+    # The {speed: 1} above is the trait's effect as DATA (CH-5 2026-07-28, was an engine
+    # name-match on the pick name). Kept as a YAML comment, not in `note`: a level entry's note
+    # renders in the builder page, and implementation history is not something a player needs.
     - {slot: maneuver, pick: Whirlwind, inferred: true, source: "Martial path rank 2"}
 
   # ---- PLAN (locked 2026-06-21, 08 "L5-L6 build plan - LOCKED") ----

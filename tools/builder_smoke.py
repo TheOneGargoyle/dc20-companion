@@ -40,6 +40,7 @@ import argparse
 import functools
 import http.server
 import os
+import re
 import socketserver
 import sys
 import threading
@@ -54,11 +55,33 @@ PAGE = os.path.join(REPO, "builds", "builder.html")
 GRANT_STAT = {"hp": "HP", "sp": "SP", "mp": "MP", "ad": "AD", "pd": "PD",
               "speed": "Move Speed", "jump": "Jump Distance"}
 
+# CH-5 (2026-07-28) per-attribute grants land on ONE rendered row, "Attributes", whose cell is
+# "Mig 3 / Agi 1 / Cha 0 / Int 0" rather than a bare number, so they need their own reader. The
+# key set is DERIVED from the engine's own tuple rather than listed here: GRANT_STAT is already a
+# hand-kept mirror of builder_verify's RT_STAT and this file does not need a second one (trap 2).
+ATTR_ROW = "Attributes"
+sys.path.insert(0, HERE)
+import build_engine as _eng                                        # noqa: E402
+GRANT_ATTR = {_eng.ATTR_GRANT_PREFIX + a: a for a in _eng.ATTRIBUTES}
+ATTRS = _eng.ATTRIBUTES
+
+
+def attr_cell(stats):
+    """Parse the rendered Attributes cell into {short_name: value} ("mig" -> 3)."""
+    out = {}
+    for part in str(stats.get(ATTR_ROW, "")).split("/"):
+        bits = part.split()
+        if len(bits) == 2:
+            out[bits[0].lower()] = int(bits[1])
+    return out
+
 # Curated trait journeys: (ancestry, [prerequisite traits to pick first], trait).
 # The expected DELTAS are read from the catalog, not written here. Coverage is asserted per trait
 # NAME rather than per (ancestry, name) pair: the same name is the same catalog row shape down the
 # same code path on every ancestry that offers it, so one journey per name is the honest unit and
 # keeps the run to one page load each.
+# A 4th element overrides the name to PICK, for a `targets: attributes` row that the page only
+# ever offers as decorated per-attribute variants. Coverage is still asserted on the catalog name.
 TRAIT_JOURNEYS = [
     ("Elf", [], "Frail"),
     ("Elf", [], "Brittle"),
@@ -69,6 +92,16 @@ TRAIT_JOURNEYS = [
     ("Beastborn", [], "Jumper"),
     ("Beastborn", ["Thick-Skinned"], "Hard Shell"),
     ("Angelborn", [], "Mana Increase"),
+    # CH-5 Tier-2 (2026-07-28): these six stopped being engine name-matches and became data, so
+    # they need the browser leg like any other flat-stat trait. Without them the coverage guard
+    # below fails, which is the guard working: a new flat-stat grant with no journey is a hole.
+    ("Elf", [], "Speed Increase"),
+    ("Dwarf", [], "Short-Legged"),
+    ("Elf", [], "Might Attribute Decrease"),
+    ("Dwarf", [], "Charisma Attribute Decrease"),
+    ("Halfling", [], "Intelligence Attribute Decrease"),
+    ("Human", [], "Attribute Increase", "Attribute Increase (charisma)"),
+    ("Human", [], "Attribute Decrease", "Attribute Decrease (charisma)"),
 ]
 
 # Checks that are EXPECTED to fail because they describe an open, filed bug. A red CI that everyone
@@ -112,8 +145,29 @@ def flat_stat_grants(row):
     out = {}
     for src in (row.get("grants") or {}, row.get("grants_unarmored") or {}):
         for k, v in src.items():
-            if k in GRANT_STAT and isinstance(v, (int, float)):
+            if not isinstance(v, (int, float)):
+                continue
+            if k in GRANT_STAT or k in GRANT_ATTR:
                 out[k] = out.get(k, 0) + v
+            elif k == "attribute" and row.get("targets") == "attributes":
+                # the placeholder key of a targeted row: resolved per journey by _resolve_target,
+                # kept here so the coverage guard still counts the row as flat-stat bearing
+                out[k] = out.get(k, 0) + v
+    return out
+
+
+def resolve_target(want, pick):
+    """Rewrite a targeted row's placeholder `attribute` key to the attr_<x> the PICK chose.
+
+    Mirrors what the builder API does on pick, deliberately re-derived from the pick name rather
+    than imported: this file's whole job is to check the page from the outside."""
+    if "attribute" not in want:
+        return want
+    out = dict(want)
+    amount = out.pop("attribute")
+    m = re.search(r"\(([^)]+)\)", str(pick))
+    target = (m.group(1).strip().lower() if m else ATTRS[0])
+    out[_eng.ATTR_GRANT_PREFIX + target] = amount
     return out
 
 
@@ -270,35 +324,44 @@ def j_trait_effects(P, anccat):
     guard: a new flat-stat trait in the catalog with no journey here fails."""
     print("## (S2) ancestry trait effects reach the rendered stats table (CH-5)")
     traits = anccat.get("ancestries") or {}
-    for anc, prereqs, name in TRAIT_JOURNEYS:
+    for journey in TRAIT_JOURNEYS:
+        anc, prereqs, name = journey[0], journey[1], journey[2]
+        pick = journey[3] if len(journey) > 3 else name
         row = next((r for r in (traits.get(anc) or []) if r.get("name") == name), None)
         if row is None:
             ok("%s / %s present in ancestries.yaml" % (anc, name), False)
             continue
-        want = flat_stat_grants(row)
+        want = resolve_target(flat_stat_grants(row), pick)
         P.start("barbarian")
         P.point_buy()
         P.ancestry(anc)
         for pre in prereqs:
             P.add_trait(pre)
         before = P.stats()
-        P.add_trait(name)
+        P.add_trait(pick)
         after = P.stats()
-        bad = []
+        bad, shown = [], []
         for k, delta in want.items():
-            label = GRANT_STAT[k]
-            try:
-                got = int(after[label]) - int(before[label])
-            except (KeyError, TypeError, ValueError):
-                got = None
+            if k in GRANT_ATTR:
+                # the Attributes row is one cell holding all four, so read the named one out of it
+                attr = GRANT_ATTR[k][:3]
+                b, a = attr_cell(before).get(attr), attr_cell(after).get(attr)
+                got = None if b is None or a is None else a - b
+                shown.append("%s %+d" % (GRANT_ATTR[k].title(), delta))
+            else:
+                label = GRANT_STAT[k]
+                shown.append("%s %+d" % (label, delta))
+                try:
+                    got = int(after[label]) - int(before[label])
+                except (KeyError, TypeError, ValueError):
+                    got = None
             if got != delta:
-                bad.append("%s want %+d got %s" % (label, delta, got))
-        ok("%-10s %-16s %s" % (anc, name,
-                               ", ".join("%s %+d" % (GRANT_STAT[k], v) for k, v in want.items())),
+                bad.append("%s want %+d got %s" % (k, delta, got))
+        ok("%-10s %-32s %s" % (anc, pick, ", ".join(shown)),
            bool(want) and not bad, "; ".join(bad))
     # Coverage guard (the anti-mirror half): no trait NAME with a flat stat grant may exist in the
     # catalog without a journey above. Add a trait, and this fails until it is driven in a browser.
-    covered = {n for _, _, n in TRAIT_JOURNEYS}
+    covered = {j[2] for j in TRAIT_JOURNEYS}
     uncovered = sorted({r["name"] for rows in traits.values() if isinstance(rows, list)
                         for r in rows if isinstance(r, dict) and flat_stat_grants(r)}
                        - covered)
