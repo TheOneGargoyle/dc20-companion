@@ -56,6 +56,7 @@ Two tables: open work first, completed work below. An item moves from To Do to D
 | FR-43 | Build stamp (date + short SHA) on the builder page, like the Companion's About tab | feature | builder | P2 | DONE - PUSHED + CHROME-VERIFIED (2026-07-27 `649cfb8`; Darryl asked for it after the diagnosis round trip) |
 | FR-44 | Option-coverage ledger: every catalog option must declare its effect (modelled / no_effect / todo), gated in catalog_verify | feature | catalog+repo | P1 | DONE - PUSHED (2026-07-27 `cc20be2`; 231 options, 0 bare, burn-down = 18 distinct; see note below) |
 | CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS - Tier-1 DONE, PUSHED + CHROME-VERIFIED (2026-07-27; 7 of 18 closed, burn-down 18 -> 11 distinct; see the note below) |
+| CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, raised by Darryl asking why Verify takes 3m; NOT urgent, and do not trade away the smoke test to save time since CI is the only place it runs at all; see the note below) |
 | FR-46 | Exhaustive option round-trip: pick every `modelled` option and assert its declared effect arrives (makes FR-44 executable) | feature | repo+builder | P1 | DONE - BUILT + VERIFIED, AWAITING PUSH (2026-07-28; `(RT)` section in builder_verify, 75 checks, 750 total; found BUG-36; answered CH-5's "which of the 11 are broken"; mutation-tested 6 of 6; see the note below) |
 | BUG-33 | Class talents were offered but their grants never applied (both talent lookups omitted `class_talents`) | bug | builder | P1 | DONE - PUSHED + CHROME-VERIFIED (2026-07-27; found by the CH-5 Tier-1 probe; six class talents were inert, incl. Expanded Disciplines' 2 discipline pickers; see note below) |
 | BUG-35 | Paragon subclass grants nothing (should grant a Class Talent + 1 Trade Point at L3, and a Class Talent at L7/L10) on all five classes | bug | catalog+builder | P1 | DONE - BUILT + VERIFIED, AWAITING PUSH (2026-07-27 late; all three levels shipped, not just L3; new `level_riders` catalog shape + `(PG)` harness section; see the note below) |
@@ -602,7 +603,7 @@ Those three in sequence are the full path from catalog to player. The gap that p
 - **A probe whose baseline already carries the effect proves nothing.** Mighty Leap (`jump_from: might`) looks completely inert on a Barbarian, because Berserker already re-keyed jump to Might at L1. That is why the ancestry probes are Druids. If a flag assertion ever fails, suspect the probe before the engine.
 - **It shipped with the silent-pass bug it exists to prevent, and that is now a test.** The first cut walked the catalog path with string keys only; `class_features.yaml` keys its levels as INTEGERS (`classes.Barbarian.1`), so all three fixed class features resolved to an empty row, ran zero assertions, printed nothing, and the section still said PASS. Fixed, and guarded two ways: every modelled option's row must resolve AND carry its effect keys, and **every reachable modelled option must produce at least one assertion (silence = FAIL)**.
 
-**Mutation-tested, 6 of 6 caught** (`--only fr46` makes a single section runnable in ~11s, which is what makes this practical in the sandbox):
+**Mutation-tested, 6 of 6 caught.** The suite is committed as **`tools/fr46_mutate.sh`** (`bash tools/fr46_mutate.sh`, or `CASES=1,4 bash tools/fr46_mutate.sh` for a subset). It seeds a throwaway copy of the tree per case, so the working tree is never mutated, and it drives `builder_verify.py --only fr46` (~11s) rather than the full ~45s suite. **Cases 2 and 5 carry retire-me notes in the file**: case 2 dies with BUG-36's fix, case 5 changes target when CH-5 retires the engine name-matches.
 
 | Mutation | Caught by |
 |---|---|
@@ -640,6 +641,42 @@ Asked and answered on the first run, and it changes the shape of the CH-5 work.
 **Why it went unnoticed.** It is precisely the FR-44 blind spot: the option correctly DECLARES its effect, so the coverage ledger is satisfied, and nothing executed the declaration until now. Exactly the BUG-19/22/24/25/27/30 shape, and the seventh member of that family.
 
 **The fix (not done here, deliberately: this commit is the harness).** `_anc_budget` should add `sum_grants(..., 'ancestry_points')` over the grant-bearing entries, the same way the other numeric budgets are summed. Worth checking at the same time whether the FR-9 ancestry-point readout and the auto ready-slot gate both follow the raised budget, since they read `_anc_budget`. Carried as `RT_KNOWN_FAIL = {"Ancestry Increase": "BUG-36"}` so the suite stays green meanwhile and fails loudly the moment it starts working, which is what retires the entry.
+
+---
+
+---
+
+## CH-6, CI Verify timing (asked and answered 2026-07-28)
+
+**The question Darryl asked, looking at the Actions tab:** "Is the verify meant to run twice? And one of those times takes 3m to finish?"
+
+**It does not run twice.** Every push that touches `builds/**` or `rules/**` fires TWO DIFFERENT workflows, which is by design and has been true since both existed:
+
+- **Verify** (`.github/workflows/verify.yml`), ~3m, runs the three harnesses.
+- **Deploy Companion** (`.github/workflows/deploy.yml`), ~30s, builds and publishes to Pages.
+
+Their `paths:` filters overlap on `builds/**` and `rules/**`. One checks correctness, the other ships. Worth writing down because the pair looks like a duplicate at a glance and the run numbers differ (Verify #7 vs Deploy #92), which makes it look stranger still.
+
+**Where the ~3m goes.** Only about a third is the test suite; the browser setup is the bulk:
+
+| Step | Roughly |
+|---|---|
+| checkout + setup-python | 10s |
+| `pip install markdown pyyaml pypdf playwright` | 25s |
+| catalog_verify | 5s |
+| builder_verify | 60s (45s local; runners are slower) |
+| builder_build | 5s |
+| `playwright install --with-deps chromium` | 50s |
+| builder_smoke (Pyodide in headless chromium) | 40s |
+
+FR-46 added roughly 15s of that. Verify was already 2m30 to 3m on the three commits before it (2m30, 2m38, 3m01), so the section did not change the shape.
+
+**The two things worth doing, when it starts to annoy:**
+
+1. **Cache the browser.** `playwright install --with-deps chromium` is pure setup cost paid on every run, and `~/.cache/ms-playwright` is cacheable with `actions/cache`. Worth about 40s.
+2. **Add a `paths` filter to the `pull_request` trigger.** Verify filters paths on `push` but not on `pull_request`, so a PR touching only markdown still runs the full browser suite.
+
+**What NOT to do:** do not drop or conditionalise the smoke test to save time. CI is the only place it runs at all (chromium will not launch in the Claude sandbox without system deps and there is no sudo), so it is the browser check, and the ordering in verify.yml is already cheapest-signal-first on purpose.
 
 ---
 
