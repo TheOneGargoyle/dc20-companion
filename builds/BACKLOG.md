@@ -37,9 +37,12 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-20 | Scratch: Human Trade Expertise (L1) not granting its cap+level free step | bug | builder+engine | P2 | ready (Tier-2, allocator-coupled; deferred 2026-07-25, see note) |
 | BUG-26 | Scratch: Innate Power (MC Sorcerer, L2) not offering the Sorcerous Origin sub-choice / conditional +2 spells | bug | builder+catalog | P2 | ready (DEFERRED 2026-07-25 by Darryl, needs a design call, see note) |
 | FR-42 | Spellcasting Expansion (general talent) adds 1 Spell Source OR 3 Spell Schools: needs a sub-choice node so its 3 spells are drawn from the chosen widening | feature | builder+catalog | P3 | ready (spotted 2026-07-27 during BUG-30, see note) |
-| CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS (Tier-2 engine slice BUILT + VERIFIED, AWAITING PUSH 2026-07-29; 14 of 18 closed, 4 distinct left, all four gated on BUG-20 or a design call, see note) |
+| CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS (Tier-2 engine slice PUSHED + CHROME-VERIFIED `83c3f36` 2026-07-29; 14 of 18 closed, 4 distinct left, all four gated on BUG-20 or a design call, see note) |
 | CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, not urgent, see note) |
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
+| CH-8 | Harness output token cost: `builder_verify.py --quiet` | chore | tools | P1 | DONE 2026-07-30 (see note) |
+| CH-9 | Extract `API_PY` out of `builder_build.py` into `tools/builder_api.py` | chore | tools | P1 | ready (new 2026-07-30, see note) |
+| CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | ready (new 2026-07-30, see note) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L4 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | ready (new 2026-07-27, pure data, see note) |
@@ -115,7 +118,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **Tier-1 SHIPPED 2026-07-27, burn-down 18 -> 11 distinct (29 -> 18 rows).** Seven closed: `Frail` {hp: -2}, `Brittle` {ad: -1}, `Reckless` {pd: -1} (flat grants); `Thick-Skinned` {ad: 1}, `Quick Reactions` {pd: 1}, `Hard Shell` {ad: 1} plus an unconditional {speed: -1} (`grants_unarmored`); and `Unfathomable Strength` {jump: 1} (Titanic Leap, `character-creation.md` l.381), which turned out to need BUG-33 as well as the data. The unarmoured three needed a builder change as well as data: `_set_trait` copied only `grants`, so `grants_unarmored` (which had existed for class features since BUG-22) is now honoured on ancestry traits too, merged into the entry's grants when `is_unarmored(ledger)` and annotated either way in the row's note; no engine change, since the merge happens before `sum_grants` sees it. Files: `builds/catalog/ancestries.yaml`, `builds/catalog/talents.yaml`, `tools/builder_build.py`, `tools/builder_verify.py`, regenerated `builds/builder.html`. Verified: coverage.py 18 rows / 11 distinct, catalog_verify 90/90, builder_verify PASS (630 checks, new sections `(CH5)` and `(CT)`), PARTY_DERIVED byte-identical to origin.
 
-**Tier-2, the engine slice, BUILT + VERIFIED, AWAITING PUSH 2026-07-29. Burn-down 11 -> 4 distinct (18 -> 7 rows).** Seven closed, not the six this entry predicted: `Speed Increase` {speed: 1}, `Short-Legged` {speed: -1}, the three fixed-target `Might / Charisma / Intelligence Attribute Decrease` {attr_<name>: -1}, and BOTH targeted Human rows, `Attribute Increase` and `Attribute Decrease`. The full note is in `BACKLOG_DONE.md`; the short version is that the plan changed shape twice on contact.
+**Tier-2, the engine slice, PUSHED + CHROME-VERIFIED `83c3f36`, 2026-07-29. Burn-down 11 -> 4 distinct (18 -> 7 rows).** Seven closed, not the six this entry predicted: `Speed Increase` {speed: 1}, `Short-Legged` {speed: -1}, the three fixed-target `Might / Charisma / Intelligence Attribute Decrease` {attr_<name>: -1}, and BOTH targeted Human rows, `Attribute Increase` and `Attribute Decrease`. The full note is in `BACKLOG_DONE.md`; the short version is that the plan changed shape twice on contact.
 
 - **The three name-matches came out as planned**, but `{attribute_points: +/-1}` was the wrong target shape for the ancestry trait: that key is the class-table budget carrier and would have spawned a rider pick where the trait gives a fixed +1 to a chosen Attribute. So per-attribute `attr_<name>` grant keys, with the target carried in the KEY rather than parsed out of the option name.
 - **The generic `Attribute Decrease` closed here too, not in the FR-42 sub-choice slice.** It needs a target, but `Attribute Increase` already had one via the decorated per-attribute variants the picker emits, so making the variant machinery catalog-driven (`targets: attributes`) closed both. FR-42 and BUG-26 still need real sub-choice nodes; this row does not, and it was previously the worse kind of broken: priced at -1 (a free ancestry point) and applying nothing.
@@ -125,10 +128,51 @@ Canon is unaffected: `catalog_verify` asserts that no walked ledger depends on a
 
 **CH-7 (new 2026-07-28).** `rules/classes.md` is NOT a clean PDF extraction. It was hand-repaired at source on 2026-07-05: the 13 wide class-progression tables rebuilt from `tables.md` and inlined as `####` sub-sections inside their own class, two mid-sentence `### Shields` promotions rejoined, a garbled duplicate `### Barbarian` merged away, and `### Subclasses` x13 demoted to `#### <Class> Subclasses`. The build-time strip in `companion-src/build.py` was then REMOVED as superseded, so there is no runtime safety net either. **Re-extracting the file silently reverts all of it and nothing catches it**: the rules section count is printed by the build, never asserted, and it has already drifted (README says 216, the build now reports 191 merged to 172, so the number moving is not even a signal). This is trap 2 in a different costume, a hand-repair with no assertion guarding it. Fix: assert in a harness that all 13 inlined `####` class tables are present and that no `### Subclasses` heading survives, which converts a silent revert into a failure. Full repair recipe is in the 2026-07-05 entry of `logs/2026-07-early.md`, grep for `classes.md repaired at the source`. While in there, correct the README's stale 216.
 
+**CH-8 (DONE 2026-07-30).** `builder_verify.py`'s `ok()` printed a 78-char `OK` line for every
+passing check. Measured: 79 checks emitted 7,525 bytes; the full ~770-check suite is therefore
+about 76KB, roughly 19k tokens, per run, whose entire information content is "nothing is wrong".
+Section 6's ritual runs the harnesses 4 to 8 times per fix across three `--only` chunks, so one bug
+fix could spend 75k to 150k tokens printing OK, and the cost grew every time the suite grew (458
+checks mid-July, 770 by 07-29). **This, not the item count, is why closures per weekly usage limit
+fell 47, then 17, then 3: Darryl was rate-limited each week, sooner each time, for less returned.**
+Fix: `--quiet` prints failures only plus a one-line check count. Same section re-measured at 213
+bytes, a 97 per cent cut, check count preserved (79), and the failure path verified directly
+(`ok(label, False)` still prints FAIL and appends to FAILS under `--quiet`). CI omits the flag on
+purpose. `CLAUDE.md` sections 1 and 6 now mandate `--quiet` for all local runs. Note for whoever
+adds the next section: the cost of a check is no longer zero, so prefer one assertion over ten.
+
+**CH-9 (new 2026-07-30).** `tools/builder_build.py` is 3,852 lines of which 96.3 per cent is string
+payload: `API_PY` (L81 to L2869, 2,789 lines of real client-side Python for Pyodide) and `TEMPLATE`
+(L2871 to L3790, HTML/CSS/JS). `main()` L3810 already embeds the engine correctly with
+`b64_file(tools/build_engine.py)` and the API incorrectly with `b64_str(API_PY)`, the right pattern
+sitting one line above the wrong one. Move `API_PY` to `tools/builder_api.py`, switch to
+`b64_file`, add it to `rel` beside the engine for the fetch fallback, and change `stage()` L124-125
+from writing `builder_build.API_PY` to `shutil.copy` like L123 does for the engine. The module
+boundary already exists and is exercised: `builder_verify` L3573 already does `import builder_api`.
+Payoff: `builder_build.py` drops to about 1,060 lines, trap 1 (a stray `"""` terminating the string,
+a module-level constant invisible from inside) stops existing, and the API becomes lintable,
+diffable and readable with Read/Edit instead of grep. Root cause of BUG-31 and BUG-32.
+
+**CH-10 (new 2026-07-30).** All four systemic root causes this project has found are one
+meta-pattern: **a fact that must agree in two places with nothing asserting that it does.**
+Costume 1, catalog declares an effect no code consumes (BUG-19/21/22/23/24/25/27/30/36, closed by
+the FR-44 coverage ledger). Costume 2, two hand-maintained mirror lists drift (BUG-31/32/33/36).
+Costume 3, the harness asserts the model while the artifact is broken (BUG-31/32, closed by
+`builder_smoke.py`). Costume 4, an empty collection satisfies every assertion about its members
+(found by FR-46: `class_features.yaml` keys levels as ints, a string walk resolved to `{}` and
+reported PASS). Traps 2, 3 and 4 in `CLAUDE.md` are the same trap. Task: enumerate every place a
+fact is duplicated across `tools/`, `builds/catalog/`, `builds/*.yaml`, `companion-src/` and
+`rules/`, and for each either derive one side from the other or add a harness assertion that the
+two agree. This is finite and can be written down in one session. **It matters because it is the
+answer to "how many more systemic causes are there": the discovery rate is not random and not
+infinite, it is bounded by the length of this list.** Deliverable: a table in this file, one row
+per duplicated fact, each marked derived, asserted, or unguarded.
+
 **CH-6. CI Verify takes ~3m** (asked and answered 2026-07-28, when Darryl asked whether Verify runs twice). Not urgent.
 
 - **It does not run twice.** Every push touching `builds/**` or `rules/**` fires TWO DIFFERENT workflows, by design and true since both existed: **Verify** (`.github/workflows/verify.yml`, ~3m, runs the three harnesses) and **Deploy Companion** (`.github/workflows/deploy.yml`, ~30s, builds and publishes to Pages). Their `paths:` filters overlap on `builds/**` and `rules/**`. One checks correctness, the other ships. Worth writing down because the pair looks like a duplicate at a glance, and the run numbers differ (Verify #7 vs Deploy #92), which makes it look stranger still.
 - **Where the ~3m goes:** only about a third is the test suite, the browser setup is the bulk. `playwright install --with-deps chromium` 50s, `builder_verify` 60s (45s local, runners are slower), `builder_smoke` (Pyodide in headless chromium) 40s, `pip install markdown pyyaml pypdf playwright` 25s, checkout + setup-python 10s, catalog_verify 5s, builder_build 5s. FR-46 added roughly 15s; Verify was already 2m30 to 3m on the three commits before it (2m30, 2m38, 3m01), so that section did not change the shape.
+- **CH-5 Tier-2 moved it to 3m41 (Verify #11, 2026-07-29), which is the largest single jump so far.** Two causes, both real work rather than waste: the `(CH5b)` and `(RT)` additions cost about 7s of CPython, and the six new `builder_smoke.py` trait journeys each need a real page load with Pyodide warm, which is the expensive part. If this keeps climbing, the browser cache in item (1) below buys back 40s and the journeys are the thing to look at next, because they are per-trait-name by design and the catalog will keep growing.
 - **The two things worth doing, when it starts to annoy:** (1) **cache the browser**, `~/.cache/ms-playwright` is cacheable with `actions/cache` and `playwright install` is pure setup cost paid on every run, worth about 40s; (2) **add a `paths` filter to the `pull_request` trigger**, since Verify filters paths on `push` but not on `pull_request`, so a PR touching only markdown still runs the full browser suite.
 - **What NOT to do:** do not drop or conditionalise the smoke test to save time. CI is the only place it runs at all (chromium will not launch in the Claude sandbox without system deps and there is no sudo), so it is the browser check, and the ordering in verify.yml is already cheapest-signal-first on purpose.
 

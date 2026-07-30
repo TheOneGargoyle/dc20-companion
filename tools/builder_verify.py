@@ -62,9 +62,22 @@ import builder_build  # noqa: E402  (API_PY, extract_spell_meta, CHARS, CATALOG)
 FAILS = []
 
 
+# CH-8 token discipline. A full pass is ~770 checks and ok() printed a 78-char OK line for every
+# one of them: ~60KB per run, all of it saying nothing. The CLAUDE.md workflow runs the harnesses
+# 4 to 8 times per fix (fresh-clone baseline, post-edit, final, x3 --only chunks), so this output,
+# not the actual work, was the dominant token cost of a session and it grew with the check count.
+# --quiet prints failures only plus a one-line verdict. CI omits the flag and keeps the full log,
+# because there the output is free and a human may want to read it.
+QUIET = "--quiet" in sys.argv or "-q" in sys.argv
+PASSES = 0
+
+
 def ok(label, cond, detail=""):
+    global PASSES
     if cond:
-        print("  %-68s OK" % label)
+        PASSES += 1
+        if not QUIET:
+            print("  %-68s OK" % label)
     else:
         print("  %-68s FAIL %s" % (label, detail))
         FAILS.append(label + (" - " + str(detail) if detail else ""))
@@ -3589,13 +3602,18 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
     print("=" * 62)
     if FAILS:
-        print("FAIL - %d check(s) failed:" % len(FAILS))
+        print("FAIL - %d check(s) failed, %d passed:" % (len(FAILS), PASSES))
         for f in FAILS:
             print("  - " + f)
         sys.exit(1)
     if only:
-        print("PASS - sections matching %s only (NOT a full pass)" % only)
+        print("PASS - %d check(s); sections matching %s only (NOT a full pass)" % (PASSES, only))
         sys.exit(0)
+    if QUIET:
+        # CH-8: the pass summary banner is ~30 lines of feature narration that restates what the
+        # section names already say. Under --quiet the verdict is the check count and nothing else.
+        print("PASS - %d check(s), 0 failures (full suite, --quiet)" % PASSES)
+        return
     _print_pass_summary()
     sys.exit(0)
 
