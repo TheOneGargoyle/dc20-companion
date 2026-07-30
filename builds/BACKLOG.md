@@ -41,7 +41,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, not urgent, see note) |
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
 | CH-8 | Harness output token cost: `builder_verify.py --quiet` | chore | tools | P1 | DONE 2026-07-30 (see note) |
-| CH-9 | Extract `API_PY` out of `builder_build.py` into `tools/builder_api.py` | chore | tools | P1 | ready (new 2026-07-30, see note) |
+| CH-9 | Extract `API_PY` out of `builder_build.py` into `tools/builder_api.py` | chore | tools | P1 | DONE 2026-07-30, staged on mount, awaiting Darryl's push (API_PY byte-identical, sha256 `010a9c6c`; `builder_build.py` 3,852 to 1,082 lines; trap 1 closed) |
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | ready (new 2026-07-30, see note) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
@@ -141,17 +141,8 @@ bytes, a 97 per cent cut, check count preserved (79), and the failure path verif
 purpose. `CLAUDE.md` sections 1 and 6 now mandate `--quiet` for all local runs. Note for whoever
 adds the next section: the cost of a check is no longer zero, so prefer one assertion over ten.
 
-**CH-9 (new 2026-07-30).** `tools/builder_build.py` is 3,852 lines of which 96.3 per cent is string
-payload: `API_PY` (L81 to L2869, 2,789 lines of real client-side Python for Pyodide) and `TEMPLATE`
-(L2871 to L3790, HTML/CSS/JS). `main()` L3810 already embeds the engine correctly with
-`b64_file(tools/build_engine.py)` and the API incorrectly with `b64_str(API_PY)`, the right pattern
-sitting one line above the wrong one. Move `API_PY` to `tools/builder_api.py`, switch to
-`b64_file`, add it to `rel` beside the engine for the fetch fallback, and change `stage()` L124-125
-from writing `builder_build.API_PY` to `shutil.copy` like L123 does for the engine. The module
-boundary already exists and is exercised: `builder_verify` L3573 already does `import builder_api`.
-Payoff: `builder_build.py` drops to about 1,060 lines, trap 1 (a stray `"""` terminating the string,
-a module-level constant invisible from inside) stops existing, and the API becomes lintable,
-diffable and readable with Read/Edit instead of grep. Root cause of BUG-31 and BUG-32.
+**CH-9. DONE 2026-07-30, note moved to `BACKLOG_DONE.md`.** `tools/builder_api.py` exists,
+`builder_build.py` is 1,082 lines, trap 1 is closed. `CLAUDE.md` trap 1 is now a historical note.
 
 **CH-10 (new 2026-07-30).** All four systemic root causes this project has found are one
 meta-pattern: **a fact that must agree in two places with nothing asserting that it does.**
