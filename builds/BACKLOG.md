@@ -43,6 +43,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-8 | Harness output token cost: `builder_verify.py --quiet` | chore | tools | P1 | DONE 2026-07-30 (see note) |
 | CH-9 | Extract `API_PY` out of `builder_build.py` into `tools/builder_api.py` | chore | tools | P1 | DONE 2026-07-30, staged on mount, awaiting Darryl's push (API_PY byte-identical, sha256 `010a9c6c`; `builder_build.py` 3,852 to 1,082 lines; trap 1 closed) |
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | ready (new 2026-07-30, see note) |
+| CH-11 | Split the rules corpus out of `builder.html`: 81.9% of the file is one `RULES_DATA` literal | chore | builder+tools | P1 | ready (new 2026-07-30; offline-use answered, always the published URL; term-index + on-demand-bodies shape, see note) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L4 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | ready (new 2026-07-27, pure data, see note) |
@@ -158,6 +159,47 @@ two agree. This is finite and can be written down in one session. **It matters b
 answer to "how many more systemic causes are there": the discovery rate is not random and not
 infinite, it is bounded by the length of this list.** Deliverable: a table in this file, one row
 per duplicated fact, each marked derived, asserted, or unguarded.
+
+**CH-11 (new 2026-07-30).** Split the baked rules corpus out of `builds/builder.html`.
+**Measured at `a842471`, not estimated:** the file is 2,600,533 bytes and the
+`const RULES_DATA = [...];` literal is 2,129,365 of them, **81.9 per cent** (slice from
+`const RULES_DATA = ` to the next `];`, which is why this reads slightly higher than the
+2,120,149 quoted in the 2026-07-30 review: that number excluded the declaration prefix).
+Removing it leaves roughly 471KB, so every rebuild, diff, deploy and Chrome verification pass
+gets about 5x cheaper. Pairs naturally with CH-9: that removed 96 per cent of
+`builder_build.py`, this removes 82 per cent of its output.
+
+**The trap: this is NOT a CH-9-shaped extraction.** `API_PY` was inert text being moved. `RULES_DATA`
+is live FR-6 functionality, consumed at runtime by `RULE_CORPUS`, `DEFINED`, `CONDSECTIONS`, `_home`,
+`_condTarget` and `openRulePanel` (`builder_build.py` L353-378).
+
+**Offline use: answered by Darryl 2026-07-30. The builder is ALWAYS loaded from the published URL,
+players never save it locally.** So a `fetch()` is legitimate and this is unblocked.
+
+**Recommended shape, which is not one of the three obvious ones.** The naive split (fetch the whole
+corpus on load, or lazily on first popup) has a catch: the corpus is needed at INITIAL RENDER, not
+just when a popup opens, because `ruleTag` calls `_linkable` (L359, L377) to decide whether each
+option even shows a `rule` chip, and that reads `DEFINED` and `RULE_CORPUS`. Lazy-on-first-popup
+therefore makes every chip appear a beat late or forces a re-render. **Split it in two instead:**
+bake only the TERM INDEX that `_linkable` needs (the `DEFINED` word set plus the multi-word keys
+`_corpusHas` tests, tens of KB) and fetch section BODIES on demand when a popup actually opens.
+Chips stay synchronous and correct, the 2MB of section HTML never loads for most sessions.
+
+**Deploy is straightforward, because the published builder is built fresh in CI**, not served from
+the committed file: `deploy.yml` L70 runs `builder_build.py --out dist/builder.html` and Pages
+serves it beside `index.html` and `howto.html`. Adding a sibling artifact means emitting it into
+`dist/` in that job and extending the guard block at L90-103 to assert it exists and is non-empty,
+or the popup 404s in production while every local harness passes. **Note also deploy.yml L24: the
+committed `builds/builder.html` is only a dev/harness convenience**, so 2.1MB of the repo's weight
+is being carried purely for the harnesses.
+
+**Harness impact, known up front so it is not discovered mid-split.** `check_fr6` in
+`builder_verify.py` (section 17, from L1645) asserts the corpus is baked INTO `builder.html`, greps
+the literal back out of the HTML, and reuses that same block as a node runtime harness. Three `ok()`
+calls plus the node harness change shape with the payload. **Repoint them at the new artifact, do not
+delete them**, or the split trades an 82 per cent size win for a hole in the FR-6 verification.
+`rules_corpus.build_rules_data(REPO)` remains the single source either way, and the Companion already
+shares it, so no third copy of the corpus appears.
 
 **CH-6. CI Verify takes ~3m** (asked and answered 2026-07-28, when Darryl asked whether Verify runs twice). Not urgent.
 
