@@ -515,7 +515,7 @@ xan:{short:'Xanwyn',name:'Xanwyn',
 const PARTY_DERIVED=__PARTY_DERIVED__;
 (function(){const sgn=v=>(v>=0?'+':'')+v;
 Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c)return;
-  ['hp','mp','sp','grit','pd','ad'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});
+  ['hp','mp','sp','grit','pd','ad','spend_limit'].forEach(f=>{if(d[f]!==undefined)c[f]=d[f];});  // BUG-37: spend_limit caps the damage steppers
   if(d.dr!==undefined)c.dr=d.dr;  // FR-16A: overwrite DR from the engine-derived bake
   if(d.stamina_regen!==undefined)c.stamina_regen=d.stamina_regen;  // FR-23: baked trigger(s)
   if(d.damage_addons!==undefined)c.damage_addons=d.damage_addons;  // FR-25: baked calc config
@@ -706,13 +706,13 @@ function rollDie(n,label){
 /* ==================== FR-25 damage calculator ==================== */
 let _lastRoll=null;  // {grade,crit} from the most recent Attack/Spell Check roll
 const DMG_GRADES=[['Hit',0],['Heavy',1],['Brutal',2],['Beyond',3]];
-let dmg={base:1,grade:0,crit:false,vals:{},cfg:{addons:[]},max:{sp:0,mp:0}};
+let dmg={base:1,grade:0,crit:false,vals:{},cfg:{addons:[]},max:{sp:0,mp:0,spend_limit:0}};
 function renderDmg(c){
   // Rebuild only on character switch; a same-char re-render (AP/HP/toggle/condition
   // changes elsewhere on the sheet) preserves the calculator's current inputs.
   if(dmg.char===cur){dmgSync();return;}
   const cfg=c.damage_addons||{base:1,base_note:'',addons:[]};
-  dmg={base:cfg.base||1,grade:0,crit:false,vals:{},cfg:cfg,max:{sp:c.sp||0,mp:c.mp||0},char:cur};
+  dmg={base:cfg.base||1,grade:0,crit:false,vals:{},cfg:cfg,max:{sp:c.sp||0,mp:c.mp||0,spend_limit:c.spend_limit||0},char:cur};
   document.getElementById('dmgBaseNote').textContent=cfg.base_note||'';
   const g=document.getElementById('dmgGrades');g.innerHTML='';
   DMG_GRADES.forEach(([nm,bonus],i)=>{const b=document.createElement('button');

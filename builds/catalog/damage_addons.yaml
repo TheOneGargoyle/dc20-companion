@@ -11,8 +11,10 @@
 #
 # WIDGET TYPES.
 #   toggle   - a fixed +amount, on/off.
-#   stepper  - +per each, count 0..cap. cap is an integer, or cap_stat: sp|mp to cap at
-#              the character's max SP/MP (resolved at render time in the Companion).
+#   stepper  - +per each, count 0..cap. cap is an integer, or cap_stat: sp|mp|spend_limit,
+#              resolved at render time in the Companion against the engine-derived bake
+#              (max SP / max MP / the Mana-Stamina Spend Limit, which is CM and so rises
+#              with level). BUG-37: prefer cap_stat, a literal cap freezes at today's level.
 #
 # SCOPE (v1). Single-hit total only: base + hit-grade + crit + additive single-target
 # riders. OUT of v1 (a possible v2): AoE / per-target / N-targets math (Whirlwind,
@@ -46,14 +48,14 @@ defs:
     label: "MP to damage"
     type: stepper
     per: 2            # 1 MP = 2 AP-worth of Damage enhancements = +2 (combat.md l.1807)
-    cap: 2           # Mana Spend Limit at L4 (rises to 3 at L5); the party is L4
+    cap_stat: spend_limit   # BUG-37: the Mana Spend Limit, derived per character (was frozen at 2)
     unit: MP
-    note: "spell portion; cap = Mana Spend Limit (2 at L4, 3 at L5)"
+    note: "spell portion; cap = Mana Spend Limit"
   gen_damage:
     label: "Damage enhancement"
     type: stepper
     per: 1
-    cap: 2           # Stamina Spend Limit at L4
+    cap_stat: spend_limit   # BUG-37: the Stamina Spend Limit, derived per character (was frozen at 2)
     unit: AP/SP
     note: "single target; +1 per AP or SP spent (cap = Stamina Spend Limit)"
   powerful:

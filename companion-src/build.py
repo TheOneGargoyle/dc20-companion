@@ -79,6 +79,8 @@ for _k, _fn in PARTY_LEDGERS.items():
     _d = _rep.derived
     party_derived[_k] = {
         "level": _d["Level"], "cm": _d["Combat Mastery"],
+        # BUG-37: the Mana/Stamina Spend Limit, derived not frozen; caps the damage steppers.
+        "spend_limit": _d["spend_limit"],
         "attack": _d["Attack/Spell Check"], "save_dc": _d["Save DC"],
         "initiative": _d["Initiative"], "grit": _d["Grit"],
         "hp": _d["HP"], "sp": _d["SP"], "mp": _d["MP"],

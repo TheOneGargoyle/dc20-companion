@@ -45,6 +45,11 @@ KNOWN_OPEN = set()  # retired 2026-07-16: runt's trade over-spend was the phanto
                     # (BUG-2, now a free Eldritch grant); scaletrix's was fixed 2026-07-12 (Draconic Limited).
 # Ledger entries that are placeholders for known-missing/known-invalid data, not real picks:
 PLACEHOLDER_MARKERS = ("not itemised", "does NOT exist")
+# CH-13: grant keys that buy a further PICK rather than move a stat, resource -> the ledger
+# slot name that pick lands under. Mirrors GRANT_CHILD_SLOTS in tools/builder_api.py; keep
+# the two in step (CH-14 is the row that proposes naming shared constants once).
+CHILD_SLOTS = {"runes": "rune", "metamagic": "metamagic", "skills": "skill",
+               "trades": "trade", "disciplines": "discipline"}
 
 fails = []
 
@@ -274,14 +279,35 @@ def check_ledger(fname, led):
     print(f"  --- {who} ({cls})")
 
     # subclass
-    subs = [e for lvl, es in (led.get("levels") or {}).items() for e in es or [] if e.get("slot") == "subclass"]
-    for e in subs:
+    subs = [(lvl, e) for lvl, es in (led.get("levels") or {}).items()
+            for e in es or [] if e.get("slot") == "subclass"]
+    for _lvl, e in subs:
         b = base_name(e["pick"])
         expect(b in cat["subclasses"], f"{who}: subclass {b} not in {cls} catalog {cat['subclasses']}")
         sg = (cat.get("subclass_grants") or {}).get(b)
-        if e.get("grants") and sg:
-            expect(e["grants"] == sg["grants"],
-                   f"{who}: subclass {b} grants {e['grants']} vs catalog {sg['grants']}")
+        # CH-13: unconditional, but split by the KIND of grant key, because the two kinds fail
+        # differently. An EFFECT key moves a derived stat and the engine reads effects off the
+        # LEDGER ENTRY, never off the pick name, so an omitted effect key is silently wrong and
+        # must be compared outright. A PICK-BUDGET key (GRANT_CHILD_SLOTS in builder_api) buys a
+        # further pick instead of a stat, and a hand-authored ledger may record that pick either
+        # as a grant-CHILD (granted_<res>, Xanwyn's runes) or as a sibling entry at the same
+        # level (Tanrielle's L3 Magus). Either is accounted for; neither is not. C5 of CH-10.
+        if sg:
+            _cat_eff = {k: v for k, v in sg["grants"].items() if k not in CHILD_SLOTS}
+            _led_eff = {k: v for k, v in (e.get("grants") or {}).items() if k not in CHILD_SLOTS}
+            expect(_led_eff == _cat_eff,
+                   f"{who}: subclass {b} effect grants {_led_eff} vs catalog {_cat_eff}")
+            for _res, _n in sg["grants"].items():
+                if _res not in CHILD_SLOTS:
+                    continue
+                _kids = len(e.get(f"granted_{_res}") or [])
+                _sibs = sum(1 for _s in (led.get("levels") or {}).get(_lvl) or []
+                            if _s.get("slot") == CHILD_SLOTS[_res])
+                expect(_kids + _sibs >= int(_n),
+                       f"{who}: subclass {b} grants {_n} {_res} but the ledger records "
+                       f"{_kids} granted_{_res} and {_sibs} L{_lvl} {CHILD_SLOTS[_res]} entr(ies)")
+                print(f"    subclass {b} {_res} budget {_n} accounted "
+                      f"({_kids} child, {_sibs} sibling at L{_lvl}) OK")
         # BUG-2: a subclass that grants languages (e.g. Eldritch -> Fluent Deep Speech) must
         # have each recorded in the ledger as a free (granted / cost 0) language.
         for gl in (sg or {}).get("languages", []) if sg else []:
@@ -331,18 +357,28 @@ def check_ledger(fname, led):
                     expect(p in cat_disc, f"{who}: L1 discipline {p} not in catalog")
                     for k, v in (cat_disc.get(p, {}).get("grants") or {}).items():
                         gsum[k] = gsum.get(k, 0) + v
-                if c.get("grants"):
-                    expect(c["grants"] == gsum,
-                           f"{who}: L1 discipline grants {c['grants']} vs catalog sum {gsum}")
-                print(f"    disciplines L1 {c['picks']} OK" + (f" (grants {gsum} match)" if c.get('grants') else ""))
+                # CH-13: unconditional. `or {}` only so an all-situational pair (catalog sum {})
+                # matches a ledger that records no grants; a NON-empty sum still fails on omission.
+                expect((c.get("grants") or {}) == gsum,
+                       f"{who}: L1 discipline grants {c.get('grants')} vs catalog sum {gsum}")
+                print(f"    disciplines L1 {c['picks']} OK (grants {gsum} match)")
         for lvl, es in (led.get("levels") or {}).items():
             for e in es or []:
                 if e.get("slot") == "discipline":
                     expect(base_name(e["pick"]) in cat_disc, f"{who}: discipline {e['pick']} missing from catalog")
-                    if e.get("grants"):
-                        expect(e["grants"] == cat_disc[base_name(e["pick"])].get("grants"),
-                               f"{who}: discipline {e['pick']} grants {e['grants']} vs catalog")
+                    expect(e.get("grants") == cat_disc[base_name(e["pick"])].get("grants"),  # CH-13
+                           f"{who}: discipline {e['pick']} grants {e.get('grants')} vs catalog")
                     print(f"    discipline L{lvl} {e['pick']} OK")
+                # CH-13/C5: a discipline can also be a grant-CHILD of the entry that grants it
+                # (Paladin -> 1 discipline, GRANT_CHILD_SLOTS). Check those the same way, or
+                # childing a pick would move it out of every check above.
+                for _gd in (e.get("granted_disciplines") or []):
+                    expect(base_name(_gd) in cat_disc, f"{who}: granted discipline {_gd} missing from catalog")
+                    print(f"    granted discipline L{lvl} {_gd} (child of {e.get('pick')}) OK")
+                if e.get("granted_disciplines"):
+                    expect(len(e["granted_disciplines"]) == int((e.get("grants") or {}).get("disciplines", 0)),
+                           f"{who}: {len(e['granted_disciplines'])} granted_disciplines vs grant "
+                           f"{(e.get('grants') or {}).get('disciplines')}")
     if "pact_boons" in cat:
         cat_boon = {b["name"]: b for b in cat["pact_boons"]}
         for c in led["chargen"].get("class_choices") or []:
@@ -350,19 +386,17 @@ def check_ledger(fname, led):
                 for p in c["picks"]:
                     b = norm(p).split(":")[0].strip()
                     expect(b in cat_boon, f"{who}: pact boon {b} not in catalog")
-                    if c.get("grants"):
-                        expect(c["grants"] == cat_boon[b].get("grants"),
-                               f"{who}: pact boon {b} grants {c['grants']} vs catalog {cat_boon[b].get('grants')}")
-                    print(f"    pact boon {b} OK" + (f" (grants {c['grants']} match)" if c.get('grants') else ""))
+                    expect(c.get("grants") == cat_boon[b].get("grants"),   # CH-13: unconditional
+                           f"{who}: pact boon {b} grants {c.get('grants')} vs catalog {cat_boon[b].get('grants')}")
+                    print(f"    pact boon {b} OK (grants {c.get('grants')} match)")
         for lvl, es in (led.get("levels") or {}).items():
             for e in es or []:
                 if e.get("slot") == "pact_boon":
                     b = norm(e["pick"]).split(":")[0].strip()
                     expect(b in cat_boon, f"{who}: pact boon {b} (L{lvl}) not in catalog")
-                    if e.get("grants"):
-                        expect(e["grants"] == cat_boon[b].get("grants"),
-                               f"{who}: pact boon {b} (L{lvl}) grants {e['grants']} vs catalog {cat_boon[b].get('grants')}")
-                    print(f"    pact boon L{lvl} {b} OK" + (f" (grants match)" if e.get('grants') else ""))
+                    expect(e.get("grants") == cat_boon[b].get("grants"),   # CH-13: unconditional
+                           f"{who}: pact boon {b} (L{lvl}) grants {e.get('grants')} vs catalog {cat_boon[b].get('grants')}")
+                    print(f"    pact boon L{lvl} {b} OK (grants match)")
 
     # talents
     for lvl, e in talent_picks(led):
@@ -371,9 +405,9 @@ def check_ledger(fname, led):
         if via:
             b = base_name(norm(e["pick"]).split(":")[-1] if str(e["pick"]).startswith("MC") else str(e["pick"]).split(":")[0])
             known = MC_FEATURES.get(b) or next((t for t in talents_cat["general"] if t["name"] == b), None)
-            if e.get("grants") and known and known.get("grants") and "Innate Power" not in b:
-                expect(e["grants"] == known["grants"],
-                       f"{who}: talent {b} grants {e['grants']} vs catalog {known['grants']}")
+            if known and known.get("grants") and "Innate Power" not in b:   # CH-13: unconditional
+                expect(e.get("grants") == known["grants"],
+                       f"{who}: talent {b} grants {e.get('grants')} vs catalog {known['grants']}")
             print(f"    talent L{lvl} {str(e['pick'])[:44]:46} -> {via}")
         # FR-8 slice 4: a metamagic-granting talent (Meta Magic) records its picks in granted_metamagic;
         # each must be a real catalog metamagic option, and the count must match the grant.
@@ -408,7 +442,7 @@ def check_ledger(fname, led):
                          for _, e in talent_picks(led) if str(e["pick"]).startswith("Spell School Initiate:")]
         # subclass tag grants (Eldritch: Psychic)
         grant_tags = {sg["spell_access"]["tag"] for b, sg in (cat.get("subclass_grants") or {}).items()
-                      if any(base_name(e["pick"]) == b for e in subs) and "spell_access" in sg}
+                      if any(base_name(e["pick"]) == b for _l, e in subs) and "spell_access" in sg}
         for s in picks:
             meta = spell_meta[s]
             legal_school = meta["school"] in chosen or meta["school"] in extra_schools
@@ -745,21 +779,26 @@ for _cid, _ent in (_dmg.get("characters", {}) or {}).items():
             expect(("cap" in _ad) or ("cap_stat" in _ad),
                    f"damage_addons: {_id} stepper needs cap or cap_stat")
             if "cap_stat" in _ad:
-                expect(_ad["cap_stat"] in ("sp", "mp"), f"damage_addons: {_id} cap_stat must be sp|mp")
+                expect(_ad["cap_stat"] in ("sp", "mp", "spend_limit"),
+                       f"damage_addons: {_id} cap_stat must be sp|mp|spend_limit")
 # rules grounding for the two computed patterns + the UI hit-grade/crit constants
 expect("2 AP worth of AP Enhancements" in _combat_md,
        "damage_addons: the MP-on-AP-Enhancement rule (1 MP = 2 AP worth) not found in combat.md")
-expect(_defs["mp_to_damage"]["per"] == 2 and _defs["mp_to_damage"]["cap"] == 2,
-       "damage_addons: mp_to_damage should be +2 per MP, cap 2 (Mana Spend Limit at L4)")
+# BUG-37: the cap is the Mana Spend Limit, which is CM and rises with level, so it must be
+# DERIVED per character. Asserting a literal here only ever mirrored the literal in the catalog.
+expect(_defs["mp_to_damage"]["per"] == 2 and _defs["mp_to_damage"].get("cap_stat") == "spend_limit"
+       and "cap" not in _defs["mp_to_damage"],
+       "damage_addons: mp_to_damage should be +2 per MP, capped at the derived Mana Spend Limit")
 # Smite = +1 Bound damage per SP; the single free Damage enhancement is a SEPARATE one-shot
 # toggle (smite_free), NOT +1 per SP (Darryl ruling 2026-07-19).
 expect(_defs["smite"]["per"] == 1 and _defs["smite"].get("cap_stat") == "sp",
        "damage_addons: smite should be +1 Bound dmg per SP, capped at SP")
 expect(_defs["smite_free"]["type"] == "toggle" and _defs["smite_free"]["amount"] == 1,
        "damage_addons: smite_free should be a one-shot +1 toggle (the single free enhancement)")
-# generic Damage enhancement is single-target, capped at the Stamina Spend Limit (2 at L4).
-expect(_defs["gen_damage"]["per"] == 1 and _defs["gen_damage"]["cap"] == 2,
-       "damage_addons: gen_damage should be +1 per AP/SP, cap 2 (Stamina Spend Limit at L4)")
+# generic Damage enhancement is single-target, capped at the derived Stamina Spend Limit (BUG-37).
+expect(_defs["gen_damage"]["per"] == 1 and _defs["gen_damage"].get("cap_stat") == "spend_limit"
+       and "cap" not in _defs["gen_damage"],
+       "damage_addons: gen_damage should be +1 per AP/SP, capped at the derived Stamina Spend Limit")
 for _kw in ("Heavy Hit", "Brutal Hit", "bypasses Damage Reduction"):
     expect(_kw in _core_md, f"damage_addons: hit-grade/crit grounding {_kw!r} missing from core-rules.md")
 # per-character assignment (single-target v1)

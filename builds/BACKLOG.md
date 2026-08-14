@@ -41,8 +41,8 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, not urgent, see note) |
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
-| BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | ready (CH-10; time-critical, party is L4 in a L4-6 arc) |
-| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | ready (CH-10; one line; widened by CH-9) |
+| BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
+| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE 2026-08-14, `tools/**` added to `deploy.yml` `paths:` |
 | BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
 | BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | ready (CH-10; players hit this every session) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
@@ -55,7 +55,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-48 | `Human Resolve` priced at 1 point, applies nothing (death_threshold has no grant term) | bug | catalog+engine | P3 | ready (CH-10) |
 | BUG-49 | `_TODO_CANON_OK` dedups by bare name, so the Trade Expertise tripwire can go green while it double-applies | bug | tools | P2 | ready (CH-10; pairs with BUG-20) |
 | BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | ready (CH-10; nothing reads the published Companion at all) |
-| CH-13 | Drop the `and e.get("grants")` conditional at 6 sites in `catalog_verify.py` | chore | tools | P1 | ready (CH-10 fix 1; six characters, extends CH-5 to five more categories) |
+| CH-13 | Drop the `and e.get("grants")` conditional at 6 sites in `catalog_verify.py` | chore | tools | P1 | DONE 2026-08-14, all 6 sites unconditional; surfaced C5 and closed it without editing a canon ledger (note below) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
 | CH-15 | `make_map.py --check` plus one step in `verify.yml` so a stale `MAP.md` fails CI | chore | tools+repo | P2 | ready (CH-10 fix 4; `catalog_build.py` already has the pattern) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | ready (CH-10 fix 6; closes a class of unmodellable item) |
@@ -69,7 +69,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
-**Re-verified 2026-08-14** by sha256-comparing every tracked file in OneDrive against a fresh clone of origin. **Exactly one file differs: this one**, and only in the paragraph above. `builds/reports/`, `builds/sources/` and `sheets/` differ only because `.gitignore` excludes them on purpose. So the standing advice holds: let this file ride along with the next real commit.
+**Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Awaiting push now: the BUG-38 + CH-13 + BUG-37 batch** (`deploy.yml`, `catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). `builds/builder.html` is deliberately NOT in it: none of its baked inputs changed, so a rebuild moved only the footer stamp and was reverted.
 
 ---
 
@@ -198,21 +198,46 @@ strongest argument the project has for the assert-it discipline.
 
 **Ranked by rows closed per unit of work, do these in order. All six now carry IDs so they cannot be lost with this note:**
 
-1. **CH-13. Delete `and e.get("grants")` at `catalog_verify.py:282, 334, 342, 353, 362, 374`.** Six
-   characters. Extends CH-5's exact discipline from ancestry traits to subclasses, disciplines, pact
-   boons and talents, and closes the omission failure mode in five categories at once. The CH-5 guard
-   turns out to be **an ancestry-trait guard, not a ledger guard**: it walks one category, fires 6
-   times, and checks catalog to ledger only.
+1. **CH-13. DONE 2026-08-14.** Delete `and e.get("grants")` at `catalog_verify.py:282, 334, 342, 353,
+   362, 374`. Extends CH-5's discipline from ancestry traits to subclasses, disciplines, pact boons
+   and talents. The CH-5 guard turns out to be **an ancestry-trait guard, not a ledger guard**: one
+   category, 6 firings, catalog to ledger only. **What it actually cost, because the prediction was
+   half right.** It fired on **C5** as predicted (Tanrielle's Paladin subclass carries no `grants`)
+   but **not on BUG-39**, which lives in `class_features.yaml` and `catalog_verify` still never loads
+   that file (see BUG-47), so BUG-39 stays open and unasserted. C5 needed a judgement call, not six
+   characters: the catalog grant is `{disciplines: 1}`, a **pick-budget** key, and Tanrielle's ledger
+   spends it on a sibling `{slot: discipline, pick: Magus}` entry at the same level, while Xanwyn
+   spends the same-shaped `{runes: 2}` on `granted_runes` children. So the site now **splits the two
+   kinds of key**: effect keys are compared outright (the engine reads effects off the ledger entry,
+   so an omission is silently wrong), and a pick-budget key must be **accounted for** by children or
+   by that many sibling entries at that level. **The shape that was tried first and rejected:** re-model
+   Tanrielle's Magus as a grant-child with `granted_effects`. Derived stats came out identical, but
+   `builder_verify` refused it, and it is right to. A canon ledger carrying `granted_effects` breaks
+   the **PARTY_DERIVED guarantee** (the load-time-resync check at `builder_verify.py:2920`), which is
+   a real invariant: `granted_effects` is the builder's derived half, so a hand-authored copy can
+   silently disagree with the bake the Companion ships. Do not put it in a canon ledger.
 2. **CH-14. Name the engine's derived-stat labels and spine-feature strings as constants in
    `build_engine.py`** and import them everywhere. Collapses five rows and removes the string-matching
    layer that four of the six confirmed-silent breakages travel through.
-3. **BUG-38**, one line, and without it nothing else here reaches production anyway.
+3. **BUG-38. DONE 2026-08-14**, one line, and without it nothing else here reaches production anyway.
 4. **CH-15. `make_map.py --check` plus one CI step.** `catalog_build.py` already has the pattern, and
    `BACKLOG_DONE.md:288` records that MAP.md staleness has only ever been caught by a human.
 5. **BUG-50**, then assert against the generated Companion HTML. Almost every unguarded row in the
    companion region becomes checkable the moment something reads the output.
 6. **FR-49. Add `hp`/`mp`/`sp` to the engine's equipment-effect keys.** Retires `DISPLAY_DELTAS` and closes
    a whole class of unmodellable item.
+
+**BUG-37, DONE 2026-08-14, and it set a convention worth reusing.** `cap: 2` on `mp_to_damage` and
+`gen_damage` became **`cap_stat: spend_limit`**, a third allowed `cap_stat` alongside `sp` and `mp`.
+The Companion resolves it at render time, so the plumbing is: `build.py` bakes `spend_limit` from
+`rep.derived` into `PARTY_DERIVED`, `template.html` copies it onto the character in the same list
+that already copies `hp`/`mp`/`sp`, and `dmg.max` carries it. **The check had to change too, and
+that is the real lesson:** `catalog_verify` asserted `cap == 2` **against the same literal it was
+checking**, so it could only ever agree with the catalog. It now asserts the derivation instead
+(`cap_stat == "spend_limit"` and **no** `cap` key), which is a claim the data can actually fail.
+**Proved, not assumed:** the built Companion was opened in headless chromium and the MP-to-damage
+row read `cap 2`, then `cap 3` once `spend_limit` was 3, with no console errors. The engine gives
+`spend_limit` 2 at L4 and 3 at L5 for Tanrielle. Any future per-level cap should be a `cap_stat`.
 
 **Two findings worth knowing even if the fixes wait.** `rules/ancestries.md:30-31` says Ancestry
 Points arrive at L4 and **L7**, while every class table says L4 and **L8**; the rules contradict
