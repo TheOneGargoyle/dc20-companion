@@ -42,6 +42,8 @@ nav button.on{color:var(--gold)}
 .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
   border-radius:999px;padding:3px 10px;font-size:13px;margin:2px;cursor:pointer}
 .pill.on{background:var(--gmred);border-color:#c96a4a;color:#ffe9dd}
+/* FR-26: the stack-remove chip, only rendered while a condition is on */
+.pill.pilldec{padding:3px 8px;margin-left:-1px;font-weight:700;opacity:.85}
 .pmenu{position:fixed;z-index:2000;background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px;min-width:190px;max-width:80vw}
 .pmenu-hd{font-size:12px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .pmenu button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;padding:9px 8px;font-size:14px;color:var(--ink);cursor:pointer}
@@ -432,8 +434,14 @@ function go(name){
 }
 
 /* ==================== Party engine ==================== */
-const CONDS=['Exposed','Hindered','Impaired','Dazed','Taunted','Prone','Bleeding','Poisoned','Charmed','Frightened','Grappled','Stunned'];
+/* BUG-40 + FR-26: derived from rules/general-rules.md by build.py, not hand-listed. Each entry is
+   {n: name, s: true if it STACKS (the rules mark those with a trailing "X"), x: true for a real
+   state that is not a Conditions-List entry, i.e. Prone and Grappled}. The old literal here had 12
+   names, 2 of which did not exist in 0.10.5, and could not track Doomed at all. */
+const CONDS_DATA=__CONDITIONS__;
+const CONDS=CONDS_DATA.map(function(c){return c.n;});
 const CONDS_SET=new Set(CONDS.map(function(c){return c.toLowerCase();}));
+const CONDS_STACK=new Set(CONDS_DATA.filter(function(c){return c.s;}).map(function(c){return c.n;}));
 const _STOP=new Set(['same','each','both','more','move','hit','turn','target','attack','damage','with','when','your','this','that','from','into','also','next','once','they','their','then','than','only','used','gain','give','make','take','have']);
 const DEFINED=new Set();(function(){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{2,40})<\/(?:strong|b|h[1-6])>/ig,m;for(var i=0;i<RULES_DATA.length;i++){var s=RULES_DATA[i].h;re.lastIndex=0;while(m=re.exec(s)){var t=m[1].replace(/[:.,;]+$/,'').toLowerCase().trim();if(t&&t.indexOf(' ')<0&&t.length>=4&&!_STOP.has(t))DEFINED.add(t);}}})();
 const CONDSECTIONS=(function(){var a=[];for(var i=0;i<RULES_DATA.length;i++)if((RULES_DATA[i].t||'').toLowerCase()==='conditions')a.push(i);return a;})();
@@ -536,11 +544,16 @@ let cur=sget('curchar','tan');
 if(!(cur in CHARS))cur='tan';
 let S=null;
 function defState(c){const t={};c.toggles.forEach(x=>{t[x.k]=x.def!==undefined?x.def:true;});
-  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,ap:4,t:t,conds:[]};}
+  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,ap:4,t:t,conds:{}};}
+/* FR-26: conditions became a {name: stacks} map. Saved state from before that is an ARRAY of
+   names, and players have live saves, so migrate rather than discard. */
+function condMigrate(v){if(!v)return {};if(!Array.isArray(v))return v;const o={};v.forEach(function(n){o[n]=1;});return o;}
+function condN(x){return S.conds[x]||0;}
 function loadS(){const c=CHARS[cur];S=sget('cstate_'+cur,null);
   if(!S&&cur==='tan'){const o=sget('tanstate',null);
-    if(o){S={hp:o.hp,mp:o.mp,sp:o.sp,grit:0,ap:o.ap,t:{hide:!!o.hide,loh:!!o.loh,lt:!!o.lt,pf:!!o.pf},conds:o.conds||[]};}}
+    if(o){S={hp:o.hp,mp:o.mp,sp:o.sp,grit:0,ap:o.ap,t:{hide:!!o.hide,loh:!!o.loh,lt:!!o.lt,pf:!!o.pf},conds:o.conds||{}};}}
   if(!S)S=defState(c);
+  S.conds=condMigrate(S.conds);
   c.toggles.forEach(x=>{if(!(x.k in S.t))S.t[x.k]=x.def!==undefined?x.def:true;});
   saveS();}
 function saveS(){sset('cstate_'+cur,S);}
@@ -554,7 +567,13 @@ function newRound(){const c=CHARS[cur];S.ap=4;c.toggles.forEach(x=>{if(x.round)S
 function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
   if('hide' in S.t && keep!==undefined)S.t.hide=keep;
   saveS();renderParty();toast('Long Rest: everything restored.');}
-function togCond(x){const i=S.conds.indexOf(x);if(i>=0)S.conds.splice(i,1);else S.conds.push(x);saveS();renderParty();}
+/* FR-26: a stacking condition counts up on each tap; a plain one still toggles. Removing a stack
+   is the separate small "-" chip that only appears while the condition is on, so the row stays
+   readable and it works on a phone (no right-click, no long-press). */
+function togCond(x){const n=condN(x);
+  if(CONDS_STACK.has(x))S.conds[x]=n+1; else if(n)delete S.conds[x]; else S.conds[x]=1;
+  saveS();renderParty();}
+function decCond(x){const n=condN(x);if(n<=1)delete S.conds[x];else S.conds[x]=n-1;saveS();renderParty();}
 function curPD(){const c=CHARS[cur];let pd=c.pd;c.toggles.forEach(x=>{if(x.pd&&S.t[x.k])pd+=x.pd;});return pd;}
 // FR-16 Part B: current DR = base engine DR merged with any ACTIVE toggle DR payload,
 // take-the-stronger (NOT additive): 'half' beats a flat numeric; two numerics take the max;
@@ -646,8 +665,13 @@ function renderParty(){
   const lr=document.createElement('button');lr.className='togglebtn';lr.textContent='☀ Long Rest reset';
   lr.onclick=restReset;tr.appendChild(lr);
   const cr=document.getElementById('condRow');cr.innerHTML='';
-  CONDS.forEach(x=>{const s=document.createElement('span');s.className='pill'+(S.conds.includes(x)?' on':'');
-    s.textContent=x;s.onclick=()=>togCond(x);cr.appendChild(s);});
+  CONDS_DATA.forEach(cd=>{const x=cd.n,n=condN(x);
+    const s=document.createElement('span');s.className='pill'+(n?' on':'');
+    s.textContent=(n>1)?(x+' '+n):x;
+    s.title=cd.s?(x+' stacks: tap to add a stack'):x;
+    s.onclick=()=>togCond(x);cr.appendChild(s);
+    if(n){const m=document.createElement('span');m.className='pill pilldec';m.textContent='−';
+      m.title='Remove a stack of '+x;m.onclick=()=>decCond(x);cr.appendChild(m);}});
   const rg=document.getElementById('rollGrid');rg.innerHTML='';
   c.rolls.forEach(([mod,label,txt])=>{const b=document.createElement('button');b.className='rbtn';b.textContent=txt;
     b.onclick=()=>{if(mod==='d8')rollDie(8,label);else roll(mod,label);};rg.appendChild(b);});

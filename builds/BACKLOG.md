@@ -44,7 +44,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
 | BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE, shipped `1711be0` after missing `fa15db4`; the bridge cannot write `.github/workflows/**`, so Darryl hand-placed it (note below) |
 | BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
-| BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | ready (CH-10; players hit this every session) |
+| BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | DONE 2026-08-14, pills DERIVED from the ruleset: 28 conditions + Prone/Grappled, Poisoned dropped (note below) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
 | BUG-42 | `FR20_CAT` vs `FR20_RANK` already drifted; ancestry_origin renders in the wrong group | bug | builder | P2 | ready (CH-10; check is blind, both dicts default to 3) |
 | BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | ready (CH-10) |
@@ -67,7 +67,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L4 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | ready (new 2026-07-27, pure data, see note) |
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
-| FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | parked |
+| FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | DONE 2026-08-14, UNPARKED: it fell out of BUG-40 for free, the rules mark stacking with a trailing X |
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
@@ -122,7 +122,15 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **FR-35. Rules > Tables reorg.** Most entries under Tables are class progression tables; consider moving each into its class page. The Armour Examples table could live with the Armour rules (and if so, why not shields / weapons / focuses too). Needs a call on how far to take it, and it may interact with FR-32/33/34 as one rules-browser structure pass.
 
-**FR-26. Stackable conditions.** Strictly, some conditions stack (Bleeding, Stunned) but the character-sheet pills only toggle on/off. Would need a count / stack UI. Darryl: ignore for now. Parked.
+**FR-26. Stackable conditions. DONE 2026-08-14, and it cost almost nothing because it rode BUG-40.** Parked since intake as "would need a count / stack UI", which assumed the stack list was a design call. It is not: **the ruleset marks a stacking condition with a trailing "X" in the Conditions List itself** ("Bleeding X", "Doomed X", "Stunned X"), so deriving the pill list for BUG-40 hands you the stack flags in the same pass. **12 of the 28 stack.** A stacking pill counts up on each tap and renders "Bleeding 3"; a small "-" chip appears beside it only while it is on, which keeps the row readable and works on a phone with no right-click or long-press. Plain conditions toggle exactly as before.
+
+**The state shape changed, and live saves were migrated, not discarded.** `S.conds` went from an array of names to a `{name: stacks}` map. `condMigrate()` converts an old array on load, so nobody loses what they were tracking. Verified in a browser: old `['Prone','Stunned']` becomes `{Prone:1, Stunned:1}`.
+
+**BUG-40. Condition pills, DONE 2026-08-14.** The hand-written literal at `template.html:435` carried **12** names against the ruleset's **28**, so Doomed, Burning, Disoriented, Exhaustion, Slowed, Weakened, Blinded, Restrained, Paralyzed, Incapacitated and eight more could not be tracked at all. Two of the twelve were not Conditions-List entries: **Poisoned appears ZERO times anywhere in 0.10.5** and is gone, while **Grappled and Prone are real, heavily used states** that simply are not List entries, so they are kept as explicit extras (Runt's whole game is grappling). **Now derived** by `conditions_list()` in `companion-src/build.py` from `general-rules.md`'s Conditions List, injected as `__CONDITIONS__`. **30 pills render, up from 12.**
+
+**Guarded, because a silent parse break would quietly shrink the tracker:** the parser asserts its two anchors, asserts 20 to 40 conditions came back, asserts at least 8 carry stack markers, and asserts each extra still appears in `general-rules.md`. A rules re-extraction that changes the section fails the build instead of publishing a short list. That is the same discipline CH-7 wants for `classes.md`.
+
+**Verified in a browser, not by reading:** 30 pills, Doomed present, Poisoned absent, plain toggle on and off, a stacking condition counted to 3 and rendered "Bleeding 3", the "-" chip appeared and decremented it, state persisted across a character switch, Long Rest cleared it, and Doomed/Stunned/Exhaustion/Weakened all resolve to their rules section from the search path. Zero console errors.
 
 **FR-38. Rules popup snippet.** Show only the clicked line's snippet in the rules popup, not the whole section. Refines FR-6 (intake 2026-07-19).
 

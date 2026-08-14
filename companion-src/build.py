@@ -66,6 +66,37 @@ PARTY_LEDGERS = {  # CHARS key -> ledger file (the curated include set, by id �
 #    directly = Phil's confirmed reading. The Primal Hide +2 toggle brings PD to 18 in play.)
 DISPLAY_DELTAS = {("xan", "hp"): 2}
 
+
+# BUG-40 + FR-26: the condition pills, DERIVED from the ruleset instead of hand-listed.
+# The old literal in template.html carried 12 names, two of which (Poisoned, Grappled) were not
+# Conditions-List entries at all, while 18 real conditions including Doomed could not be tracked.
+# Deriving fixes both halves at once, because the rules mark a stacking condition with a trailing
+# "X" in the very same list ("Bleeding X", "Doomed X"), so which pills need a counter is DATA, not
+# a design call. That is the anti-mirror lesson from CH-10: one hand-kept list disagreeing with
+# its source is where the rot always is.
+CONDITION_EXTRAS = ("Prone", "Grappled")   # real, heavily-used states that are not List entries
+
+
+def conditions_list(camp):
+    """[{n: name, s: stacks?, x: not-a-List-entry?}] from rules/general-rules.md."""
+    txt = (Path(camp) / "rules" / "general-rules.md").read_text(encoding="utf-8")
+    i = txt.find("#### Conditions List")
+    j = txt.find("Condition Resistance", i)
+    assert i > 0 and j > i, "Conditions List anchors not found in general-rules.md"
+    out, seen = [], set()
+    for name, x in re.findall(r"^([A-Z][A-Za-z'’-]+)(?: (X))?$", txt[i:j], re.M):
+        if name in ("Conditions", "List") or name in seen:
+            continue
+        seen.add(name)
+        out.append({"n": name, "s": bool(x)})
+    # A silent parse break here would quietly shrink the tracker, so bound it rather than trust it.
+    assert 20 <= len(out) <= 40, "conditions parse looks wrong: %d found" % len(out)
+    assert sum(1 for c in out if c["s"]) >= 8, "stacking markers not parsed"
+    for extra in CONDITION_EXTRAS:
+        assert extra in txt, "%s is no longer in general-rules.md" % extra
+        out.append({"n": extra, "s": False, "x": True})
+    return out
+
 # FR-23: Stamina Regen trigger(s), catalog-driven, derived by the shared engine helper.
 _REGEN_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "stamina_regen.yaml").read_text(encoding="utf-8"))
 # FR-25: Damage Calculator per-character add-ons, catalog-driven, shared engine helper.
@@ -208,6 +239,7 @@ def assemble(gm: bool) -> str:
     tpl = tpl.replace("__BUILD_STAMP__", BUILD_STAMP)
     tpl = tpl.replace("__RULES_DATA__", js_embed(rules_data))
     tpl = tpl.replace("__PARTY_DERIVED__", js_embed(party_derived))
+    tpl = tpl.replace("__CONDITIONS__", js_embed(conditions_list(CAMP)))   # BUG-40 + FR-26
     # Player edition: GM data is NEVER embedded (an in-file gate would be
     # cosmetic — the HTML source is readable), and the GM nav button is removed.
     tpl = tpl.replace("__GM_DATA__", js_embed(gm_data if gm else []))
