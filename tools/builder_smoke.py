@@ -44,6 +44,7 @@ import re
 import socketserver
 import sys
 import threading
+import urllib.request
 
 import yaml
 
@@ -193,6 +194,68 @@ def serve(port):
     return httpd
 
 
+# ------------------------------------------------------- CH-12: offline Pyodide
+# WHY THIS EXISTS. In the Claude sandbox CPython has full egress but the BROWSER has none:
+# headless chromium gets ERR_CONNECTION_RESET on example.com and ERR_CERT_AUTHORITY_INVALID on
+# pypi.org, while curl and urllib reach both. Proven 2026-08-14, and chromium launch flags do not
+# help (the container's own proxy plus ignore_https_errors still resets). So this is the sandbox's
+# egress policy for browser traffic, NOT a per-site permission anyone can approve, and it kept the
+# DOM smoke test (the only layer that proves the model reaches the browser) CI-only.
+#
+# The fix: intercept ONLY the pyodide CDN prefix and fulfil it from a disk cache that urllib fills.
+# Six assets, cached after the first run, and Pyodide then boots in about 6.5 seconds.
+#
+# IT IS OFF IN CI ON PURPOSE. GitHub Actions sets CI=true, and there the real CDN is reachable and
+# SHOULD be exercised, because that is what a player's browser does. Any fetch failure also falls
+# through to route.continue_(), so the worst case is the unshimmed behaviour, never a hard stop.
+PYO_PREFIX = "https://cdn.jsdelivr.net/pyodide/"
+PYO_CACHE = os.path.join(REPO, ".pyodide-cache")
+_PYO_MIME = {".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json",
+             ".wasm": "application/wasm", ".zip": "application/zip", ".data": "application/octet-stream"}
+
+
+def pyo_cache_enabled(mode):
+    if mode == "on":
+        return True
+    if mode == "off":
+        return False
+    return not os.environ.get("CI")          # auto: local yes, CI no
+
+
+def _pyo_fetch(url):
+    """Return the asset bytes, from disk if we have them, else over urllib (which HAS egress)."""
+    name = url[len(PYO_PREFIX):].split("?")[0].replace("/", "__")
+    path = os.path.join(PYO_CACHE, name)
+    if os.path.exists(path) and os.path.getsize(path):
+        with open(path, "rb") as f:
+            return f.read()
+    os.makedirs(PYO_CACHE, exist_ok=True)
+    with urllib.request.urlopen(url, timeout=90) as r:
+        body = r.read()
+    tmp = path + ".part"                     # never leave a half-written asset in the cache
+    with open(tmp, "wb") as f:
+        f.write(body)
+    os.replace(tmp, path)
+    return body
+
+
+def install_pyodide_cache(pg, seen):
+    def handler(route, request):
+        try:
+            body = _pyo_fetch(request.url)
+        except Exception as e:                # unreachable, unwritable, anything: use the real CDN
+            seen.setdefault("errors", []).append("%s: %s" % (request.url.rsplit("/", 1)[-1], e))
+            route.continue_()
+            return
+        ext = os.path.splitext(request.url.split("?")[0])[1]
+        seen["n"] = seen.get("n", 0) + 1
+        route.fulfill(status=200, body=body,
+                      headers={"content-type": _PYO_MIME.get(ext, "application/octet-stream"),
+                               "access-control-allow-origin": "*",
+                               "cache-control": "no-store"})
+    pg.route(PYO_PREFIX + "**", handler)
+
+
 # ------------------------------------------------------------------ page driver
 class Page:
     # Every page load boots a Pyodide runtime with the whole catalog in it, which is hundreds of MB.
@@ -203,11 +266,13 @@ class Page:
     # cost is a couple of seconds per relaunch, which is worth paying for a suite that finishes.
     BROWSER_EVERY = 4
 
-    def __init__(self, launch, url):
+    def __init__(self, launch, url, pyo_cache=False):
         self.launch = launch
         self.url = url
         self.errors = []
         self.pg = None
+        self.pyo_cache = pyo_cache          # CH-12: serve the pyodide CDN from disk (local only)
+        self.pyo_seen = {}
         self.browser = launch()
         self.n = 0
         self.recycle()
@@ -226,6 +291,8 @@ class Page:
                 pass
             self.browser = self.launch()
         pg = self.browser.new_page()
+        if self.pyo_cache:                  # CH-12: must be installed before the first navigation
+            install_pyodide_cache(pg, self.pyo_seen)
         pg.set_default_timeout(25000)
         pg.on("pageerror", lambda e: self.errors.append(str(e)[:300]))
         pg.on("dialog", lambda d: d.accept())   # FR-5 unsaved-changes guard
@@ -441,6 +508,40 @@ def j_sheet(P, cfcat):
     P.pg.wait_for_timeout(300)
 
 
+def j_rule_panel(P):
+    """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
+
+    This is the journey the split needs and nothing else provides. Every other harness in the
+    project reads the page's source or the model; none of them clicks a `rule` chip. A missing or
+    404ing rules.json would leave all of them green while every rule popup in the live builder came
+    up empty, which is exactly the failure mode the CH-11 note warned about.
+    """
+    print("## (S6) CH-11: the fetched rules corpus reaches the rule panel")
+    # A canon character, not a scratch build: `rule` chips hang off CHOSEN options, and a fresh
+    # scratch class opens with every picker undecided, so it renders none.
+    P.recycle()
+    P.pg.goto("%s?char=tanrielle" % P.url)
+    P.pg.wait_for_function(
+        "!/Booting|Installing/.test(document.getElementById('status').innerText)", timeout=300000)
+    baked = P.pg.evaluate("document.documentElement.outerHTML.indexOf('const RULES_DATA = [')")
+    ok("the page ships WITHOUT the corpus baked in", baked < 0, baked)
+    # attached, not visible: the chips live in decision rows that may be scrolled out of view or in
+    # a collapsed block, and they are clicked programmatically below anyway.
+    P.pg.wait_for_selector(".rulei", state="attached", timeout=30000)
+    n = P.pg.evaluate("document.querySelectorAll('.rulei').length")
+    ok("options render `rule` chips from the baked index alone (%d chips)" % n, n > 0, n)
+    P.pg.eval_on_selector(".rulei", "e=>e.click()")
+    P.pg.wait_for_selector("#rulePanel", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(400)
+    body = P.pg.inner_text("#ruleBody")
+    ok("the rule panel opens with real rule text", len(body) > 120, len(body))
+    ok("...and NOT the fetch-failed message", "Rules text unavailable" not in body, body[:120])
+    loaded = P.pg.evaluate("Array.isArray(RULES_DATA) && RULES_DATA.length")
+    ok("the corpus was fetched at runtime (%s sections)" % loaded, bool(loaded) and loaded > 100, loaded)
+    P.pg.evaluate("closeRulePanel()")
+    P.pg.wait_for_timeout(200)
+
+
 # ------------------------------------------------------------------ main
 def main():
     ap = argparse.ArgumentParser()
@@ -452,6 +553,10 @@ def main():
                          "independent, so this both speeds up debugging and lets a memory-tight "
                          "machine run the suite in slices.")
     ap.add_argument("--port", type=int, default=8891)
+    ap.add_argument("--pyodide-cache", choices=("auto", "on", "off"), default="auto",
+                    help="CH-12: serve the pyodide CDN from a local disk cache instead of the "
+                         "network. 'auto' (default) turns it ON locally and OFF in CI, where the "
+                         "real CDN is reachable and is what a player's browser actually uses.")
     args = ap.parse_args()
 
     if not os.path.exists(PAGE):
@@ -493,7 +598,9 @@ def main():
                     sys.exit(1)
                 print("SKIPPED - " + msg)
                 sys.exit(0)
-            P = Page(launch, url)
+            use_cache = pyo_cache_enabled(args.pyodide_cache)
+            print("  pyodide CDN: %s" % ("local disk cache (CH-12)" if use_cache else "live network"))
+            P = Page(launch, url, pyo_cache=use_cache)
             P.pg.goto(url)
             print("## (S0) Pyodide boot")
             P.pg.wait_for_function(
@@ -516,7 +623,8 @@ def main():
             for sid, fn, arg, budget in (("s1", j_boot_and_class_features, (classes, cfcat), 240),
                                          ("s2", j_trait_effects, (anccat,), 400),
                                          ("s3", j_class_talents, (), 240),
-                                         ("s4", j_sheet, (cfcat,), 120)):
+                                         ("s4", j_sheet, (cfcat,), 120),
+                                         ("s6", j_rule_panel, (), 180)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

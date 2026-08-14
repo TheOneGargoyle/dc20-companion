@@ -42,7 +42,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
 | BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
-| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | FIXED not shipped: missed `fa15db4` because the remote bridge cannot write `.github/workflows/**`; needs a hand-paste (note below) |
+| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE, shipped `1711be0` after missing `fa15db4`; the bridge cannot write `.github/workflows/**`, so Darryl hand-placed it (note below) |
 | BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
 | BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | ready (CH-10; players hit this every session) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
@@ -59,8 +59,8 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
 | CH-15 | `make_map.py --check` plus one step in `verify.yml` so a stale `MAP.md` fails CI | chore | tools+repo | P2 | ready (CH-10 fix 4; `catalog_build.py` already has the pattern) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | ready (CH-10 fix 6; closes a class of unmodellable item) |
-| CH-12 | Offline Pyodide shim so `builder_smoke.py` runs outside CI | chore | tools | P1 | ready (new 2026-08-14; fix already proved end to end, see note) |
-| CH-11 | Split the rules corpus out of `builder.html`: 81.9% of the file is one `RULES_DATA` literal | chore | builder+tools | P1 | ready (new 2026-07-30; offline-use answered, always the published URL; term-index + on-demand-bodies shape, see note) |
+| CH-12 | Offline Pyodide shim so `builder_smoke.py` runs outside CI | chore | tools | P1 | DONE 2026-08-14, layer 3 now runs locally in ~3m; OFF in CI on purpose (note below) |
+| CH-11 | Split the rules corpus out of `builder.html`: 81.9% of the file is one `RULES_DATA` literal | chore | builder+tools | P1 | DONE 2026-08-14, 2,600,533 -> 518,205 bytes (80.1%); shape changed from the filed plan, note below |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L4 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | ready (new 2026-07-27, pure data, see note) |
@@ -69,7 +69,9 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
-**Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Pushed as `fa15db4`, 5 files: CH-13 and BUG-37** (`catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). **BUG-38 is NOT in it.** Its one-line `deploy.yml` edit never reached OneDrive because the remote bridge treats `.github/workflows/**` as protected, so robocopy reported `Copied 0` for `.github` and the commit message names a fix it does not contain. `builds/builder.html` is deliberately excluded too, but for a good reason: none of its baked inputs changed, so a rebuild moved only the footer stamp and was reverted.
+**Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Pushed as `fa15db4`, 5 files: CH-13 and BUG-37** (`catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). **BUG-38 was NOT in it**, because the remote bridge treats `.github/workflows/**` as protected, so its one-line `deploy.yml` edit never reached OneDrive, robocopy reported `Copied 0` for `.github`, and `fa15db4`'s message named a fix it did not contain. Darryl hand-placed the file and pushed it as **`1711be0`**, which is now origin. **Verified after the push, not assumed:** origin's `deploy.yml` carries the `tools/**` line, and the live Companion's About stamp reads `Build: 2026-08-14 16:43 AEST · 1711be0`, so the deploy ran on the current tree. `builds/builder.html` was deliberately excluded from both of those commits: none of its baked inputs had changed, so a rebuild moved only the footer stamp and was reverted.
+
+**Awaiting push after `1711be0`: CH-12 and CH-11, 8 files.** `tools/rules_corpus.py`, `tools/builder_build.py`, `tools/builder_verify.py`, `tools/builder_smoke.py`, `.gitignore`, `builds/builder.html` (now 518,205 bytes), **NEW `builds/rules.json`** (2,107,227 bytes, tracked on purpose), and this file. **`.github/workflows/deploy.yml` needs hand-placing again** for the three CH-11 artifact guards; the bridge still refuses it. All three layers green before handover: catalog_verify 90/90, builder_verify **PASS 777**, builder_smoke PASS in 3m1s including the new (S6).
 
 ---
 
@@ -219,13 +221,17 @@ strongest argument the project has for the assert-it discipline.
 2. **CH-14. Name the engine's derived-stat labels and spine-feature strings as constants in
    `build_engine.py`** and import them everywhere. Collapses five rows and removes the string-matching
    layer that four of the six confirmed-silent breakages travel through.
-3. **BUG-38**, one line, and without it nothing else here reaches production anyway. **Fixed but NOT
-   shipped in `fa15db4`, and the reason generalises.** The Claude sandbox writes into the OneDrive
-   folder over the desktop bridge, and that bridge **refuses `.github/workflows/**` as protected**.
-   Every other tracked file lands; a CI file silently does not, robocopy then reports `Copied 0` for
-   `.github`, and the commit goes up looking complete. The line to add to `deploy.yml` `paths:`, after
-   `builds/**`, is `- "tools/**"`. **CH-15 and BUG-50 are both CI-file items, so they will hit this
-   too:** plan on hand-pasting them and confirming before calling the item shipped.
+3. **BUG-38. DONE, shipped `1711be0`.** One line, and without it nothing else here reaches production
+   anyway. **It missed `fa15db4` first, and the reason generalises, so it is recorded here.** The
+   Claude sandbox writes into the OneDrive folder over the desktop bridge, and that bridge **refuses
+   `.github/workflows/**` as protected**. Every other tracked file lands; a CI file silently does not,
+   robocopy then reports `Copied 0` for `.github`, and the commit goes up looking complete while its
+   message names a fix it does not contain. **This is a guardrail, not a glitch:** a workflow file is
+   the one tracked file that executes with repo credentials, so an agent editing it unreviewed is
+   exactly what the block exists to prevent. Do not look for a way around it. **The working routine:**
+   edit and verify the workflow in the /tmp clone, hand Darryl the file plus the exact diff, and then
+   **confirm against origin after the push** rather than trusting the bat's summary. **CH-15 and
+   BUG-50 are both CI-file items and will hit this**, so budget the extra hop.
 4. **CH-15. `make_map.py --check` plus one CI step.** `catalog_build.py` already has the pattern, and
    `BACKLOG_DONE.md:288` records that MAP.md staleness has only ever been caught by a human.
 5. **BUG-50**, then assert against the generated Companion HTML. Almost every unguarded row in the
@@ -251,6 +257,52 @@ themselves, nothing records that a choice was made, and the party is three level
 `66/66 oracle` string is quoted in five live documents including a **definition of done in
 `FR12_PLAN.md:104` that can never be satisfied**, because the harness has asserted 90 since
 2026-07-16 and has never emitted 66.
+
+**CH-11 SHIPPED 2026-08-14. `builder.html` 2,600,533 -> 518,205 bytes, an 80.1 per cent cut.** The
+corpus is now `builds/rules.json` (2,107,227 bytes, 172 sections), fetched by relative URL, and the
+page bakes a **44,963 byte answer index** (`RULES_IDX`, 2,701 terms) in its place.
+
+**The shape changed from the plan below, and the change is the point.** The filed plan was: bake the
+term index AND fetch section bodies on demand. That needs a precomputed term-to-section map, which
+quietly replaces `_home`'s live ranking with a build-time guess. What shipped instead: bake **only**
+what initial render needs, and fetch **the whole corpus once**, on idle or on the first rule click.
+`_home`, `_condTarget`, `openRulePanel` and `linkifyTerms` are then byte-for-byte the code they
+always were. Same size win, no re-ranking risk, and one artifact instead of 172.
+
+**What initial render actually needs, which is the whole insight.** The corpus was baked for exactly
+one early question: `_linkable`, which gates the per-option `rule` chip. It asks two things, a single
+word against `DEFINED` and a phrase against the plain-text corpus, and **both are decidable at build
+time**. `rules_corpus.linkable_index()` answers them once; `defined_words()` and `search_corpus()`
+mirror the page's JS exactly, and `phrase_candidates()` is exhaustive by construction (bold and h3
+text covers in-panel cross-links, `builder_build.model_strings()` covers every option chip, and a
+phrase outside both cannot be clicked because nothing renders it).
+
+**The check that makes it safe to ship, in `builder_verify` (17):** an equivalence pass that replays
+BOTH implementations of `_linkable` over every term either could ever be asked about, about 13,000
+probes, and requires identical answers. A term the index missed would silently drop that option's
+`rule` chip and **no other harness in the project would notice**, so this is the one that matters.
+Section 17 went from 20 checks to 27; the suite total is now **777, up from 770**.
+
+**Both landmines from the filed note were real and are handled.** `check_fr6` did assert the corpus
+was baked IN and reused the literal as its node harness: it now reads the artifact and injects it
+after the block, so it still runs the REAL page code. And `deploy.yml` does rebuild the page fresh,
+so `dist/rules.json` is now guarded three ways (present, well-formed corpus, index actually baked).
+A missing artifact is the one failure that would leave every local harness green while every rule
+popup in the live builder came up empty, so `openRulePanel` also **says so in the panel** instead of
+silently doing nothing.
+
+**Proved in a browser, not asserted on paper.** New smoke journey **(S6)** loads canon Tanrielle,
+confirms the page ships without the corpus, clicks a real `rule` chip and requires actual rule text
+plus a runtime-fetched `RULES_DATA`. **And it fails when it should:** with `rules.json` moved aside,
+three checks go red and the panel reads "Could not load rules.json (rules.json 404)". A harness that
+only ever passes is worthless.
+
+**Two decisions worth keeping.** `builds/rules.json` IS committed, so a fresh clone's harnesses work
+with no build step first (repo total is roughly unchanged, since the page shrank by the same data).
+And the corpus is prefetched on idle, so the first rule click stays instant in practice; the page is
+interactive long before it lands, which is the win.
+
+**Original filing follows.**
 
 **CH-11 (new 2026-07-30).** Split the baked rules corpus out of `builds/builder.html`.
 **Measured at `a842471`, not estimated:** the file is 2,600,533 bytes and the
@@ -292,6 +344,23 @@ calls plus the node harness change shape with the payload. **Repoint them at the
 delete them**, or the split trades an 82 per cent size win for a hole in the FR-6 verification.
 `rules_corpus.build_rules_data(REPO)` remains the single source either way, and the Companion already
 shares it, so no third copy of the corpus appears.
+
+**CH-12 SHIPPED 2026-08-14, and it paid for itself inside the same thread.** `page.route()` intercepts
+the `https://cdn.jsdelivr.net/pyodide/` prefix and fulfils it from `.pyodide-cache/`, which `urllib`
+fills (CPython has egress here, the browser does not). Six assets, 14MB, gitignored. **Full DOM smoke
+test PASS in about 3 minutes locally.** It went in first specifically so CH-11 could be checked in a
+real browser instead of behind a 3m36s CI round trip, and that is exactly what caught CH-11's chip
+selector and proved the fetch arrives.
+
+**It is OFF in CI on purpose,** via `--pyodide-cache auto`, which reads the `CI` env var. In CI the
+real CDN is reachable and SHOULD be exercised, because that is what a player's browser does; any
+fetch failure also falls through to `route.continue_()`, so the worst case is the old behaviour.
+
+**One trap banked while doing it:** `.gitignore` has no trailing comments. `path/  # note` is read as
+a literal pattern and ignores nothing, which is why the cache dir kept showing as untracked until the
+comment moved to its own line.
+
+**Original filing follows.**
 
 **CH-12 (new 2026-08-14). Offline Pyodide shim for `builder_smoke.py`.** Until now the DOM smoke test
 was CI-only, and the standing reason ("chromium will not launch in the sandbox, no sudo, no system

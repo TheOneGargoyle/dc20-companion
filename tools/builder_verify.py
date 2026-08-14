@@ -1646,21 +1646,69 @@ def check_fr6():
     print("\n## (17) FR-6: rule text on a chosen option (baked corpus + Companion linkify)")
     path = os.path.join(REPO, "builds", "builder.html")
     html = open(path, encoding="utf-8").read()
-    m = re.search(r"const RULES_DATA = (\[.*?\]);\n", html, re.S)
-    ok("rules corpus baked into builder.html (const RULES_DATA)", bool(m))
-    corpus = json.loads(m.group(1)) if m else []
-    ok("baked corpus is non-empty and shaped {f,t,h,x}",
-       len(corpus) > 100 and all(k in corpus[0] for k in ("f", "t", "h", "x")), len(corpus))
     import rules_corpus
-    ok("baked corpus == tools/rules_corpus.build_rules_data(REPO) (single source, no drift)",
-       bool(m) and m.group(1) == rules_corpus.corpus_embed(rules_corpus.build_rules_data(REPO)))
+    # CH-11: the corpus is no longer baked into the page, it is a sibling artifact the page fetches,
+    # and what IS baked is the ~45KB answer set `_linkable` needs at initial render. So this section
+    # now checks three things where it checked one: the artifact matches source, the baked index
+    # matches source, and, the one that actually matters, the baked index answers every question
+    # EXACTLY as the old scan-the-corpus code did.
+    rules_path = os.path.join(REPO, "builds", "rules.json")
+    ok("rules corpus emitted as a sibling artifact (builds/rules.json)", os.path.exists(rules_path))
+    corpus = json.loads(open(rules_path, encoding="utf-8").read()) if os.path.exists(rules_path) else []
+    ok("artifact corpus is non-empty and shaped {f,t,h,x}",
+       len(corpus) > 100 and all(k in corpus[0] for k in ("f", "t", "h", "x")), len(corpus))
+    src = rules_corpus.build_rules_data(REPO)
+    ok("artifact corpus == tools/rules_corpus.build_rules_data(REPO) (single source, no drift)",
+       corpus == src)
+    ok("the 2.1MB corpus is NOT baked into the page any more (CH-11)",
+       "const RULES_DATA = [" not in html and "const RULES_IDX = " in html)
+    ok("builder.html is under 700KB (it was 2,600,533 bytes at a842471)",
+       len(html.encode("utf-8")) < 700000, len(html.encode("utf-8")))
+    mi = re.search(r"const RULES_IDX = (\{.*?\});\n", html, re.S)
+    ok("linkable index baked into builder.html (const RULES_IDX)", bool(mi))
+    idx = json.loads(mi.group(1)) if mi else {"d": [], "m": []}
+    ok("baked index == rules_corpus.linkable_index(corpus, model_strings()) (no drift)",
+       bool(mi) and idx == rules_corpus.linkable_index(src, builder_build.model_strings()))
+    ok("the page fetches the artifact by relative URL, so builds/ and dist/ both work",
+       "const RULES_URL = 'rules.json'" in html and "fetch(RULES_URL)" in html)
+    ok("a failed corpus fetch reports itself in the panel instead of doing nothing",
+       "Rules text unavailable" in html)
+    # THE EQUIVALENCE CHECK, and it is the reason this split is safe to ship. Replay BOTH
+    # implementations of `_linkable` over every term either could ever be asked about and require
+    # identical answers. A term the index missed would silently drop that option's `rule` chip, and
+    # nothing else in this suite would notice.
+    _LD, _LM = set(idx["d"]), set(idx["m"])
+    conds_lc = {c.lower() for c in re.search(r"const CONDS=\[([^\]]*)\]", html).group(1)
+                .replace("'", "").split(",")}
+    old_corpus = rules_corpus.search_corpus(src)
+    old_defined = rules_corpus.defined_words(src)
+
+    def _link(name, multi, single):
+        if not name or len(name) < 4 or name[0].islower():
+            return False
+        k = name.lower()
+        if k in conds_lc:
+            return True
+        return multi(k) if " " in k else single(k)
+
+    names = builder_build.model_strings()
+    probes = set(rules_corpus.phrase_candidates(src, names))
+    probes |= {rules_corpus.js_clean(s) for s in names}
+    probes |= set(old_defined)
+    probes |= {w for w in old_corpus.split() if len(w) >= 4}
+    probes = {p for p in probes if p}
+    disagree = [p for p in probes
+                if _link(p, lambda k: (" " + k + " ") in old_corpus, lambda k: k in old_defined)
+                != _link(p, lambda k: k in _LM, lambda k: k in _LD)]
+    ok("baked index answers _linkable identically to the old corpus scan (%d terms probed)"
+       % len(probes), not disagree, disagree[:8])
     for fn in ("function linkifyTerms", "function _linkable", "function ruleTag",
                "function openRulePanel", "function closeRulePanel"):
         ok("builder JS has %s" % fn, fn in html)
     ok("rule panel + scrim + body markup present",
        'id="rulePanel"' in html and 'id="ruleScrim"' in html and 'id="ruleBody"' in html)
-    ok("term sets present (CONDS_SET / DEFINED)",
-       "const CONDS_SET=" in html and "const DEFINED=" in html)
+    ok("term sets present (CONDS_SET / the baked _LD, _LM which replaced DEFINED at CH-11)",
+       "const CONDS_SET=" in html and "const _LD = new Set(RULES_IDX.d)" in html)
     ok("picker branch routes t.current through ruleTag", "ruleTag(t.current)" in html)
     ok("fixed-text branch routes t.pick through ruleTag", "ruleTag(t.pick)" in html)
     ok("rule panel renders rule HTML through linkifyTerms (in-doc cross-links)", "linkifyTerms(sec.h)" in html)
@@ -1668,12 +1716,18 @@ def check_fr6():
     if not node:
         print("  FR-6 runtime harness: node not available, SKIPPED")
         return
-    i = html.index("const RULES_DATA = [")
+    # CH-11: the block no longer carries the corpus with it, so the harness injects it from the
+    # artifact after the block declares its (now empty) holders. Everything else is unchanged on
+    # purpose: this still runs the REAL page code, not a copy of it.
+    i = html.index("const RULES_IDX = ")
     j = html.index(">rule</span>';}", i) + len(">rule</span>';}")
     block = html[i:j]
     harness = (
         'var esc=function(s){return String(s);};\n'
         + block + '\n'
+        + 'RULES_DATA=' + json.dumps(corpus, ensure_ascii=False) + ';\n'
+        + 'CONDSECTIONS=(function(){var a=[];for(var i=0;i<RULES_DATA.length;i++)'
+          'if((RULES_DATA[i].t||"").toLowerCase()==="conditions")a.push(i);return a;})();\n'
         + 'function resolves(q){q=_clean(q);var k=q.toLowerCase(),b=-1;if(CONDS_SET.has(k)){b=_condTarget(k);if(b<0)b=_home(k);}else{b=_home(k);}return b;}\n'
         + 'var R={};\n'
         + 'R.prone_link=_linkable("Prone");R.prone_res=resolves("Prone");\n'

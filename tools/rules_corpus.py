@@ -230,3 +230,80 @@ def build_rules_data(camp):
 def corpus_embed(obj) -> str:
     """JS-safe embed of the corpus (matches companion-src/build.py js_embed)."""
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
+# ---------- CH-11: the linkable-term index ----------
+# The builder used to bake the whole 2.1MB corpus into builder.html purely so `_linkable` could
+# answer, at INITIAL RENDER, "does this option have a rule to show?" (it gates the `rule` chip on
+# every option row). Only two questions are asked that early:
+#   single word  -> is it a bolded/heading term anywhere in the rules?   (the JS `DEFINED` set)
+#   multi word   -> does the phrase occur in the plain-text corpus?      (the JS `_corpusHas`)
+# Both are decidable at build time, and the answers compress to about 40KB, so the corpus itself
+# moves to a fetched artifact and only the answers stay in the page.
+#
+# PARITY IS THE WHOLE POINT. These constants and regexes mirror the page's JS exactly. If you
+# change one side, change the other, and let builder_verify's equivalence check catch you: it
+# replays both implementations over every term either could ever be asked about.
+JS_STOP = {"same", "each", "both", "more", "move", "hit", "turn", "target", "attack", "damage",
+           "with", "when", "your", "this", "that", "from", "into", "also", "next", "once",
+           "they", "their", "then", "than", "only", "used", "gain", "give", "make", "take", "have"}
+_BOLD_RE = re.compile(r"<(?:strong|b|h[1-6])[^>]*>([^<]{2,40})</(?:strong|b|h[1-6])>", re.I)
+_H3_RE = re.compile(r"<h3>([^<]{3,48}?)(\s*)(<span|</h3>)", re.I)
+
+
+def js_clean(text: str) -> str:
+    """The page's `_clean`: drop a parenthetical tail, drop a colon/semicolon tail, collapse space."""
+    t = re.sub(r"\s*\(.*$", "", str(text))
+    t = re.sub(r"[:;].*$", "", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def search_corpus(data) -> str:
+    """The page's `RULE_CORPUS`: every section's search text, space-delimited for phrase lookup."""
+    joined = " ".join(s.get("x") or "" for s in data)
+    joined = re.sub(r"[^a-z0-9 '’/-]+", " ", joined)
+    return " " + re.sub(r"\s+", " ", joined) + " "
+
+
+def defined_words(data) -> set:
+    """The page's `DEFINED`: single words that appear bolded or as a heading somewhere."""
+    out = set()
+    for s in data:
+        for m in _BOLD_RE.finditer(s.get("h") or ""):
+            t = re.sub(r"[:.,;]+$", "", m.group(1)).lower().strip()
+            if t and " " not in t and len(t) >= 4 and t not in JS_STOP:
+                out.add(t)
+    return out
+
+
+def phrase_candidates(data, extra=()) -> set:
+    """Every multi-word phrase `_linkable` could ever be asked about.
+
+    Two sources, and they are exhaustive by construction. `linkifyTerms` only ever asks about text
+    the corpus itself emphasises, so bold/h3 text covers the in-panel cross-links; `ruleTag` only
+    ever asks about a decision row's name, so the catalog/ledger strings passed in as `extra` cover
+    the option chips. A phrase outside both sets cannot be clicked, because nothing renders it.
+    """
+    out = set()
+    for s in data:
+        h = s.get("h") or ""
+        for m in _BOLD_RE.finditer(h):
+            t = js_clean(re.sub(r"[:.,;]+$", "", m.group(1))).lower()
+            if " " in t:
+                out.add(t)
+        for m in _H3_RE.finditer(h):
+            t = js_clean(m.group(1)).lower()
+            if " " in t:
+                out.add(t)
+    for e in extra:
+        t = js_clean(e).lower()
+        if " " in t:
+            out.add(t)
+    return out
+
+
+def linkable_index(data, extra=()) -> dict:
+    """{"d": [single words], "m": [multi-word phrases that occur]} - the baked answer set."""
+    corpus = search_corpus(data)
+    multi = sorted(t for t in phrase_candidates(data, extra) if (" " + t + " ") in corpus)
+    return {"d": sorted(defined_words(data)), "m": multi}

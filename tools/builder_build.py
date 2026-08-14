@@ -46,11 +46,13 @@ import base64
 import json
 import os
 
+import yaml   # CH-11: model_strings() reads the catalogs and ledgers for the linkable index
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)  # tools/.. == campaign/repo root
 import sys
 sys.path.insert(0, HERE)
-from rules_corpus import build_rules_data, corpus_embed  # FR-6: shared rules corpus
+from rules_corpus import build_rules_data, corpus_embed, linkable_index  # FR-6 corpus, CH-11 index
 
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
 NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
@@ -351,12 +353,32 @@ const dec64 = b => new TextDecoder().decode(Uint8Array.from(atob(b), c=>c.charCo
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 /* ============ FR-6: rule text on a chosen option (shared corpus tools/rules_corpus.py + Companion linkify) ============ */
-const RULES_DATA = __RULES_DATA__;
-var RULE_CORPUS=' '+RULES_DATA.map(function(r){return r.x||'';}).join(' ').replace(/[^a-z0-9 '’\/-]+/g,' ').replace(/\s+/g,' ')+' ';
+/* CH-11: the 2.1MB corpus is no longer baked here. Initial render only needs to know WHICH terms
+   have a rule (it gates the per-option `rule` chip), so the page bakes the ~40KB answer set and
+   fetches the corpus itself the first time a rule is actually opened. RULES_IDX is built by
+   tools/rules_corpus.linkable_index and its parity with these functions is asserted by
+   builder_verify's (17) section, which replays both implementations over every term. */
+const RULES_IDX = __RULES_IDX__;
+const RULES_URL = 'rules.json';
+const _LD = new Set(RULES_IDX.d), _LM = new Set(RULES_IDX.m);
+var RULES_DATA = null, CONDSECTIONS = [], _corpusPromise = null;
+function ensureCorpus(){
+  if (RULES_DATA) return Promise.resolve(RULES_DATA);
+  if (_corpusPromise) return _corpusPromise;
+  _corpusPromise = fetch(RULES_URL).then(function(r){
+    if(!r.ok) throw new Error('rules.json '+r.status);
+    return r.json();
+  }).then(function(d){
+    RULES_DATA = d;
+    CONDSECTIONS = (function(){var a=[];for(var i=0;i<d.length;i++)if((d[i].t||'').toLowerCase()==='conditions')a.push(i);return a;})();
+    return d;
+  }).catch(function(e){ _corpusPromise = null; throw e; });
+  return _corpusPromise;
+}
 function _clean(t){return String(t).replace(/\s*\(.*$/,'').replace(/[:;].*$/,'').replace(/\s+/g,' ').trim();}
-function _corpusHas(k){return RULE_CORPUS.indexOf(' '+k+' ')>=0;}
+function _corpusHas(k){return _LM.has(k);}
 function _hasCost(t){return /\([^)]*\b(?:MP|AP|SP)\b/i.test(t);}
-function _linkable(name){if(!name||name.length<4)return false;var c0=name.charAt(0);if(c0===c0.toLowerCase())return false;var k=name.toLowerCase();if(CONDS_SET.has(k))return true;return (k.indexOf(' ')>=0)?_corpusHas(k):DEFINED.has(k);}
+function _linkable(name){if(!name||name.length<4)return false;var c0=name.charAt(0);if(c0===c0.toLowerCase())return false;var k=name.toLowerCase();if(CONDS_SET.has(k))return true;return (k.indexOf(' ')>=0)?_corpusHas(k):_LD.has(k);}
 function _mk(disp,name){return '<span class="rlink" data-q="'+_clean(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+disp+'<\/span>';}
 function linkifyTerms(html){return String(html)
   .replace(/<b>([^<]{3,40})<\/b>/g,function(m,inner){var nm=_clean(inner);if(_hasCost(inner)&&nm.indexOf(' ')<0)return m;return _linkable(nm)?'<b>'+_mk(inner,nm)+'<\/b>':m;})
@@ -364,8 +386,10 @@ function linkifyTerms(html){return String(html)
 const CONDS=['Exposed','Hindered','Impaired','Dazed','Taunted','Prone','Bleeding','Poisoned','Charmed','Frightened','Grappled','Stunned'];
 const CONDS_SET=new Set(CONDS.map(function(c){return c.toLowerCase();}));
 const _STOP=new Set(['same','each','both','more','move','hit','turn','target','attack','damage','with','when','your','this','that','from','into','also','next','once','they','their','then','than','only','used','gain','give','make','take','have']);
-const DEFINED=new Set();(function(){var re=/<(?:strong|b|h[1-6])[^>]*>([^<]{2,40})<\/(?:strong|b|h[1-6])>/ig,m;for(var i=0;i<RULES_DATA.length;i++){var s=RULES_DATA[i].h;re.lastIndex=0;while(m=re.exec(s)){var t=m[1].replace(/[:.,;]+$/,'').toLowerCase().trim();if(t&&t.indexOf(' ')<0&&t.length>=4&&!_STOP.has(t))DEFINED.add(t);}}})();
-const CONDSECTIONS=(function(){var a=[];for(var i=0;i<RULES_DATA.length;i++)if((RULES_DATA[i].t||'').toLowerCase()==='conditions')a.push(i);return a;})();
+/* CH-11: DEFINED and CONDSECTIONS used to be derived here by scanning the baked corpus. DEFINED is
+   now the baked `_LD` above (same set, computed at build time by rules_corpus.defined_words), and
+   CONDSECTIONS is filled by ensureCorpus() because it is only ever read after a rule is opened.
+   _STOP stays because the parity check replays it. */
 function _esc(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
 function _wc(x,k){return (x.match(new RegExp('\\b'+_esc(k)+'\\b','g'))||[]).length;}
 function _boldHasWord(html,k){return new RegExp('<(strong|b|h[1-6])[^>]*>[^<]*\\b'+_esc(k)+'\\b','i').test(html);}
@@ -375,7 +399,28 @@ function _home(key){var best=-1,bs=0;for(var i=0;i<RULES_DATA.length;i++){var c=
 function _condTarget(key){for(var j=0;j<CONDSECTIONS.length;j++){var i=CONDSECTIONS[j];if(_headingHas(RULES_DATA[i].h,key))return i;}return -1;}
 /* FR-6 additions: trailing rule affordance for a chosen option + a lightweight rule panel */
 function ruleTag(name){var nm=_clean(name);if(!_linkable(nm))return "";return ' <span class="rlink rulei" data-q="'+nm.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" title="Show the DC20 rule for &quot;'+esc(nm)+'&quot;">rule</span>';}
-function openRulePanel(q){q=_clean(q);var key=q.toLowerCase(),b=-1;if(CONDS_SET.has(key)){b=_condTarget(key);if(b<0)b=_home(key);}else{b=_home(key);}if(b<0)return;var sec=RULES_DATA[b];$('ruleF').textContent=sec.f||'';$('ruleBody').innerHTML='<h2>'+esc(sec.t)+'</h2>'+linkifyTerms(sec.h);$('rulePanel').style.display='block';$('ruleScrim').style.display='block';$('rulePanel').scrollTop=0;}
+function _resolveRule(q){q=_clean(q);var key=q.toLowerCase(),b=-1;if(CONDS_SET.has(key)){b=_condTarget(key);if(b<0)b=_home(key);}else{b=_home(key);}return b;}
+/* CH-11: the corpus arrives over the network now, so this is async. It FAILS LOUDLY on purpose:
+   a missing rules.json is the one way this split can break in production while every local harness
+   stays green (deploy.yml rebuilds the page fresh), so the panel says so rather than doing nothing. */
+function openRulePanel(q){
+  var nm=_clean(q);
+  ensureCorpus().then(function(){
+    var b=_resolveRule(nm); if(b<0)return;
+    var sec=RULES_DATA[b];
+    $('ruleF').textContent=sec.f||'';
+    $('ruleBody').innerHTML='<h2>'+esc(sec.t)+'</h2>'+linkifyTerms(sec.h);
+    $('rulePanel').style.display='block';$('ruleScrim').style.display='block';$('rulePanel').scrollTop=0;
+  }).catch(function(e){
+    $('ruleF').textContent='';
+    $('ruleBody').innerHTML='<h2>Rules text unavailable</h2><p>Could not load <code>'+RULES_URL+'</code> ('+esc(String((e&&e.message)||e))+'). Everything else on this page still works.</p>';
+    $('rulePanel').style.display='block';$('ruleScrim').style.display='block';$('rulePanel').scrollTop=0;
+  });
+}
+/* Warm the corpus once the page is idle, so the first rule click is instant in practice. The page
+   is useful long before this lands, which is the whole point of the split. */
+(function(){var go=function(){ensureCorpus().catch(function(){});};
+ if(window.requestIdleCallback)requestIdleCallback(go,{timeout:4000});else setTimeout(go,2000);})();
 function closeRulePanel(){$('rulePanel').style.display='none';$('ruleScrim').style.display='none';}
 document.addEventListener('click',function(e){var t=e.target;if(t&&t.classList&&t.classList.contains('rlink')){e.preventDefault();openRulePanel(t.getAttribute('data-q'));}});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeRulePanel();});
@@ -1029,6 +1074,37 @@ def b64_str(s):
     return base64.b64encode(s.encode("utf-8")).decode("ascii")
 
 
+def model_strings():
+    """Every string the model could put on a decision row, for CH-11's linkable index.
+
+    `ruleTag` is called on a row's current pick or its fixed text, so the phrases it can ever ask
+    about are exactly the strings living in the catalogs and the six ledgers. Harvesting them
+    wholesale is deliberate: an over-broad candidate set costs a few KB, because only phrases that
+    actually occur in the rules survive the corpus filter, while a MISSED one silently drops a
+    `rule` chip and no harness would see it.
+    """
+    out = set()
+
+    def walk(o):
+        if isinstance(o, str):
+            out.add(o)
+        elif isinstance(o, dict):
+            for k, v in o.items():
+                out.add(str(k))
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    cat_dir = os.path.join(REPO, "builds", "catalog")
+    paths = [os.path.join(REPO, "builds", c + ".yaml") for c in CHARS]
+    paths += [os.path.join(cat_dir, f) for f in sorted(os.listdir(cat_dir)) if f.endswith(".yaml")]
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            walk(yaml.safe_load(f))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description="Generate builds/builder.html (six characters + scratch mode).")
     ap.add_argument("--out", default=os.path.join(REPO, "builds", "builder.html"))
@@ -1064,6 +1140,15 @@ def main():
         _now = datetime.now(timezone.utc)
     stamp = _now.strftime("%Y-%m-%d %H:%M %Z") + " \u00b7 " + (os.environ.get("GITHUB_SHA", "local")[:7])
 
+    # CH-11: the corpus is a SIBLING ARTIFACT now, not a baked literal. It is written next to the
+    # page because the page fetches it by relative URL, which is what makes the same file work in
+    # builds/ (harness + smoke test, served over http from the repo root) and in dist/ (deploy).
+    corpus = build_rules_data(REPO)
+    idx = linkable_index(corpus, model_strings())
+    rules_path = os.path.join(os.path.dirname(os.path.abspath(args.out)), "rules.json")
+    with open(rules_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(corpus, ensure_ascii=False))
+
     html = (TEMPLATE
             .replace("__BUILD_STAMP__", stamp)
             .replace("__CATPATHS_PY__", repr(catpaths))
@@ -1071,10 +1156,13 @@ def main():
             .replace("__NEWC_JSON__", json.dumps(NEWCLASSES))
             .replace("__B64_JSON__", json.dumps(b64))
             .replace("__REL_JSON__", json.dumps(rel))
-            .replace("__RULES_DATA__", corpus_embed(build_rules_data(REPO))))
+            .replace("__RULES_IDX__", corpus_embed(idx)))
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(html)
     print("wrote %s (%d bytes; %d spells in meta)" % (args.out, len(html), len(meta)))
+    print("wrote %s (%d bytes, %d sections; index %d terms in %d bytes)"
+          % (rules_path, os.path.getsize(rules_path), len(corpus),
+             len(idx["d"]) + len(idx["m"]), len(corpus_embed(idx))))
 
 
 if __name__ == "__main__":
