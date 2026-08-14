@@ -34,6 +34,7 @@ on:
       - "companion-src/**"
       - "rules/**"
       - "builds/**"          # party stats bake + the published builder page
+      - "tools/**"           # BUG-38: the engine, the API and the builder generator live here since CH-9
       - ".github/workflows/deploy.yml"
   workflow_dispatch:          # allow a manual run from the Actions tab
 

@@ -42,7 +42,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
 | BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
-| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE 2026-08-14, `tools/**` added to `deploy.yml` `paths:` |
+| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | FIXED not shipped: missed `fa15db4` because the remote bridge cannot write `.github/workflows/**`; needs a hand-paste (note below) |
 | BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
 | BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | ready (CH-10; players hit this every session) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
@@ -69,7 +69,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
-**Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Awaiting push now: the BUG-38 + CH-13 + BUG-37 batch** (`deploy.yml`, `catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). `builds/builder.html` is deliberately NOT in it: none of its baked inputs changed, so a rebuild moved only the footer stamp and was reverted.
+**Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Pushed as `fa15db4`, 5 files: CH-13 and BUG-37** (`catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). **BUG-38 is NOT in it.** Its one-line `deploy.yml` edit never reached OneDrive because the remote bridge treats `.github/workflows/**` as protected, so robocopy reported `Copied 0` for `.github` and the commit message names a fix it does not contain. `builds/builder.html` is deliberately excluded too, but for a good reason: none of its baked inputs changed, so a rebuild moved only the footer stamp and was reverted.
 
 ---
 
@@ -219,7 +219,13 @@ strongest argument the project has for the assert-it discipline.
 2. **CH-14. Name the engine's derived-stat labels and spine-feature strings as constants in
    `build_engine.py`** and import them everywhere. Collapses five rows and removes the string-matching
    layer that four of the six confirmed-silent breakages travel through.
-3. **BUG-38. DONE 2026-08-14**, one line, and without it nothing else here reaches production anyway.
+3. **BUG-38**, one line, and without it nothing else here reaches production anyway. **Fixed but NOT
+   shipped in `fa15db4`, and the reason generalises.** The Claude sandbox writes into the OneDrive
+   folder over the desktop bridge, and that bridge **refuses `.github/workflows/**` as protected**.
+   Every other tracked file lands; a CI file silently does not, robocopy then reports `Copied 0` for
+   `.github`, and the commit goes up looking complete. The line to add to `deploy.yml` `paths:`, after
+   `builds/**`, is `- "tools/**"`. **CH-15 and BUG-50 are both CI-file items, so they will hit this
+   too:** plan on hand-pasting them and confirming before calling the item shipped.
 4. **CH-15. `make_map.py --check` plus one CI step.** `catalog_build.py` already has the pattern, and
    `BACKLOG_DONE.md:288` records that MAP.md staleness has only ever been caught by a human.
 5. **BUG-50**, then assert against the generated Companion HTML. Almost every unguarded row in the
