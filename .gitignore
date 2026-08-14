@@ -20,4 +20,8 @@ dist/
 **/__pycache__/
 *.pyc
 .DS_Store
+# CH-12: locally cached pyodide CDN assets for the DOM smoke test (14MB, 6 files).
+# The comment is on its own line on purpose: .gitignore has no trailing comments, so
+# "path/  # note" is read as a literal pattern and ignores nothing.
+.pyodide-cache/
  

@@ -94,6 +94,15 @@ jobs:
           if grep -qE "Withdrawn|puppets|Returner|metaplot" dist/builder.html; then
             echo "::error::GM strings found in builder page - aborting deploy"; exit 1
           fi
+          # CH-11: the rules corpus is a SIBLING ARTIFACT the builder fetches at runtime. If it is
+          # missing or malformed here, every rule popup in the live builder comes up empty while
+          # every local harness stays green, so it is guarded exactly like the pages are.
+          test -f dist/rules.json \
+            || { echo "::error::dist/rules.json missing - the builder's rule popups would 404"; exit 1; }
+          python3 -c "import json,sys; d=json.load(open('dist/rules.json')); sys.exit(0 if len(d)>100 and all(k in d[0] for k in ('f','t','h','x')) else 1)" \
+            || { echo "::error::dist/rules.json is not the expected rules corpus"; exit 1; }
+          grep -q "const RULES_IDX = " dist/builder.html \
+            || { echo "::error::builder.html has no baked linkable index - the CH-11 split is broken"; exit 1; }
           # Player how-to page: present, complete, and free of the same GM strings.
           test -f dist/howto.html
           tail -c 30 dist/howto.html | grep -q "</html>" \
