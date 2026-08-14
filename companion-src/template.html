@@ -43,7 +43,10 @@ nav button.on{color:var(--gold)}
   border-radius:999px;padding:3px 10px;font-size:13px;margin:2px;cursor:pointer}
 .pill.on{background:var(--gmred);border-color:#c96a4a;color:#ffe9dd}
 /* FR-26: the stack-remove chip, only rendered while a condition is on */
-.pill.pilldec{padding:3px 8px;margin-left:-1px;font-weight:700;opacity:.85}
+/* FR-51: it belongs to the pill on its left, so it wears the same "on" colours and tucks
+   against it. As a plain pill it read as a separator, not a button (Darryl, 2026-08-14). */
+.pill.pilldec{padding:3px 9px;margin-left:-6px;font-weight:700;background:var(--gmred);
+  border-color:#c96a4a;color:#ffe9dd;border-top-left-radius:0;border-bottom-left-radius:0}
 .pmenu{position:fixed;z-index:2000;background:var(--panel2);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px;min-width:190px;max-width:80vw}
 .pmenu-hd{font-size:12px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .pmenu button{display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;padding:9px 8px;font-size:14px;color:var(--ink);cursor:pointer}
@@ -216,14 +219,12 @@ details .inner{padding:0 12px 12px}
 
   <div class="row" style="margin:8px 0" id="togRow"></div>
 
-  <div class="card">
-    <h3>Conditions</h3>
+  <details id="secConds" open><summary>Conditions</summary><div class="inner">
     <div id="condRow"></div>
-  </div>
+  </div></details>
 
   <!-- roller -->
-  <div class="card">
-    <h3>Roll</h3>
+  <details id="secRoll" open><summary>Roll</summary><div class="inner">
     <div class="advctl">
       <button onclick="advStep(-1)">−</button>
       <div class="lab" id="advLab">Normal</div>
@@ -234,7 +235,7 @@ details .inner{padding:0 12px 12px}
     <div class="grid" style="grid-template-columns:1fr 1fr 1fr" id="rollGrid"></div>
     <div class="rollout" id="rollOut"><span class="small">Tap a button. Set “vs Def” to auto-grade Hit / Heavy / Brutal.</span></div>
     <div class="small">Bench: at +5 vs an equal-level foe you hit on 8+ (65%), Heavy on 13+, crit on 20. Crit = auto-hit, +2 dmg, bypasses DR. Heavy +1 / Brutal +2 / every +5 beyond adds +1.</div>
-  </div>
+  </div></details>
 
   <!-- FR-25 damage calculator -->
   <details><summary>Damage Calculator</summary><div class="inner">
@@ -540,6 +541,12 @@ Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c
     if(r[1]==='Initiative')return[d.initiative,r[1],'⚡ Init '+sgn(d.initiative)];
     return r;});
 });})();
+/* FR-53: remember whether Conditions and Roll are collapsed. Without this the sections
+   re-open on every load and collapsing them is pointless at a table. */
+function initSections(){['secConds','secRoll'].forEach(function(id){
+  var d=document.getElementById(id); if(!d)return;
+  var v=sget('sec_'+id,null); if(v!==null)d.open=!!v;
+  d.addEventListener('toggle',function(){sset('sec_'+id,d.open);});});}
 let cur=sget('curchar','tan');
 if(!(cur in CHARS))cur='tan';
 let S=null;
@@ -1087,7 +1094,7 @@ CHARS.xan.acc=`
 <div class="card"><h3>Signature plays</h3><b>Lead with Prone (Water rune).</b> Smite + Wave to knock the priority target down: every melee ally then swings at ADV. That is usually worth more than his own damage rider.<br><b>First action of the fight: Effortless Umbral Imbue.</b> It banks the Signature-School discount, free once per combat, then puts +1 Umbral on every swing for the rest of the fight.<br><b>Blink Blade to the back line and open from Unseen.</b> Delete a caster or an archer rather than trading with the front bruiser. Round 1 out of Stealth is his best alpha strike.</div>
 </div></details>`;
 
-initParty();renderLog();advStep(0);
+initParty();renderLog();advStep(0);initSections();
 </script>
 </body>
 </html>

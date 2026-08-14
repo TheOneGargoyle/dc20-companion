@@ -791,8 +791,10 @@ expect(_defs["mp_to_damage"]["per"] == 2 and _defs["mp_to_damage"].get("cap_stat
        "damage_addons: mp_to_damage should be +2 per MP, capped at the derived Mana Spend Limit")
 # Smite = +1 Bound damage per SP; the single free Damage enhancement is a SEPARATE one-shot
 # toggle (smite_free), NOT +1 per SP (Darryl ruling 2026-07-19).
-expect(_defs["smite"]["per"] == 1 and _defs["smite"].get("cap_stat") == "sp",
-       "damage_addons: smite should be +1 Bound dmg per SP, capped at SP")
+# Darryl 2026-08-14: Smite is capped by the STAMINA SPEND LIMIT, not by max SP. 09's dev-intent
+# section says "capped only by the Stamina Spend Limit", so max SP over-reported it (3 vs 2 at L4).
+expect(_defs["smite"]["per"] == 1 and _defs["smite"].get("cap_stat") == "spend_limit",
+       "damage_addons: smite should be +1 Bound dmg per SP, capped at the Stamina Spend Limit")
 expect(_defs["smite_free"]["type"] == "toggle" and _defs["smite_free"]["amount"] == 1,
        "damage_addons: smite_free should be a one-shot +1 toggle (the single free enhancement)")
 # generic Damage enhancement is single-target, capped at the derived Stamina Spend Limit (BUG-37).

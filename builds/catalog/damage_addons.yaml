@@ -31,9 +31,11 @@ defs:
     label: "Smite (Bound dmg)"
     type: stepper
     per: 1            # +1 Bound damage per SP spent (the free enhancement is separate, see smite_free)
-    cap_stat: sp
+    cap_stat: spend_limit   # Darryl 2026-08-14: capped by the STAMINA SPEND LIMIT, not by max SP.
+                            # 09's dev-intent section says Smite is "capped only by the Stamina
+                            # Spend Limit"; at L4 that is 2, and max SP 3 was over-reporting.
     unit: SP
-    note: "single target; +1 Bound damage per SP"
+    note: "single target; +1 Bound damage per SP, capped by the Stamina Spend Limit"
   smite_free:
     label: "Smite free enhancement"
     type: toggle
@@ -95,9 +97,11 @@ characters:
     addons:
       - smite
       - smite_free
+      # Darryl 2026-08-14: the Spellstrike carries the spell, so its riders read UNDER it. MP to
+      # damage is an enhancement ON that spell, and Death's Toll triggers off it.
+      - {id: spellstrike, label: "Spellstrike (Radiant Bolt)", amount: 2, note: "folds in Radiant Bolt (2 dmg, incl. Powerful focus)"}
       - mp_to_damage
       - deaths_toll
-      - {id: spellstrike, label: "Spellstrike (Radiant Bolt)", amount: 2, note: "folds in Radiant Bolt (2 dmg, incl. Powerful focus)"}
   xan:
     base: 1
     base_note: "Light Short Sword"
@@ -105,8 +109,9 @@ characters:
       - smite
       - smite_free
       - {id: imbue, label: "Umbral Imbued"}
-      - mp_to_damage
+      # Spellstrike above its MP enhancement, same reason as tan above.
       - {id: spellstrike, label: "Spellstrike (Umbral Bolt)", amount: 1, note: "folds in Umbral Bolt (1 dmg)"}
+      - mp_to_damage
   runt:
     base: 2
     base_note: "Lightning Bolt (incl. Powerful focus +1)"
