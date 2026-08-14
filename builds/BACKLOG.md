@@ -55,6 +55,8 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-48 | `Human Resolve` priced at 1 point, applies nothing (death_threshold has no grant term) | bug | catalog+engine | P3 | ready (CH-10) |
 | BUG-49 | `_TODO_CANON_OK` dedups by bare name, so the Trade Expertise tripwire can go green while it double-applies | bug | tools | P2 | ready (CH-10; pairs with BUG-20) |
 | BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | ready (CH-10; nothing reads the published Companion at all) |
+| BUG-51 | `sync-commit-push.bat` copies 5 subfolders and NO root files, so a root-level change cannot ship | bug | repo | P2 | ready (found 2026-08-14 when `.gitignore` could not reach the clone; see note) |
+| FR-50 | The builder's ledger export reformats the whole file (flow to block style), so a 1-line change reviews as 175 | feature | builder | P2 | ready (found 2026-08-14 on Kristian's Minimus export; see note) |
 | CH-13 | Drop the `and e.get("grants")` conditional at 6 sites in `catalog_verify.py` | chore | tools | P1 | DONE 2026-08-14, all 6 sites unconditional; surfaced C5 and closed it without editing a canon ledger (note below) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
 | CH-15 | `make_map.py --check` plus one step in `verify.yml` so a stale `MAP.md` fails CI | chore | tools+repo | P2 | ready (CH-10 fix 4; `catalog_build.py` already has the pattern) |
@@ -71,7 +73,9 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 **Updated 2026-08-14 (2). Origin is now `9fe3c60`** (the CH-10 audit filing), so `BACKLOG.md` and `CH10_DUPLICATED_FACTS.md` are pushed and the old "let this file ride along" advice is discharged. Re-verified the same way, by sha256-comparing every file this thread touched in OneDrive against a fresh clone of `9fe3c60`: all identical before the edits below. `builds/reports/`, `builds/sources/` and `sheets/` still differ only because `.gitignore` excludes them on purpose. **Pushed as `fa15db4`, 5 files: CH-13 and BUG-37** (`catalog_verify.py`, `damage_addons.yaml`, `companion-src/build.py`, `companion-src/template.html`, this file). **BUG-38 was NOT in it**, because the remote bridge treats `.github/workflows/**` as protected, so its one-line `deploy.yml` edit never reached OneDrive, robocopy reported `Copied 0` for `.github`, and `fa15db4`'s message named a fix it did not contain. Darryl hand-placed the file and pushed it as **`1711be0`**, which is now origin. **Verified after the push, not assumed:** origin's `deploy.yml` carries the `tools/**` line, and the live Companion's About stamp reads `Build: 2026-08-14 16:43 AEST · 1711be0`, so the deploy ran on the current tree. `builds/builder.html` was deliberately excluded from both of those commits: none of its baked inputs had changed, so a rebuild moved only the footer stamp and was reverted.
 
-**Awaiting push after `1711be0`: CH-12 and CH-11, 8 files.** `tools/rules_corpus.py`, `tools/builder_build.py`, `tools/builder_verify.py`, `tools/builder_smoke.py`, `.gitignore`, `builds/builder.html` (now 518,205 bytes), **NEW `builds/rules.json`** (2,107,227 bytes, tracked on purpose), and this file. **`.github/workflows/deploy.yml` needs hand-placing again** for the three CH-11 artifact guards; the bridge still refuses it. All three layers green before handover: catalog_verify 90/90, builder_verify **PASS 777**, builder_smoke PASS in 3m1s including the new (S6).
+**Awaiting push after `1711be0`: CH-12, CH-11 and Kristian's Minimus spell swap, 10 files.** Added to the list below: `builds/minimus.yaml` (L4 spell Close Wounds -> **Cleanse**, no longer `inferred`) and `companion-src/template.html` (his Companion spell card, BUG-41 partial). Re-verified after that change: catalog_verify 90/90, builder_verify **777**, builder_smoke PASS, and the built Companion checked for the new names. **`.gitignore` is in the list but CANNOT ship** via the bat, see BUG-51; harmless, no action needed.
+
+**Original CH-12 + CH-11 list, 8 files.** `tools/rules_corpus.py`, `tools/builder_build.py`, `tools/builder_verify.py`, `tools/builder_smoke.py`, `.gitignore`, `builds/builder.html` (now 518,205 bytes), **NEW `builds/rules.json`** (2,107,227 bytes, tracked on purpose), and this file. **`.github/workflows/deploy.yml` needs hand-placing again** for the three CH-11 artifact guards; the bridge still refuses it. All three layers green before handover: catalog_verify 90/90, builder_verify **PASS 777**, builder_smoke PASS in 3m1s including the new (S6).
 
 ---
 
@@ -238,6 +242,32 @@ strongest argument the project has for the assert-it discipline.
    companion region becomes checkable the moment something reads the output.
 6. **FR-49. Add `hp`/`mp`/`sp` to the engine's equipment-effect keys.** Retires `DISPLAY_DELTAS` and closes
    a whole class of unmodellable item.
+
+**BUG-51 (new 2026-08-14). `sync-commit-push.bat` cannot ship a root-level file.** It robocopies
+exactly five subfolders, `companion-src`, `rules`, `.github`, `builds`, `tools`, and nothing at the
+campaign root. So `.gitignore`, `.gitattributes` and the bats themselves are invisible to the sync
+path: an edit to one lands in OneDrive, never reaches the clone, and the commit goes up silently
+short. **This is the same failure SHAPE as BUG-38** (which was the bridge refusing `.github/**`), and
+it bit the same day: CH-12's `.gitignore` line adding `.pyodide-cache/`. Low urgency because root
+files change rarely and the current miss is harmless (the cache dir only exists where the smoke test
+runs, which is the sandbox and CI, never Darryl's machines). Fix is one more robocopy line for the
+root with `/XF` on the token files, or an explicit named-file copy.
+
+**FR-50 (new 2026-08-14). The builder's ledger export reformats the entire file.** Kristian's Minimus
+export changed one spell; the diff was **175 lines against 85**, because the export re-emits YAML in
+block style where the hand-authored ledgers use compact flow style. Comments DO survive, which is the
+good news. Verified semantically identical apart from the intended change by loading both sides and
+walking the structures, then applied the 3-line change by hand to keep the house format. **Why it
+matters:** the whole point of the round-trip is that a player edits in the builder and Darryl rebuilds
+on the fly, and that loop is only cheap if the diff is readable. Fix is to dump in flow style for the
+collections the ledgers use, or accept block style everywhere and reformat all six once, deliberately.
+
+**BUG-41 partially closed 2026-08-14.** Minimus's Companion spell card said **Grease** (a pre-0.10.5
+name for Oil Slick) and **Close Wounds**; it now reads Oil Slick and Cleanse, with Cleanse's actual
+rule text rather than "the party's backup heal", which it is not. **The general defect stands:** these
+cards are hand-authored prose in `template.html`, so a ledger change does NOT update them, and this
+one was found only because it was looked for. Runt's wrong spell set, `Recovery` vs `Recover`, and the
+resolved-question note are all still open.
 
 **BUG-37, DONE 2026-08-14, and it set a convention worth reusing.** `cap: 2` on `mp_to_damage` and
 `gen_damage` became **`cap_stat: spend_limit`**, a third allowed `cap_stat` alongside `sp` and `mp`.
