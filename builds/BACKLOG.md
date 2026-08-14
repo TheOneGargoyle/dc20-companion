@@ -40,9 +40,26 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS (Tier-2 engine slice PUSHED + CHROME-VERIFIED `83c3f36` 2026-07-29; 14 of 18 closed, 4 distinct left, all four gated on BUG-20 or a design call, see note) |
 | CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, not urgent, see note) |
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
-| CH-8 | Harness output token cost: `builder_verify.py --quiet` | chore | tools | P1 | DONE 2026-07-30 (see note) |
-| CH-9 | Extract `API_PY` out of `builder_build.py` into `tools/builder_api.py` | chore | tools | P1 | DONE 2026-07-30, staged on mount, awaiting Darryl's push (API_PY byte-identical, sha256 `010a9c6c`; `builder_build.py` 3,852 to 1,082 lines; trap 1 closed) |
-| CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | ready (new 2026-07-30, see note) |
+| CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
+| BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | ready (CH-10; time-critical, party is L4 in a L4-6 arc) |
+| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | ready (CH-10; one line; widened by CH-9) |
+| BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
+| BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | ready (CH-10; players hit this every session) |
+| BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
+| BUG-42 | `FR20_CAT` vs `FR20_RANK` already drifted; ancestry_origin renders in the wrong group | bug | builder | P2 | ready (CH-10; check is blind, both dicts default to 3) |
+| BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | ready (CH-10) |
+| BUG-44 | Six Beastborn traits are missing `requires: Natural Weapon` | bug | catalog | P2 | ready (CH-10; parser cannot see a prose prerequisite) |
+| BUG-45 | Three of the eight Spell Schools are unpickable in the builder | bug | catalog+builder | P2 | ready (CH-10) |
+| BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog | P2 | ready (CH-10) |
+| BUG-47 | Druid L1 feature `Wild Speech` missing from `class_features.yaml` | bug | catalog | P3 | ready (CH-10) |
+| BUG-48 | `Human Resolve` priced at 1 point, applies nothing (death_threshold has no grant term) | bug | catalog+engine | P3 | ready (CH-10) |
+| BUG-49 | `_TODO_CANON_OK` dedups by bare name, so the Trade Expertise tripwire can go green while it double-applies | bug | tools | P2 | ready (CH-10; pairs with BUG-20) |
+| BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | ready (CH-10; nothing reads the published Companion at all) |
+| CH-13 | Drop the `and e.get("grants")` conditional at 6 sites in `catalog_verify.py` | chore | tools | P1 | ready (CH-10 fix 1; six characters, extends CH-5 to five more categories) |
+| CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
+| CH-15 | `make_map.py --check` plus one step in `verify.yml` so a stale `MAP.md` fails CI | chore | tools+repo | P2 | ready (CH-10 fix 4; `catalog_build.py` already has the pattern) |
+| FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | ready (CH-10 fix 6; closes a class of unmodellable item) |
+| CH-12 | Offline Pyodide shim so `builder_smoke.py` runs outside CI | chore | tools | P1 | ready (new 2026-08-14; fix already proved end to end, see note) |
 | CH-11 | Split the rules corpus out of `builder.html`: 81.9% of the file is one `RULES_DATA` literal | chore | builder+tools | P1 | ready (new 2026-07-30; offline-use answered, always the published URL; term-index + on-demand-bodies shape, see note) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | ready (surfaced 2026-07-28 during BUG-34, see note) |
@@ -50,7 +67,9 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
 | FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | parked |
 
-**Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. **Origin is `d3a9444`.**
+**Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
+
+**Re-verified 2026-08-14** by sha256-comparing every tracked file in OneDrive against a fresh clone of origin. **Exactly one file differs: this one**, and only in the paragraph above. `builds/reports/`, `builds/sources/` and `sheets/` differ only because `.gitignore` excludes them on purpose. So the standing advice holds: let this file ride along with the next real commit.
 
 ---
 
@@ -72,6 +91,8 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 **BUG-20. Trade / Skill Expertise, the Tier-2 allocator-coupled one.** Reframed and deferred out of the 2026-07-25 option-effects slice. These are NOT flat grants: they raise the cap and level of a CHOSEN trade/skill, which the engine models with a `limit_raise` flag on that trade in the allocator. So the fix is a sub-choice plus allocator coupling, not a catalog `grants:` copy. Also carried as a `todo:` in the FR-44 coverage ledger, and FR-46's round-trip confirms both are genuinely inert today (no name-match is quietly covering them).
 
 **BUG-26. Innate Power / Sorcerous Origin. Needs a design call before building** (deferred 2026-07-25, Darryl's call). The reported L2 "Innate Sorcery" bug is really the **MC Sorcerer Innate Power** talent. Per `classes.md` l.2541 it gives +1 MP unconditionally, then a **Sorcerous Origin sub-choice** among Intuitive Magic / Resilient Magic / Unstable Magic, and **only Intuitive Magic grants the +2 spells** (Resilient = Dazed Resistance, Unstable = Wild Magic). The existing FR-13a slice-2 machinery DELIBERATELY conflates this: it models the sub-choice as the spell SOURCE (Arcane/Divine/Primal) and hard-authors Scaletrix's +2 Intuitive spells onto his ledger. Wiring it into scratch mode touches the most delicate builder code, with real regression risk to canon Scaletrix. Two shapes were captured: **(a)** minimal, "assume Intuitive" and reuse the source node, or **(b)** model the 3-way sub-choice and its conditional grant properly.
+
+**Asked and answered 2026-08-14 (Darryl): if we do NOT do it here, what work fixes it?** Nothing fixes it incidentally. Checked against `FR12_PLAN.md` rather than assumed: **FR-12 Phase 3** (class coverage) says in as many words that it prioritises by multiclass-reach first and names *"Scaletrix's MC Sorcerer/Innate Power"* as one of the two drivers, and **Phase 4** is subclass breadth, which is the same shape again. So Sorcerous Origin is forced open by Phase 3 whatever we do. The sequence that costs least: **FR-42 builds the sub-choice node** on greenfield ground (Spellcasting Expansion), **BUG-26 applies it** to Innate Power, and Phase 3 then inherits a working pattern. Deferring past FR-42 does not save the work, it just moves it inside a much larger epic and next to the delicate FR-13a code that hard-authors Scaletrix's spells. **Recommendation: do it at BUG-26, shape (b), straight after FR-42.**
 
 ---
 
@@ -123,7 +144,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 - **The three name-matches came out as planned**, but `{attribute_points: +/-1}` was the wrong target shape for the ancestry trait: that key is the class-table budget carrier and would have spawned a rider pick where the trait gives a fixed +1 to a chosen Attribute. So per-attribute `attr_<name>` grant keys, with the target carried in the KEY rather than parsed out of the option name.
 - **The generic `Attribute Decrease` closed here too, not in the FR-42 sub-choice slice.** It needs a target, but `Attribute Increase` already had one via the decorated per-attribute variants the picker emits, so making the variant machinery catalog-driven (`targets: attributes`) closed both. FR-42 and BUG-26 still need real sub-choice nodes; this row does not, and it was previously the worse kind of broken: priced at -1 (a free ancestry point) and applying nothing.
-- **The remaining 4 are all gated on something other than data:** `Skill Expertise` / `Trade Expertise` are allocator-coupled (BUG-20), `Fiendish Aura` needs a ruling on whether a cantrip counts against Spells known, `Natural Armor` needs unarmoured-PDR plumbing in the engine's equipment-only `dr` path. So CH-5's data burn-down is effectively finished; what is left is four decisions.
+- **The remaining 4 are all gated on something other than data:** `Skill Expertise` / `Trade Expertise` are allocator-coupled (BUG-20), `Fiendish Aura` is **PARKED until 0.11** (Darryl, 2026-08-14: there is no spell named Sorcery and no such thing as Cantrips in 0.10.5, both are 0.9.5 holdovers in the source text, so there is nothing to model and no ruling to make; revisit when 0.11 lands), `Natural Armor` needs unarmoured-PDR plumbing in the engine's equipment-only `dr` path. So CH-5's data burn-down is effectively finished; what is left is four decisions.
 
 Canon is unaffected: `catalog_verify` asserts that no walked ledger depends on a todo option, and after Tier-2 there is exactly ONE documented exception left (Tanrielle's `Trade Expertise`, hand-authored in her `trades` block, retired by BUG-20). These were scratch-mode-only wrong answers, which is exactly why they arrived as player reports instead of harness failures. **The harness sections assert the DERIVED STAT, not the catalog row:** `(CH5)` and `(CH5b)` build a scratch character per ancestry, pick the trait and check the number moved by the right amount, including the negative cases (a Dwarf wearing Half Plate must NOT get Thick-Skinned's +1 AD, and the row's note must say so). That shape is deliberate: every bug in this family was "the data says it, nothing applies it", so a check that read the catalog would have passed throughout.
 
@@ -145,20 +166,60 @@ adds the next section: the cost of a check is no longer zero, so prefer one asse
 **CH-9. DONE 2026-07-30, note moved to `BACKLOG_DONE.md`.** `tools/builder_api.py` exists,
 `builder_build.py` is 1,082 lines, trap 1 is closed. `CLAUDE.md` trap 1 is now a historical note.
 
-**CH-10 (new 2026-07-30).** All four systemic root causes this project has found are one
-meta-pattern: **a fact that must agree in two places with nothing asserting that it does.**
-Costume 1, catalog declares an effect no code consumes (BUG-19/21/22/23/24/25/27/30/36, closed by
-the FR-44 coverage ledger). Costume 2, two hand-maintained mirror lists drift (BUG-31/32/33/36).
-Costume 3, the harness asserts the model while the artifact is broken (BUG-31/32, closed by
-`builder_smoke.py`). Costume 4, an empty collection satisfies every assertion about its members
-(found by FR-46: `class_features.yaml` keys levels as ints, a string walk resolved to `{}` and
-reported PASS). Traps 2, 3 and 4 in `CLAUDE.md` are the same trap. Task: enumerate every place a
-fact is duplicated across `tools/`, `builds/catalog/`, `builds/*.yaml`, `companion-src/` and
-`rules/`, and for each either derive one side from the other or add a harness assertion that the
-two agree. This is finite and can be written down in one session. **It matters because it is the
-answer to "how many more systemic causes are there": the discovery rate is not random and not
-infinite, it is bounded by the length of this list.** Deliverable: a table in this file, one row
-per duplicated fact, each marked derived, asserted, or unguarded.
+**CH-10. DONE 2026-08-14. Deliverable: [`CH10_DUPLICATED_FACTS.md`](CH10_DUPLICATED_FACTS.md).**
+Filed as its own file rather than a table here because it runs to **97 rows**, the same reason
+`BACKLOG_DONE.md` and `FR12_PLAN.md` were split out. Produced by five independent sweeps, one per
+region, each required to verify the guard claim rather than assume it.
+
+**The answer to the question CH-10 was filed to ask.** The bound is **97 duplicated facts: 6 derived,
+18 asserted, 73 unguarded.** The 73 are not 73 bugs; **14 of them are already wrong today** and are
+filed above as BUG-37 to BUG-50. The rest are correct and unprotected, which is the state every
+closed bug in this project was in the day before it broke.
+
+**The four costumes collapse into three mechanisms, and the audit adds a fourth that was not named
+before.** (1) A hand-written list that new data does not join, 19 rows, all of them BUG-31 in a new
+costume, all failing by *omission*, which is the mode no test can see. (2) A formula or vocabulary
+implemented twice, 22 rows. (3) An assertion written against a copy rather than the artifact, 11 rows
+and the most corrosive because each one looks like a guard: `builder_verify.ORACLE` is a hand
+transcription of `template.html` labelled as its oracle, and `deploy.yml`'s GM canary words
+transcribe files the repo deliberately excludes, so nobody can ever confirm they still appear.
+(4) **NEW: an assertion that shares the implementation's silent default.** `check_fr36` compares
+`FR20_CAT.get(slot, 3)` with `FR20_RANK.get(slot, 3)`; `check_sheet` recomputes a skill bonus with
+the same `attrs.get(gov, 0)` fallback the sheet uses. **A check that shares the subject's escape
+hatch cannot see the subject fall through it.** Two live defects are green right now because of it,
+and it is why the FR-44 declare-an-effect gate can be satisfied by a *wrong* declaration:
+`no_effect: situational` is accepted as readily on a rune that grants +1 Speed as on an inert one.
+
+**The reassuring half, measured not assumed:** 27 of 28 documentation line-citations still resolve,
+`tools/MAP.md` regenerates **byte-identical** (all 8 headers and ~390 line ranges correct), and every
+count that sits behind an `expect()` is right: 90/90, 770, 231 options, the CH-11 byte measurements,
+the `API_PY` sha. **The rot is exactly and only where nothing asserts.** That correlation is the
+strongest argument the project has for the assert-it discipline.
+
+**Ranked by rows closed per unit of work, do these in order. All six now carry IDs so they cannot be lost with this note:**
+
+1. **CH-13. Delete `and e.get("grants")` at `catalog_verify.py:282, 334, 342, 353, 362, 374`.** Six
+   characters. Extends CH-5's exact discipline from ancestry traits to subclasses, disciplines, pact
+   boons and talents, and closes the omission failure mode in five categories at once. The CH-5 guard
+   turns out to be **an ancestry-trait guard, not a ledger guard**: it walks one category, fires 6
+   times, and checks catalog to ledger only.
+2. **CH-14. Name the engine's derived-stat labels and spine-feature strings as constants in
+   `build_engine.py`** and import them everywhere. Collapses five rows and removes the string-matching
+   layer that four of the six confirmed-silent breakages travel through.
+3. **BUG-38**, one line, and without it nothing else here reaches production anyway.
+4. **CH-15. `make_map.py --check` plus one CI step.** `catalog_build.py` already has the pattern, and
+   `BACKLOG_DONE.md:288` records that MAP.md staleness has only ever been caught by a human.
+5. **BUG-50**, then assert against the generated Companion HTML. Almost every unguarded row in the
+   companion region becomes checkable the moment something reads the output.
+6. **FR-49. Add `hp`/`mp`/`sp` to the engine's equipment-effect keys.** Retires `DISPLAY_DELTAS` and closes
+   a whole class of unmodellable item.
+
+**Two findings worth knowing even if the fixes wait.** `rules/ancestries.md:30-31` says Ancestry
+Points arrive at L4 and **L7**, while every class table says L4 and **L8**; the rules contradict
+themselves, nothing records that a choice was made, and the party is three levels from it. And the
+`66/66 oracle` string is quoted in five live documents including a **definition of done in
+`FR12_PLAN.md:104` that can never be satisfied**, because the harness has asserted 90 since
+2026-07-16 and has never emitted 66.
 
 **CH-11 (new 2026-07-30).** Split the baked rules corpus out of `builds/builder.html`.
 **Measured at `a842471`, not estimated:** the file is 2,600,533 bytes and the
@@ -201,13 +262,43 @@ delete them**, or the split trades an 82 per cent size win for a hole in the FR-
 `rules_corpus.build_rules_data(REPO)` remains the single source either way, and the Companion already
 shares it, so no third copy of the corpus appears.
 
+**CH-12 (new 2026-08-14). Offline Pyodide shim for `builder_smoke.py`.** Until now the DOM smoke test
+was CI-only, and the standing reason ("chromium will not launch in the sandbox, no sudo, no system
+deps") is **out of date**. In the Claude cloud container chromium launches fine and Playwright is
+preinstalled. What actually blocks it is narrower and was measured, not assumed: **CPython has full
+egress, the BROWSER has none.** In headless chromium `example.com` gives `ERR_CONNECTION_RESET` and
+`pypi.org` gives `ERR_CERT_AUTHORITY_INVALID`, while `curl` and `urllib` reach both. So the page's
+`<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js">` (`builder_build.py` L104)
+never loads and every journey dies on `wait_for_function` after 120s. **This is sandbox egress policy
+for browser traffic, not a per-site allowlist anyone can approve**, and pointing chromium at the
+container proxy (`--proxy-server=http://127.0.0.1:46545` plus `ignore_https_errors`) does not help.
+
+**The fix, already proved end to end on 2026-08-14 against origin `2e4019c`: `builder_smoke.py --require`
+PASSED in 2m46s, all five sections.** Intercept ONLY the `https://cdn.jsdelivr.net/pyodide/` prefix
+with Playwright `page.route()` and fulfil from a disk cache populated by `urllib`. Six assets, ~10MB
+of wasm, cached after the first run; Pyodide then boots in 6.5s. Install it in `SmokeSession.recycle()`
+immediately after `self.browser.new_page()`.
+
+**Three things to get right when landing it.** (1) The handler must `route.continue_()` on ANY fetch
+failure, so CI keeps hitting the real CDN and its behaviour is unchanged; the shim must be a pure
+fallback, never a new dependency. (2) Match on the URL prefix only, and `continue_()` everything else,
+or the local http server that serves the repo gets intercepted too. (3) The cache key must include the
+pyodide VERSION, so bumping the CDN URL in `builder_build.py` cannot silently serve stale wasm; simplest
+is to hash the full URL, which the proved patch does.
+
+**Why P1 despite being a harness-only change:** it moves layer 3 of the verification model from
+CI-only to locally runnable, which is the layer that caught CH-5 Tier-2's CI blocker and the whole
+BUG-31/32 family. **BUG-26 and FR-42 both touch the delicate FR-13a code that hard-authors Scaletrix's
+spells**, and doing that with a browser check in the loop rather than a CI round trip is the difference
+between one careful pass and several. Do CH-12 before them.
+
 **CH-6. CI Verify takes ~3m** (asked and answered 2026-07-28, when Darryl asked whether Verify runs twice). Not urgent.
 
 - **It does not run twice.** Every push touching `builds/**` or `rules/**` fires TWO DIFFERENT workflows, by design and true since both existed: **Verify** (`.github/workflows/verify.yml`, ~3m, runs the three harnesses) and **Deploy Companion** (`.github/workflows/deploy.yml`, ~30s, builds and publishes to Pages). Their `paths:` filters overlap on `builds/**` and `rules/**`. One checks correctness, the other ships. Worth writing down because the pair looks like a duplicate at a glance, and the run numbers differ (Verify #7 vs Deploy #92), which makes it look stranger still.
 - **Where the ~3m goes:** only about a third is the test suite, the browser setup is the bulk. `playwright install --with-deps chromium` 50s, `builder_verify` 60s (45s local, runners are slower), `builder_smoke` (Pyodide in headless chromium) 40s, `pip install markdown pyyaml pypdf playwright` 25s, checkout + setup-python 10s, catalog_verify 5s, builder_build 5s. FR-46 added roughly 15s; Verify was already 2m30 to 3m on the three commits before it (2m30, 2m38, 3m01), so that section did not change the shape.
 - **CH-5 Tier-2 moved it to 3m41 (Verify #11, 2026-07-29), which is the largest single jump so far.** Two causes, both real work rather than waste: the `(CH5b)` and `(RT)` additions cost about 7s of CPython, and the six new `builder_smoke.py` trait journeys each need a real page load with Pyodide warm, which is the expensive part. If this keeps climbing, the browser cache in item (1) below buys back 40s and the journeys are the thing to look at next, because they are per-trait-name by design and the catalog will keep growing.
 - **The two things worth doing, when it starts to annoy:** (1) **cache the browser**, `~/.cache/ms-playwright` is cacheable with `actions/cache` and `playwright install` is pure setup cost paid on every run, worth about 40s; (2) **add a `paths` filter to the `pull_request` trigger**, since Verify filters paths on `push` but not on `pull_request`, so a PR touching only markdown still runs the full browser suite.
-- **What NOT to do:** do not drop or conditionalise the smoke test to save time. CI is the only place it runs at all (chromium will not launch in the Claude sandbox without system deps and there is no sudo), so it is the browser check, and the ordering in verify.yml is already cheapest-signal-first on purpose.
+- **What NOT to do:** do not drop or conditionalise the smoke test to save time. It is the browser check. (**Parenthetical corrected 2026-08-14:** the old reason, "chromium will not launch in the Claude sandbox without system deps and there is no sudo", is no longer true. Chromium and Playwright are preinstalled in the cloud container; the real blocker was browser egress, and CH-12 fixes it.) and the ordering in verify.yml is already cheapest-signal-first on purpose.
 
 ---
 
