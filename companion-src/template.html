@@ -717,8 +717,12 @@ function d(n){return 1+Math.floor(Math.random()*n);}
    Versatile (+2 to Hit with a 2-handed grip, general-rules.md l.1002) and Flanking
    (+2 to a Melee Attack, general-rules.md l.787) are both conditions of the moment,
    not character properties, so they are toggles that ride the NEXT Attack roll.
-   Help Dice decay d8 > d6 > d4 on repeat Help Actions in a turn (combat.md l.339). */
-const HELP_STEPS=['d8','d6','d4'];
+   Help Dice decay by one step on repeat Help Actions in a turn (combat.md l.339), to a
+   d4 floor. The chain starts at the character's OWN die, not always a d8: Expert Commander
+   at L5 (classes.md l.1207) starts Minimus at a d10 when he helps inside his Commanding
+   Aura, so the ladder carries d10 and helpBase decides where on it a character enters.
+   Outside the Aura his die is still a d8, which is reachable as the next step down. */
+const HELP_STEPS=['d10','d8','d6','d4'];
 let rmods={vers:0,flank:0}, helpBase='d8', helpIdx=0;
 function helpBaseIdx(){const i=HELP_STEPS.indexOf(helpBase);return i<0?0:i;}
 function helpDie(){return HELP_STEPS[Math.min(HELP_STEPS.length-1,helpBaseIdx()+helpIdx)];}

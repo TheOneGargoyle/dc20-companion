@@ -802,11 +802,18 @@ def check_companion_dmg_roll():
         ok("FR-52: Versatile and Flanking ride Attack rolls only, never a Spell Check",
            "if(label!=='Attack')return {n:0,parts:[]};" in art
            and "const total=kept+mod+rm.n;" in art)
-        ok("FR-52: the Help Die decays d8 > d6 > d4 and the grid button reads live state",
-           "const HELP_STEPS=['d8','d6','d4'];" in art and "b.id='helpBtn'" in art)
+        ok("FR-52: the Help Die ladder carries d10 (Expert Commander L5) down to the d4 floor",
+           "const HELP_STEPS=['d10','d8','d6','d4'];" in art and "b.id='helpBtn'" in art)
+        # Every character's baked die must sit ON the ladder, or helpBase falls back to index 0
+        # and the character silently starts at d10. This is what makes the L5 flip a one-word
+        # data change rather than a code change.
+        ladder = ["d10", "d8", "d6", "d4"]
+        baked = re.findall(r"\['(d\d+)','Help Die \(d\d+\)'", art)
+        ok("FR-52: all six baked Help Dice sit on the ladder",
+           len(baked) == 6 and all(x in ladder for x in baked), baked)
         # every character offers exactly one Help Die entry, else helpBase never gets set.
         n_help = art.count("'Help Die (d8)'")
-        ok("FR-52: all six characters still declare a d8 Help Die entry in the roll grid",
+        ok("FR-52: all six are at d8 today; flip Minimus to d10 when he reaches L5",
            n_help == 6, n_help)
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
