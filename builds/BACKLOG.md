@@ -74,6 +74,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L4 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | ready (new 2026-07-27, pure data, see note) |
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
 | FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | DONE 2026-08-14, UNPARKED: it fell out of BUG-40 for free, the rules mark stacking with a trailing X |
+| CH-18 | Extract the DC20 Magazine 02 magic-item property system into `rules/`, so item properties are citable and gear cards become checkable | chore | rules+corpus+builder+companion | P2 | ready (filed 2026-08-15; BLOCKED on the PDF from Darryl; run order is his call, next or in the queue) |
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
@@ -530,6 +531,18 @@ spells**, and doing that with a browser check in the loop rather than a CI round
 between one careful pass and several. Do CH-12 before them.
 
 **CH-6. CI Verify takes ~3m** (asked and answered 2026-07-28, when Darryl asked whether Verify runs twice). Not urgent.
+
+**CH-18. The magic-item property system is not in the rules corpus at all. Filed 2026-08-15.**
+
+`rules/` is the core 0.10.5 book plus **five** DC20 magazines (04, 06, 12, 17, 21), pulled for the bestiary, encounter building and skill challenges. **Magazine 02, the Magic Item System v2.0, was never extracted**, so there is no item-property list anywhere in the 15 files. Proved, not assumed: an item carrying the **Luck** property dropped in Arc 4 S5, a grep of the whole corpus returns zero hits for it, and `spells.md` only defines what a **Magic Power** value means, never what a property does.
+
+**Why this is worth doing rather than a tidy-up.** Every magic-item property on the party ledger is currently **table-supplied and unassertable**: Baleful on Bonan's mace, Impact where a magic item adds it, the Spell Focus stacking on Tanrielle's Guardians' Regalia set, and now Luck. **This is BUG-41's shape exactly**, hand-authored prose with no source to reconcile against. Contrast **stock weapon** properties, where the Weapon Table in `general-rules.md` IS the source of truth and both harnesses read it, which is what BUG-52 established the hard way.
+
+**Shape of the work.** A new `rules/magic-items.md` plus a row in `_INDEX.md`'s Supplements table. `rules/` is tracked and published, so it also means a **`rules.json` rebuild** (tracked, 2.1MB), a **`builder.html` rebuild** because the baked `RULES_IDX` moves, and the **(17) equivalence pass over ~13,000 probe terms**, which is the check that must stay green whenever the corpus changes. Then all three verification layers and a push.
+
+**Watch for two things.** The corpus growing changes `_linkable`, so more options will gain a `rule` chip. That is the intended effect, not a regression, but it is a visible change to the builder, so open it in a browser before pushing. And on IP: DC20 is **ORC-licensed** and five magazines already ship in the public build, so this is the same class of content and not a new decision, per the standing rules-stay-in call.
+
+**Blocked on exactly one thing: Darryl sending the PDF.** It is not in the campaign folder, and the source PDFs live in his Dropbox, which the sandbox cannot reach. Chat upload works from whichever machine he is on; dropping it in the campaign folder also works, `.pdf` is gitignored.
 
 - **It does not run twice.** Every push touching `builds/**` or `rules/**` fires TWO DIFFERENT workflows, by design and true since both existed: **Verify** (`.github/workflows/verify.yml`, ~3m, runs the three harnesses) and **Deploy Companion** (`.github/workflows/deploy.yml`, ~30s, builds and publishes to Pages). Their `paths:` filters overlap on `builds/**` and `rules/**`. One checks correctness, the other ships. Worth writing down because the pair looks like a duplicate at a glance, and the run numbers differ (Verify #7 vs Deploy #92), which makes it look stranger still.
 - **Where the ~3m goes:** only about a third is the test suite, the browser setup is the bulk. `playwright install --with-deps chromium` 50s, `builder_verify` 60s (45s local, runners are slower), `builder_smoke` (Pyodide in headless chromium) 40s, `pip install markdown pyyaml pypdf playwright` 25s, checkout + setup-python 10s, catalog_verify 5s, builder_build 5s. FR-46 added roughly 15s; Verify was already 2m30 to 3m on the three commits before it (2m30, 2m38, 3m01), so that section did not change the shape.
