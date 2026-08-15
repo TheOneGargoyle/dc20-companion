@@ -52,6 +52,7 @@ CHILD_SLOTS = {"runes": "rune", "metamagic": "metamagic", "skills": "skill",
                "trades": "trade", "disciplines": "discipline"}
 
 fails = []
+checks = 0   # CH-17: every expect() call, so the banner can report a real number
 
 
 def load(p):
@@ -65,6 +66,12 @@ def read(p):
 
 
 def expect(cond, msg):
+    # CH-17: count every assertion. The PASS banner used to print a hard-coded "90/90", so the
+    # figure quoted as this harness's regression baseline could not move and could not fail:
+    # BUG-52 added 14 real checks on 2026-08-15 and it still read 90/90. Same defect class as
+    # BUG-37's mirrored cap, a number that looks like evidence and is not.
+    global checks
+    checks += 1
     if not cond:
         fails.append(msg)
 
@@ -1019,8 +1026,15 @@ print(f"  {_recon} ledger ancestry-trait grants reconcile with their catalog row
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
 if fails:
-    print(f"FAIL - {len(fails)} problem(s):")
+    print(f"FAIL - {len(fails)} of {checks} check(s) failed:")
     for f in fails:
         print("  -", f)
     sys.exit(1)
-print("PASS - engine oracle holds (90/90 checks; all item/feature effects modelled, BUG-7 runt AD closed);\n       catalog reconciles with all six ledgers and rules/*.md")
+# CH-17. Two numbers, and the distinction is the whole point of the item. The banner used to
+# print a hard-coded "90/90" copied out of section (1), which made a REAL figure look like a
+# claim about the whole harness. 90/90 is the derived-stat oracle only, and it is asserted at
+# line 120. The total below is every expect() call; it is DATA-DEPENDENT (adding a catalog row
+# or a character moves it), so treat a change in it as a prompt to look, not as a regression.
+print(f"PASS - {checks} check(s), 0 failures. Engine oracle {total_ok}/{total_ok + total_mismatch}\n"
+      "       derived-stat checks (all item/feature effects modelled, BUG-7 runt AD closed);\n"
+      "       catalog reconciles with all six ledgers and rules/*.md")
