@@ -806,11 +806,11 @@ for _kw in ("Heavy Hit", "Brutal Hit", "bypasses Damage Reduction"):
 # per-character assignment (single-target v1)
 _EXPECT_DMG = {
     "tan":   {"smite", "smite_free", "mp_to_damage", "deaths_toll", "spellstrike"},
-    "xan":   {"smite", "smite_free", "imbue", "mp_to_damage", "spellstrike"},
-    "runt":  {"mp_to_damage", "imbue"},
-    "min":   {"gen_damage", "battlefield"},
-    "bonan": {"rage", "gen_damage"},
-    "scale": {"mp_to_damage", "powerful"},
+    "xan":   {"smite", "smite_free", "imbue", "mp_to_damage", "spellstrike", "impact"},
+    "runt":  {"mp_to_damage", "imbue", "impact"},
+    "min":   {"gen_damage", "battlefield", "impact"},
+    "bonan": {"rage", "gen_damage", "impact"},
+    "scale": {"mp_to_damage", "powerful", "impact"},
 }
 for _h, _exp in _EXPECT_DMG.items():
     expect(_resolved.get(_h) == _exp, f"damage_addons: {_h} add-ons {_resolved.get(_h)} != expected {_exp}")
@@ -831,6 +831,52 @@ expect(_xan_ss["amount"] == 1, "damage_addons: Xan Spellstrike (Umbral Bolt) sho
 # base-damage defaults Darryl corrected 2026-07-19
 expect(_dmg["characters"]["min"]["base"] == 3, "damage_addons: Minimus crossbow base should be 3")
 expect(_dmg["characters"]["runt"]["base"] == 2, "damage_addons: Runt Lightning Bolt base should be 2 (incl. Powerful)")
+
+# ---- BUG-52: the Impact weapon property ----------------------------------------------
+# The property itself, cited rather than assumed, and the reason the gate is >= Heavy
+# rather than == Heavy (Brutal and Beyond are Heavy Hits for trigger purposes).
+_gen_md = read("rules/general-rules.md")
+expect("Impact: The Weapon deals +1 damage on Heavy Hits" in _gen_md,
+       "damage_addons: the Impact property text not found in general-rules.md")
+expect("Brutal Hits are considered Heavy Hits" in _core_md,
+       "damage_addons: the Brutal-counts-as-Heavy rule not found in core-rules.md; the "
+       "impact gate is grade >= Heavy and depends on it")
+expect(_defs["impact"]["type"] == "toggle" and _defs["impact"]["amount"] == 1
+       and _defs["impact"].get("when") == "heavy",
+       "damage_addons: impact should be a +1 toggle gated on when: heavy")
+# Tanrielle's Greatsword of the Keepers is not an Impact weapon, so she must NOT carry it.
+expect("impact" not in _resolved["tan"],
+       "damage_addons: Tan's Greatsword is not Impact; she must not carry the impact add-on")
+# Every impact assignment names the weapon it comes from, and its default_on is DERIVED
+# from that name against the character's base_note rather than trusted. Impact rides a
+# WEAPON, the calculator's base is per-character, so the toggle may only ship ON where the
+# Impact weapon IS the stated base attack. Renaming a base_note breaks the pairing here
+# instead of silently over-reporting at the table.
+_STOP = {"of", "the", "and", "with"}
+for _h in sorted(_resolved):
+    if "impact" not in _resolved[_h]:
+        continue
+    _imp = next(a for a in _dmg_addons(_h, _dmg)["addons"] if a["id"] == "impact")
+    _wpn = _imp.get("weapon")
+    expect(isinstance(_wpn, str) and _wpn,
+           f"damage_addons: {_h} impact must name the weapon it comes from")
+    expect(isinstance(_imp.get("default_on"), bool),
+           f"damage_addons: {_h} impact needs an explicit boolean default_on")
+    _note = _dmg["characters"][_h].get("base_note", "")
+    _base_is_impact = any(w in _note for w in
+                          (x for x in re.findall(r"[A-Za-z]{4,}", _wpn or "") if x.lower() not in _STOP))
+    expect(_imp["default_on"] == _base_is_impact,
+           f"damage_addons: {_h} impact default_on={_imp['default_on']} but base_note "
+           f"{_note!r} {'names' if _base_is_impact else 'does not name'} {_wpn!r}")
+    print(f"  {_h:6} impact -> {_wpn} (default {'ON' if _imp['default_on'] else 'off'})")
+
+# ---- FR-52: the three roll-section modifiers, all cited ------------------------------
+expect("gain a +2 bonus to Hit using it" in _gen_md,
+       "FR-52: the Versatile +2 (2-handed grip) text not found in general-rules.md")
+expect("additional +2 to your Melee Attack" in _gen_md,
+       "FR-52: the Flanking +2 text not found in general-rules.md; it is MELEE only")
+expect("Multiple Help Penalty" in _combat_md and "(d8 > d6 > d4)" in _combat_md,
+       "FR-52: the Multiple Help Penalty decay chain not found in combat.md")
 print(f"  {len(_resolved)} characters resolve; defs + rules grounding reconcile")
 
 # ---- (4) option-coverage ledger -------------------------------------------

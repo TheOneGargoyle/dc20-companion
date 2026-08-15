@@ -735,6 +735,83 @@ def check_newstats():
        and ".sh-paper{width:100%;max-width:100%" in html)
 
 
+# ---------------------------------------------------------------- (38) Companion damage/roll surface
+def check_companion_dmg_roll():
+    """BUG-52 + FR-52: assert the ARTIFACT, not the template (trap 3).
+
+    The Damage Calculator's config is BAKED per character into the built page. A template
+    that reads a key the catalog never bakes, or a catalog key the template ignores, passes
+    every source-string check and still ships a calculator that under-reports, which is the
+    exact shape BUG-52 and BUG-37 both had. So build the player artifact and read the baked
+    config back out of it.
+    """
+    print()
+    print("## (38) Companion Damage Calculator + Roll modifiers (BUG-52, FR-52)")
+    outdir = tempfile.mkdtemp(prefix="dc20-companion-verify-")   # trap 7: a dir we just made
+    out = os.path.join(outdir, "companion.html")
+    try:
+        r = subprocess.run([sys.executable, os.path.join(REPO, "companion-src", "build.py"), out],
+                           capture_output=True, text=True)
+        ok("Companion player artifact builds", r.returncode == 0, (r.stderr or "")[-400:])
+        if r.returncode != 0:
+            return
+        art = open(out, encoding="utf-8").read()
+
+        # --- the baked per-character calculator config, read out of the artifact ---
+        i = art.index("PARTY_DERIVED=") + len("PARTY_DERIVED=")
+        derived, _ = json.JSONDecoder().raw_decode(art[i:])
+        ok("PARTY_DERIVED decodes and carries all six characters",
+           len(derived) == 6, sorted(derived))
+        imp = {}
+        for h, d in derived.items():
+            for a in d.get("damage_addons", {}).get("addons", []):
+                if a.get("id") == "impact":
+                    imp[h] = a
+        # trap 4: an empty collection passes every assertion about its members.
+        ok("BUG-52: the artifact bakes an impact add-on for 5 of the 6 (not Tanrielle)",
+           set(imp) == {"xan", "runt", "min", "bonan", "scale"}, sorted(imp))
+        ok("BUG-52: every baked impact add-on is a +1 toggle gated on when: heavy",
+           bool(imp) and all(a.get("type") == "toggle" and a.get("amount") == 1
+                             and a.get("when") == "heavy" for a in imp.values()),
+           {h: (a.get("type"), a.get("amount"), a.get("when")) for h, a in imp.items()})
+        # default_on is derived from the named weapon against the character's own base_note,
+        # so this cannot be satisfied by mirroring the flag it is checking (trap 2).
+        stop = {"of", "the", "and", "with"}
+        bad = {}
+        for h, a in imp.items():
+            note = derived[h]["damage_addons"].get("base_note", "")
+            words = [w for w in re.findall(r"[A-Za-z]{4,}", a.get("weapon") or "")
+                     if w.lower() not in stop]
+            if a.get("default_on") != any(w in note for w in words):
+                bad[h] = (a.get("weapon"), a.get("default_on"), note)
+        ok("BUG-52: impact defaults ON only where the Impact weapon IS the stated base attack",
+           not bad, bad)
+        ok("BUG-52: exactly Bonan and Xanwyn ship it ON (their base IS the Impact weapon)",
+           {h for h, a in imp.items() if a.get("default_on")} == {"bonan", "xan"},
+           {h: a.get("default_on") for h, a in imp.items()})
+
+        # --- the artifact's calculator honours the gate and the default ---
+        ok("BUG-52: dmgSync gates a when:heavy toggle below a Heavy Hit",
+           "ad.when==='heavy' && dmg.grade<1" in art and "if(v&&!gated){total+=v;" in art)
+        ok("BUG-52: renderDmg honours default_on",
+           "||ad.default_on))?(ad.amount||0):0" in art)
+
+        # --- FR-52: the roll modifiers ---
+        for cid in ("modVers", "modFlank", "modHelp"):
+            ok("FR-52: the artifact carries the %s control" % cid, 'id="' + cid + '"' in art)
+        ok("FR-52: Versatile and Flanking ride Attack rolls only, never a Spell Check",
+           "if(label!=='Attack')return {n:0,parts:[]};" in art
+           and "const total=kept+mod+rm.n;" in art)
+        ok("FR-52: the Help Die decays d8 > d6 > d4 and the grid button reads live state",
+           "const HELP_STEPS=['d8','d6','d4'];" in art and "b.id='helpBtn'" in art)
+        # every character offers exactly one Help Die entry, else helpBase never gets set.
+        n_help = art.count("'Help Die (d8)'")
+        ok("FR-52: all six characters still declare a d8 Help Die entry in the roll grid",
+           n_help == 6, n_help)
+    finally:
+        shutil.rmtree(outdir, ignore_errors=True)
+
+
 # ---------------------------------------------------------------- (11) composite re-pick escape hatch
 def check_replace_hatch():
     UND = '(undecided)'
@@ -3649,7 +3726,8 @@ def main():
                     check_fr36, check_fr21, check_fr4, check_fr23, check_grants_only,
                     check_option_effects, check_class_features, check_sheet_groups,
                     check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
-                    check_bug34_grant_child_effects, check_fr46_round_trip):
+                    check_bug34_grant_child_effects, check_fr46_round_trip,
+                    check_companion_dmg_roll):
             run(_fn)
     finally:
         os.chdir(old)

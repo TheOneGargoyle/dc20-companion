@@ -232,6 +232,13 @@ details .inner{padding:0 12px 12px}
       <span class="small" style="flex:1">ADV/DisADV stack (cancel 1:1)</span>
       <input id="tgtDef" type="number" inputmode="numeric" placeholder="vs Def" style="width:74px">
     </div>
+    <!-- FR-52: modifiers applied to the NEXT roll, not extra buttons in the grid. -->
+    <div class="row" id="rollMods" style="gap:6px;flex-wrap:wrap;margin:6px 0">
+      <button class="togglebtn" id="modVers" onclick="rollMod('vers')">○ Versatile +2</button>
+      <button class="togglebtn" id="modFlank" onclick="rollMod('flank')">○ Flanking +2</button>
+      <button class="togglebtn" id="modHelp" onclick="helpStep()">Help d8</button>
+    </div>
+    <div class="small" style="margin-bottom:6px">Versatile: +2 to Hit while wielding it in 2 hands. Flanking: +2, melee only. Both apply to Attack rolls. Help: tap to step the die down a size per repeat Help Action this turn (d8 › d6 › d4).</div>
     <div class="grid" style="grid-template-columns:1fr 1fr 1fr" id="rollGrid"></div>
     <div class="rollout" id="rollOut"><span class="small">Tap a button. Set “vs Def” to auto-grade Hit / Heavy / Brutal.</span></div>
     <div class="small">Bench: at +5 vs an equal-level foe you hit on 8+ (65%), Heavy on 13+, crit on 20. Crit = auto-hit, +2 dmg, bypasses DR. Heavy +1 / Brutal +2 / every +5 beyond adds +1.</div>
@@ -681,7 +688,14 @@ function renderParty(){
       m.title='Remove a stack of '+x;m.onclick=()=>decCond(x);cr.appendChild(m);}});
   const rg=document.getElementById('rollGrid');rg.innerHTML='';
   c.rolls.forEach(([mod,label,txt])=>{const b=document.createElement('button');b.className='rbtn';b.textContent=txt;
-    b.onclick=()=>{if(mod==='d8')rollDie(8,label);else roll(mod,label);};rg.appendChild(b);});
+    // FR-52: a die-string entry is the Help Die. Its size is now live state, not the
+    // baked 'd8', so the Multiple Help Penalty's d6 and d4 can actually be rolled.
+    if(typeof mod==='string'&&/^d\d+$/.test(mod)){
+      helpBase=mod;helpIdx=0;b.id='helpBtn';b.textContent='Help '+helpDie();
+      b.onclick=()=>{const hd=helpDie();rollDie(parseInt(hd.slice(1),10),'Help Die ('+hd+')');};
+    }else{b.onclick=()=>roll(mod,label);}
+    rg.appendChild(b);});
+  syncRollMods();
   const sk=document.getElementById('skGrid');sk.innerHTML='';
   c.skills.forEach(([n,m])=>{const b=document.createElement('button');
     b.innerHTML=n+' <b>+'+m+'</b>';
@@ -698,13 +712,44 @@ let adv=0;
 function advStep(d){adv=Math.max(-3,Math.min(3,adv+d));
   document.getElementById('advLab').textContent = adv===0?'Normal':(adv>0?'ADV '+adv:'DisADV '+(-adv));}
 function d(n){return 1+Math.floor(Math.random()*n);}
+
+/* ---- FR-52: roll modifiers and the Multiple Help Penalty -------------------
+   Versatile (+2 to Hit with a 2-handed grip, general-rules.md l.1002) and Flanking
+   (+2 to a Melee Attack, general-rules.md l.787) are both conditions of the moment,
+   not character properties, so they are toggles that ride the NEXT Attack roll.
+   Help Dice decay d8 > d6 > d4 on repeat Help Actions in a turn (combat.md l.339). */
+const HELP_STEPS=['d8','d6','d4'];
+let rmods={vers:0,flank:0}, helpBase='d8', helpIdx=0;
+function helpBaseIdx(){const i=HELP_STEPS.indexOf(helpBase);return i<0?0:i;}
+function helpDie(){return HELP_STEPS[Math.min(HELP_STEPS.length-1,helpBaseIdx()+helpIdx)];}
+function helpStep(){helpIdx=(helpIdx+1)%(HELP_STEPS.length-helpBaseIdx());syncRollMods();}
+function rollMod(k){rmods[k]=rmods[k]?0:2;syncRollMods();}
+function syncRollMods(){
+  [['vers','modVers','Versatile +2'],['flank','modFlank','Flanking +2']].forEach(function(x){
+    const b=document.getElementById(x[1]);if(!b)return;
+    b.className='togglebtn'+(rmods[x[0]]?' on':'');b.textContent=(rmods[x[0]]?'● ':'○ ')+x[2];});
+  const h=document.getElementById('modHelp');
+  if(h){h.className='togglebtn'+(helpIdx?' on':'');
+    h.textContent='Help '+helpDie()+(helpIdx?' (decayed)':'');}
+  const hb=document.getElementById('helpBtn');
+  if(hb)hb.textContent='Help '+helpDie();
+}
+function rollModTotal(label){
+  // Flanking is melee-only and Versatile is a weapon grip, so neither touches a Spell Check.
+  if(label!=='Attack')return {n:0,parts:[]};
+  const parts=[];let n=0;
+  if(rmods.vers){n+=2;parts.push('Versatile +2');}
+  if(rmods.flank){n+=2;parts.push('Flanking +2');}
+  return {n:n,parts:parts};
+}
 function roll(mod,label){
   const n=1+Math.abs(adv);
   const dice=[];for(let i=0;i<n;i++)dice.push(d(20));
   const kept = adv>=0?Math.max(...dice):Math.min(...dice);
-  const total=kept+mod;
+  const rm=rollModTotal(label);
+  const total=kept+mod+rm.n;
   const nat20=kept===20, nat1=kept===1;
-  let html='<div><b>'+label+'</b> <span class="dice">['+dice.join(', ')+'] keep '+kept+(mod?(mod>0?' +':' ')+mod:'')+'</span></div>';
+  let html='<div><b>'+label+'</b> <span class="dice">['+dice.join(', ')+'] keep '+kept+(mod?(mod>0?' +':' ')+mod:'')+(rm.parts.length?' · '+rm.parts.join(' · '):'')+'</span></div>';
   html+='<span class="big">'+total+'</span>';
   if(nat20)html+=' <span class="crit">NAT 20 — CRIT! auto-hit, +2 dmg, bypasses DR</span>';
   if(nat1)html+=' <span class="miss">nat 1</span>';
@@ -751,8 +796,10 @@ function renderDmg(c){
   const a=document.getElementById('dmgAddons');a.innerHTML='';
   (cfg.addons||[]).forEach(ad=>{
     const id=ad.id;
-    // a toggle add-on defaults ON if the sheet carries a matching active toggle (e.g. Rage).
-    dmg.vals[id]=(ad.type==='toggle'&&S.t&&S.t[id])?(ad.amount||0):0;
+    // a toggle add-on defaults ON if the sheet carries a matching active toggle (e.g. Rage),
+    // or if the catalog marks it default_on (BUG-52: Impact, where the base attack IS the
+    // Impact weapon, so the common case costs no taps and the exceptions ship OFF).
+    dmg.vals[id]=(ad.type==='toggle'&&((S.t&&S.t[id])||ad.default_on))?(ad.amount||0):0;
     const row=document.createElement('div');row.className='dmgrow';
     const lab=document.createElement('span');lab.className='lbl';
     lab.style.cssText='min-width:0;text-transform:none;font-size:13px;color:var(--ink)';
@@ -795,9 +842,13 @@ function dmgSync(){
   (dmg.cfg.addons||[]).forEach(ad=>{
     const id=ad.id,v=dmg.vals[id]||0;
     if(ad.type==='toggle'){
+      // BUG-52: a toggle may be grade-gated (when:'heavy'). It stays switched on, but it
+      // contributes nothing below Heavy and says so, rather than silently inflating the total.
+      const gated = (ad.when==='heavy' && dmg.grade<1);
       const btn=document.getElementById('dmgA_'+id);
-      if(btn){btn.className='togglebtn'+(v?' on':'');btn.textContent=(v?'● ':'○ ')+'+'+(ad.amount||0);}
-      if(v){total+=v;parts.push((ad.label||id)+' +'+v);}
+      if(btn){btn.className='togglebtn'+(v&&!gated?' on':'');
+        btn.textContent=(v?'● ':'○ ')+'+'+(ad.amount||0)+(v&&gated?' (needs Heavy)':'');}
+      if(v&&!gated){total+=v;parts.push((ad.label||id)+' +'+v);}
     }else{
       const el=document.getElementById('dmgAv_'+id);if(el)el.textContent=v;
       const add=v*(ad.per||1);if(add){total+=add;parts.push((ad.label||id)+' +'+add);}

@@ -85,11 +85,28 @@ defs:
     type: toggle
     amount: 1
     note: "+1 per martial hit (not on spell bolts); 1-min buff"
+  impact:
+    # BUG-52. general-rules.md l.965: "Impact: The Weapon deals +1 damage on Heavy Hits."
+    # core-rules.md l.2323: "Brutal Hits are considered Heavy Hits for purposes of effects
+    # that trigger on a Heavy Hit", so the gate is grade >= Heavy, not grade == Heavy.
+    label: "Impact (Heavy Hit)"
+    type: toggle
+    amount: 1
+    when: heavy       # contributes only at hit grade Heavy or better; enforced in dmgSync
+    note: "+1 damage on Heavy Hits; Brutal and Beyond count as Heavy"
 
 # --- Per-character assignment (L4) -----------------------------------------------------
 # base      = the Damage Calculator's default Base Damage (editable per hit).
 # base_note = shown beside the base stepper.
 # addons    = ordered list; an id from defs, or {id, ...overrides} (e.g. spellstrike's amount/label).
+#
+# BUG-52 note on the impact add-on. Impact is a property of a WEAPON, and the calculator's
+# base is per-character and editable, so the toggle carries the weapon it comes from and
+# defaults ON only where that weapon IS the character's stated base attack. Where the base
+# is a spell bolt or a non-Impact weapon the toggle ships OFF, so nothing over-reports until
+# the player says they swung the Impact weapon. catalog_verify derives default_on from the
+# weapon name against base_note rather than trusting the flag, so a base_note edit that
+# invalidates the pairing fails the build.
 characters:
   tan:
     base: 2
@@ -106,6 +123,7 @@ characters:
     base: 1
     base_note: "Light Short Sword"
     addons:
+      - {id: impact, weapon: "Light Weight Short Sword", default_on: true}
       - smite
       - smite_free
       - {id: imbue, label: "Umbral Imbued"}
@@ -118,15 +136,29 @@ characters:
     addons:
       - mp_to_damage
       - {id: imbue, label: "Lightning Imbued", note: "+1 per MARTIAL hit (slams/staff), not on bolts"}
+      # base is a bolt, so OFF by default; turn it on for a staff or knuckle swing.
+      - {id: impact, weapon: "Pact Staff", default_on: false, note: "+1 on Heavy Hits with the Pact Staff or Brass Knuckles, not on bolts"}
   min:
     base: 3
     base_note: "Crossbow"
-    addons: [gen_damage, battlefield]
+    addons:
+      - gen_damage
+      - battlefield
+      # base is the Crossbow, which is not Impact; the Longpole is.
+      - {id: impact, weapon: "Longpole", default_on: false, note: "+1 on Heavy Hits with the Longpole, not the Crossbow"}
   bonan:
     base: 2
     base_note: "Mace (shown un-Raged; toggle Rage below)"
-    addons: [rage, gen_damage]
+    addons:
+      - {id: impact, weapon: "Baleful Black Iron Mace", default_on: true, note: "+1 on Heavy Hits; both the Baleful Mace and the Heavy Glaive are Impact"}
+      - rage
+      - gen_damage
   scale:
     base: 1
     base_note: "Fire Bolt (AoE Fireball/Breath are a v2 item)"
-    addons: [mp_to_damage, powerful]
+    addons:
+      - mp_to_damage
+      - powerful
+      # NOT in the filed BUG-52 row, which named four PCs. The Mage Staff of Impact is on
+      # Scaletrix's gear card, so it is five of six, and the base is a bolt so it ships OFF.
+      - {id: impact, weapon: "Mage Staff of Impact", default_on: false, note: "+1 on Heavy Hits with the Mage Staff, not on spell bolts"}
