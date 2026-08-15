@@ -768,8 +768,8 @@ def check_companion_dmg_roll():
                 if a.get("id") == "impact":
                     imp[h] = a
         # trap 4: an empty collection passes every assertion about its members.
-        ok("BUG-52: the artifact bakes an impact add-on for 5 of the 6 (not Tanrielle)",
-           set(imp) == {"xan", "runt", "min", "bonan", "scale"}, sorted(imp))
+        ok("BUG-52: the artifact bakes an impact add-on for all six (Tanrielle included)",
+           set(imp) == {"tan", "xan", "runt", "min", "bonan", "scale"}, sorted(imp))
         ok("BUG-52: every baked impact add-on is a +1 toggle gated on when: heavy",
            bool(imp) and all(a.get("type") == "toggle" and a.get("amount") == 1
                              and a.get("when") == "heavy" for a in imp.values()),
@@ -786,8 +786,8 @@ def check_companion_dmg_roll():
                 bad[h] = (a.get("weapon"), a.get("default_on"), note)
         ok("BUG-52: impact defaults ON only where the Impact weapon IS the stated base attack",
            not bad, bad)
-        ok("BUG-52: exactly Bonan and Xanwyn ship it ON (their base IS the Impact weapon)",
-           {h for h, a in imp.items() if a.get("default_on")} == {"bonan", "xan"},
+        ok("BUG-52: Tanrielle, Bonan and Xanwyn ship it ON (their base IS the Impact weapon)",
+           {h for h, a in imp.items() if a.get("default_on")} == {"tan", "bonan", "xan"},
            {h: a.get("default_on") for h, a in imp.items()})
 
         # --- the artifact's calculator honours the gate and the default ---

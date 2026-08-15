@@ -100,7 +100,13 @@ defs:
 # base_note = shown beside the base stepper.
 # addons    = ordered list; an id from defs, or {id, ...overrides} (e.g. spellstrike's amount/label).
 #
-# BUG-52 note on the impact add-on. Impact is a property of a WEAPON, and the calculator's
+# BUG-52 note on the impact add-on. ALL SIX carry an Impact weapon. Source of truth is the
+# Weapon Table in general-rules.md for a stock weapon, and the character's own gear card only
+# where a magic item ADDS a property the stock weapon lacks (Bonan's Heavy Glaive, which the
+# table lists without Impact). Reading the gear cards alone under-counts, which is how the
+# filed row said four and how Tanrielle was missed on the first pass.
+#
+# Impact is a property of a WEAPON, and the calculator's
 # base is per-character and editable, so the toggle carries the weapon it comes from and
 # defaults ON only where that weapon IS the character's stated base attack. Where the base
 # is a spell bolt or a non-Impact weapon the toggle ships OFF, so nothing over-reports until
@@ -112,6 +118,10 @@ characters:
     base: 2
     base_note: "Greatsword of the Keepers"
     addons:
+      # Darryl 2026-08-15: the filed BUG-52 row said Tan's Greatsword was NOT an Impact
+      # weapon and that was wrong. general-rules.md's Weapon Table has Greatsword as
+      # "Two-Handed, Heavy, Impact" (her Longbow carries it too). It is six of six.
+      - {id: impact, weapon: "Greatsword of the Keepers", default_on: true}
       - smite
       - smite_free
       # Darryl 2026-08-14: the Spellstrike carries the spell, so its riders read UNDER it. MP to

@@ -805,7 +805,7 @@ for _kw in ("Heavy Hit", "Brutal Hit", "bypasses Damage Reduction"):
     expect(_kw in _core_md, f"damage_addons: hit-grade/crit grounding {_kw!r} missing from core-rules.md")
 # per-character assignment (single-target v1)
 _EXPECT_DMG = {
-    "tan":   {"smite", "smite_free", "mp_to_damage", "deaths_toll", "spellstrike"},
+    "tan":   {"smite", "smite_free", "mp_to_damage", "deaths_toll", "spellstrike", "impact"},
     "xan":   {"smite", "smite_free", "imbue", "mp_to_damage", "spellstrike", "impact"},
     "runt":  {"mp_to_damage", "imbue", "impact"},
     "min":   {"gen_damage", "battlefield", "impact"},
@@ -844,9 +844,28 @@ expect("Brutal Hits are considered Heavy Hits" in _core_md,
 expect(_defs["impact"]["type"] == "toggle" and _defs["impact"]["amount"] == 1
        and _defs["impact"].get("when") == "heavy",
        "damage_addons: impact should be a +1 toggle gated on when: heavy")
-# Tanrielle's Greatsword of the Keepers is not an Impact weapon, so she must NOT carry it.
-expect("impact" not in _resolved["tan"],
-       "damage_addons: Tan's Greatsword is not Impact; she must not carry the impact add-on")
+# All six carry an Impact weapon. Darryl spotted 2026-08-15 that Tanrielle had been left out
+# on the filed row's say-so; the Weapon Table settles it, so read the table rather than a
+# hand-authored gear card. The table is one cell per line: name, then damage, then properties.
+_WEAPON_TABLE_LINES = _gen_md.split("\n")
+
+
+def _weapon_props(name):
+    """The Weapon Table row for a stock weapon, as its property string ('' if absent)."""
+    for _i, _l in enumerate(_WEAPON_TABLE_LINES):
+        if _l.strip() == name and _i + 2 < len(_WEAPON_TABLE_LINES):
+            return _WEAPON_TABLE_LINES[_i + 2].strip()
+    return ""
+
+
+expect("Impact" in _weapon_props("Greatsword"),
+       "damage_addons: the Weapon Table no longer lists Greatsword as Impact; Tan's impact "
+       f"add-on rests on it (row reads {_weapon_props('Greatsword')!r})")
+expect("Impact" not in _weapon_props("Light Crossbow"),
+       "damage_addons: the Weapon Table now lists Light Crossbow as Impact; Minimus's base is "
+       "an Arcane light crossbow and his impact toggle ships OFF on the strength of that")
+expect("impact" in _resolved["tan"],
+       "damage_addons: Tan's Greatsword IS an Impact weapon (Weapon Table); she must carry it")
 # Every impact assignment names the weapon it comes from, and its default_on is DERIVED
 # from that name against the character's base_note rather than trusted. Impact rides a
 # WEAPON, the calculator's base is per-character, so the toggle may only ship ON where the
