@@ -812,6 +812,18 @@ def check_companion_dmg_roll():
         ok("FR-52: all six baked Help Dice sit on the ladder",
            len(baked) == 6 and all(x in ladder for x in baked), baked)
         # every character offers exactly one Help Die entry, else helpBase never gets set.
+        # The Bolster line on Minimus's card carries a NUMBER that moves with his max SP:
+        # Bolster at or below floor(max SP / 2), because the regen is half rounded UP and
+        # anything above that line overflows. Card text is hand-authored prose that nothing
+        # else asserts, which is BUG-37's frozen literal in a different costume, so derive
+        # the number from the baked SP and fail when the level-up makes the card wrong.
+        m = re.search(r"Bolster at or below half his max SP, rounded down \((\d+) today\)", art)
+        ok("FR-52: Minimus's Bolster line states a threshold", m is not None)
+        if m:
+            want = derived["min"]["sp"] // 2
+            ok("FR-52: that threshold equals floor(max SP / 2), so a level-up fails the build",
+               int(m.group(1)) == want, (m.group(1), want, derived["min"]["sp"]))
+
         n_help = art.count("'Help Die (d8)'")
         ok("FR-52: all six are at d8 today; flip Minimus to d10 when he reaches L5",
            n_help == 6, n_help)
