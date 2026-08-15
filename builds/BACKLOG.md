@@ -32,7 +32,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-35 | Rules > Tables: move class tables into class pages; armour examples with armour | feature | companion | P3 | needs-clarification |
 | FR-38 | Rules popup: show only the clicked line's snippet, not the whole section | feature | builder | P2 | ready (intake 2026-07-19; refines FR-6) |
 | FR-39 | Points-spent "x of y" readout for skills/trades/languages (like ancestry/maneuvers) | feature | builder | P2 | ready (intake 2026-07-19) |
-| FR-40 | Companion collapsible-section consistency pass (naming, stale notes, unlinked spells/maneuvers, missing sections) | feature | companion | P2 | ready (intake 2026-07-19; see note) |
+| FR-40 | Companion collapsible-section consistency pass (naming, stale notes, unlinked spells/maneuvers, missing sections) | feature | companion | P2 | PARTIAL 2026-08-15, all four filed leftovers closed; the unlinked-spells/missing-sections sweep is not started |
 | FR-41 | Per-PC "signature plays" cheat sheet on the Companion, from the optimisation workshops (08/10-16) | feature | companion | **P2** | DONE 2026-08-14, all 5 PCs shipped the evening Kristian asked; prompts written back into `10`/`12`/`13` too (note below) |
 | BUG-20 | Scratch: Human Trade Expertise (L1) not granting its cap+level free step | bug | builder+engine | P2 | ready (Tier-2, allocator-coupled; deferred 2026-07-25, see note) |
 | BUG-26 | Scratch: Innate Power (MC Sorcerer, L2) not offering the Sorcerous Origin sub-choice / conditional +2 spells | bug | builder+catalog | P2 | ready (DEFERRED 2026-07-25 by Darryl, needs a design call, see note) |
@@ -180,7 +180,17 @@ Design note: the first two are **modifiers applied to an existing roll**, not ne
 
 **FR-39. Points-spent "x of y" readout** for skills / trades / languages, matching the readout ancestry points and maneuvers already have (intake 2026-07-19).
 
-**FR-40. Companion collapsible-section consistency pass** (intake 2026-07-19): naming, stale notes, unlinked spells/maneuvers, missing sections. Folds in the two known audit leftovers: Bonan's **"Recovery"**, a maneuver that does not exist, and Minimus's **"Grease"**, which should be renamed **Oil Slick**.
+**FR-40. Companion collapsible-section consistency pass** (intake 2026-07-19): naming, stale notes, unlinked spells/maneuvers, missing sections.
+
+**PARTIAL 2026-08-15. All four filed leftovers are closed; four one-line edits in `companion-src`, no engine or catalog change.** Darryl spotted the first while reading his own sheet after the BUG-52 push, and the other three came out of checking whether it was a one-off.
+
+- **Tanrielle's workshop section was still called "Signature plays (cheat sheet)"** with a ⚡ icon while the other five read "⚔️ Optimization Workshop". Same content, older title: hers is the ORIGINAL, the one Kristian pointed at when he asked for Minimus's "like Tan's" (FR-41), and the five built that evening took the newer name. **Hers is also the only one that lives in `build.py`'s `TAN_ACCORDIONS` rather than in `template.html`**, which is why a rename that touched the other five would have missed it. All six now match.
+- **Bonan's Maneuvers card listed "Recovery, self-heal maneuver".** `bonan.yaml:51` records that as Ed's typo for the real Utility maneuver **Recover** (`combat.md:1476`), corrected in the ledger **2026-07-12**. The card had carried the wrong name for five weeks. It now reads Recover with the actual cost and check.
+- **Bonan's audit line still asked two questions that were both closed on the same day.** *"Jump ... = 4; sheet says 6, ask Ed"* (resolved: 6 = Might 3 via Mighty Leap + Jumper 2 + Titanic Leap 1, and the engine models it) and *"Sheet lists maneuver Recovery, which isn't in the 0.10.5 rules ... suggest Heroic Taunt"* (resolved as above, and the suggestion was wrong). Both now read as resolutions rather than open questions.
+
+**The pattern worth naming: a resolution written into a ledger does not reach the Companion.** Three of these four were fixed in `builds/*.yaml` on 2026-07-12 and the hand-authored cards never followed, exactly the BUG-41 shape. **Nothing asserts that a card agrees with its ledger**, which is what BUG-41 is for and why it is still open.
+
+**Still open under FR-40:** the unlinked spells and maneuvers sweep, the missing-sections audit, and BUG-41's remaining 7 ledger mismatches. **Verified in a browser:** all six characters read "⚔️ Optimization Workshop", Bonan's card reads Recover, neither stale audit question survives, zero console errors.
 
 **FR-41. Per-PC "signature plays" cheat sheet** on the Companion, drawn from the optimisation workshops in `08` and `10-16` (intake 2026-07-19).
 

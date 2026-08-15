@@ -185,7 +185,7 @@ Her armour spell — PD 17 → <b>19</b> while up (the sheet default). Toggle it
 Might 2 · Agility 3 · Int 3 · Cha −2 · <b>Prime 3</b>.<br>Saves: Mig +4 · Agi +5 · Int +5 · Cha +0.<br>Ancestry: Human (Attr→Might, Trade Expertise→Herbalism) · Elf (Discerning Sight, Nimble, Speed Increase).</div>
 </div></details>
 
-<details><summary>⚡ Signature plays (cheat sheet)</summary><div class="inner">
+<details><summary>⚔️ Optimization Workshop</summary><div class="inner">
 <div class="card"><h3>1 · Expose setup <span class="small">(the enabler default)</span></h3>
 Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <b>Exposed</b>, allies swing at ADV. Patron's Favor makes the cast reliable (free ADV). Add Smite (1 SP → +2) for personal damage. ~1 MP/round is her sustainable budget; MSL 2/action = nova only.</div>
 <div class="card"><h3>2 · All-out offense <span class="small">(when the target must die NOW)</span></h3>
