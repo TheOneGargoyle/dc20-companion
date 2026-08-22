@@ -43,15 +43,15 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
 | BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
 | BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE, shipped `1711be0` after missing `fa15db4`; the bridge cannot write `.github/workflows/**`, so Darryl hand-placed it (note below) |
-| BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog | P1 | ready (CH-10; live character) |
+| BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog+engine | P1 | DONE 2026-08-21, the engine reads `grants_unarmored` off a ledger entry now, so the condition is LIVE; ledger names fixed; new reconcile section (2b) (note below) |
 | BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | DONE 2026-08-14, pills DERIVED from the ruleset: 28 conditions + Prone/Grappled, Poisoned dropped (note below) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
 | BUG-42 | `FR20_CAT` vs `FR20_RANK` already drifted; ancestry_origin renders in the wrong group | bug | builder | P2 | ready (CH-10; check is blind, both dicts default to 3) |
-| BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | ready (CH-10) |
-| BUG-44 | Six Beastborn traits are missing `requires: Natural Weapon` | bug | catalog | P2 | ready (CH-10; parser cannot see a prose prerequisite) |
-| BUG-45 | Three of the eight Spell Schools are unpickable in the builder | bug | catalog+builder | P2 | ready (CH-10) |
-| BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog | P2 | ready (CH-10) |
-| BUG-47 | Druid L1 feature `Wild Speech` missing from `class_features.yaml` | bug | catalog | P3 | ready (CH-10) |
+| BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | DONE 2026-08-21, both modelled, both round-tripped by a NEW subclass-child probe in FR-46, both numbers parsed out of classes.md |
+| BUG-44 | Six Beastborn traits are missing `requires: Natural Weapon` | bug | catalog+tools | P2 | DONE 2026-08-21, all six carry it and `catalog_verify` now reads a prerequisite stated as a SENTENCE above a bulleted list. It WARNS, it does not gate the picker, see FR-54 |
+| BUG-45 | Three of the eight Spell Schools are unpickable in the builder | bug | catalog+builder | P2 | DONE 2026-08-21, all 8 schools offered to both schools-model classes; lists generated with catalog_verify's own parser so the md stays the spec |
+| BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog | P2 | PARTIAL 2026-08-21: Expanded Meta Magic now grants `{mp: 2, metamagic: 2}`. Expanded Boon still open, it needs a `pact_boons` grant-child key (note below) |
+| BUG-47 | Druid L1 feature `Wild Speech` missing from `class_features.yaml` | bug | catalog | P3 | DONE 2026-08-21, added; and `catalog_verify` LOADS the file now, which was the other half of this row |
 | BUG-48 | `Human Resolve` priced at 1 point, applies nothing (death_threshold has no grant term) | bug | catalog+engine | P3 | ready (CH-10) |
 | BUG-49 | `_TODO_CANON_OK` dedups by bare name, so the Trade Expertise tripwire can go green while it double-applies | bug | tools | P2 | ready (CH-10; pairs with BUG-20) |
 | BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | ready (CH-10; nothing reads the published Companion at all) |
@@ -75,6 +75,9 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
 | FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | DONE 2026-08-14, UNPARKED: it fell out of BUG-40 for free, the rules mark stacking with a trailing X |
 | CH-18 | Extract the DC20 Magazine 02 magic-item property system into `rules/`, so item properties are citable and gear cards become checkable | chore | rules+corpus+builder+companion | P2 | ready (filed 2026-08-15; BLOCKED on the PDF from Darryl; run order is his call, next or in the queue) |
+| BUG-53 | The BUILDER still freezes a conditional grant at pick time, so armour bought later does not remove it | bug | builder | P2 | ready (filed 2026-08-21 out of BUG-39; the engine can do this live now, see note) |
+| BUG-54 | Five ledgers carry no class-feature rows for 8 curated levels, so those features never reach the sheet | bug | data | P3 | ready (filed 2026-08-21, surfaced by the new reconcile; display gap only, no numeric grant involved) |
+| FR-54 | `requires` warns after the pick instead of gating the picker | feature | builder | P3 | needs-clarification (filed 2026-08-21; design call, see note) |
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
@@ -85,6 +88,88 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 **That final deploy is also the proof CH-11's guards work**, which is the one thing that could not be verified locally: it ran WITH `test -f dist/rules.json`, the corpus-shape check and the `RULES_IDX` check in place, against a real Actions build, and passed.
 
 **Two of the five commits went up incomplete, both for the same reason, and it is worth reading before the next handover.** `fa15db4` named BUG-38 without containing it (the bridge refuses `.github/**`), and `0f2c013` shipped Kristian's ledger without `companion-src/template.html`, so the Companion still printed the old spell name and the committed `builder.html` no longer matched the ledger, which would have shown up as a red CI. The cause the second time was **OneDrive lag between two machines**: the files were written to the home PC while the bat ran on the laptop. **The fix that worked, and the one to reach for again: deliver the files into the CHAT and have Darryl download them on the machine he is actually pushing from.** That bypasses OneDrive entirely. See also [[verify-origin-after-push]] in the working notes: both misses were caught by fetching origin and reading the files back, not by any harness.
+
+---
+
+### 2026-08-21 catalog batch: BUG-39, BUG-43, BUG-44, BUG-45, BUG-47, half of BUG-46
+
+Six CH-10 rows in one commit and one verification cycle, chosen for the usage ratio: each had an
+exact line number, they share one set of harness runs, and five of the six are data.
+**Baselines moved: `catalog_verify` PASS 1749 (was 1725, engine oracle still 90/90) and
+`builder_verify` PASS 796 (was 794).** The smoke test passes unchanged.
+
+**BUG-39 was two defects, and the second one was the interesting half.**
+
+- The names were simply wrong: `bonan.yaml` listed `Battlecry` (a LEVEL 2 feature) and `Shouts`
+  (which occurs zero times in `classes.md`: they are Battlecry's three options, not a feature) and
+  omitted `Shattering Force`. Battlecry now sits at level 2 as a `class_feature` row, which is the
+  shape `add_level` itself emits.
+- The +2 AD was hand-copied as a flat `grants: {ad: 2}`, but the catalog declares it
+  `grants_unarmored`. **The engine now reads `grants_unarmored` off a ledger entry** via a new
+  `CONDITIONAL_GRANT_KEYS` / `active_grant_keys(ledger)` pair, resolved against the ledger's own
+  equipment on every build, so the condition is live instead of frozen. Proven both ways in a fresh
+  clone: put "Half Plate Armor" in Bonan's equipment and AD goes 18 -> 16 with the fix, and stays
+  18 without it. The armour name-match heuristic now has ONE definition, in `build_engine.py`;
+  `builder_api.is_unarmored` is an alias.
+- **New `catalog_verify` section (2b) reconciles ledger class-feature rows against
+  `class_features.yaml`**, which CH-10 row C1 asked for and which nothing did before: every name
+  must be a real feature of that class at that level, a plural carrier must list ALL of them, and
+  the grants must match the catalog with the conditional half compared as `grants_unarmored` rather
+  than merged. Restoring the exact pre-fix shape of Bonan's row fails 5 checks, so the guard is not
+  a mirror. Levels outside the curated L1-L4 range (Tanrielle's L5 Expert Spellblade) are reported
+  and skipped, not failed, until CH-4 fills them.
+
+**BUG-43 needed a new probe, not just data.** The moment the two runes stopped being
+`no_effect: situational`, FR-46 correctly reported them UNREACHABLE: the fleet covered ancestry
+traits, L1 chargen choices and L2 talents, and a rune is only ever offered as a grant-child of the
+Rune Knight SUBCLASS pick. The fleet now drives subclass grant-children too, off `subclass_grants`
+rather than a hard-coded "Rune Knight", and `_rt_check_option` grew a matching branch that
+snapshots AFTER the subclass pick so the subclass's own `{runes: 2}` is not inside the window
+attributed to the rune. Also: the rune amounts are PARSED out of `classes.md` in `catalog_verify`
+("Your Speed increases by (N)", "+(N) Jump Distance"), because a literal in the check could only
+ever agree with the catalog it was checking. That is the CH-17 / Impact lesson applied up front.
+
+**BUG-44: the fix is data, the value is in the parser.** All six traits carry
+`requires: Natural Weapon`, and `parse_ancestry` now understands a prerequisite stated as a
+SENTENCE above a bulleted list ("The following Traits require the Natural Weapon Trait:",
+`ancestries.md` l.927), scoped to the bullets that follow and ending at the first non-bullet trait
+row. Verified as the only occurrence of that sentence in the file. Dropping the `requires` from one
+row fails, and a WRONG `requires` fails too.
+
+**What BUG-44 does NOT do, measured in the API rather than assumed: `requires` warns, it does not
+gate.** The six are still offered by the picker with no Natural Weapon; picking one now reports
+"catalog: Rend requires Natural Weapon, which this character has not taken", where before there
+was no message at all. That is exactly how the pre-existing Hard Shell / Thick-Skinned pair
+behaves, so the batch matched the convention rather than changing it. **Whether the picker should
+hide or disable an unavailable option is a design call: filed as FR-54.**
+
+**BUG-45 was scope, and the file said so.** `spell_schools.yaml` deliberately curated only the
+five schools the six PCs touch ("add schools as builds reach them"), but the picker is built
+straight off that list, so a scratch Spellblade or Warlock could not choose Astromancy,
+Conjuration or Enchantment at all. All eight are in now, and the three new lists were GENERATED
+with the same parse `catalog_verify` uses on `spells.md` l.332-519, so the source stays the spec.
+Checked in the API afterwards: both classes offer 8, and picking Enchantment makes its spells legal
+picks with no catalog problems.
+
+**BUG-46 is half done.** `Expanded Meta Magic` now declares `{mp: 2, metamagic: 2}`; `metamagic` was
+already a grant-child key with a working picker, so the second half of the rule now materialises two
+pickers instead of vanishing. **`Expanded Boon` is still open** because there is no `pact_boons`
+entry in `GRANT_CHILD_SLOTS`: closing it means adding the key and the child wiring, which is code,
+not data, so it did not belong in a batch whose point was one cheap verification cycle.
+
+**BUG-53 (new).** The engine now resolves `grants_unarmored` live, but the BUILDER still merges the
+unarmoured half into `grants` at pick time (`builder_api` trait copy, `blank_ledger`, `add_level`),
+so a scratch character who buys Thick-Skinned or Quick Reactions and THEN equips armour keeps the
+bonus. Same defect as BUG-39, one layer up, and it affects every scratch build rather than one
+canon ledger. The fix is now cheap and obvious: write `grants_unarmored` onto the entry and let the
+engine do it. It touches three `check_class_features` assertions that currently assert the merged
+shape, which is why it is filed rather than folded in here.
+
+**BUG-54 (new), surfaced by section (2b) rather than by anyone reading a sheet.** `minimus`, `runt`,
+`scaletrix`, `tanrielle` and `xanwyn` carry NO class-feature rows for 8 curated levels between them,
+so those features never reach the decision list or the sheet. Reported, not asserted, because none
+of the missing features carries a numeric grant (only Berserker does, and only Bonan is a
+Barbarian): it is a display gap, not a stat error, and fixing it edits five canon ledgers.
 
 ---
 

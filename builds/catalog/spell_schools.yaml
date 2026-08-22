@@ -13,10 +13,13 @@
 # Access rule (Warlock): chosen schools only, plus any subclass spell_access grant (Eldritch
 # Psychic Spellcasting: Psychic-tag spells, see warlock.yaml subclass_grants).
 #
-# Scope (validate-don't-enumerate): only the schools the walked builds touch.
-#   Tanrielle: Invocation + Divination.  Xanwyn: Nullification + Invocation (+ Transmutation
-#   via the Spell School Initiate talent).  Runt: Elemental + Invocation + Nullification.
-# Add schools as builds reach them.
+# Scope: ALL EIGHT Schools of spells.md l.332-519 (BUG-45, 2026-08-21). It used to carry only the
+# five the six PCs touch, and because the picker is built straight off this list, a scratch
+# Spellblade or Warlock physically could not choose Astromancy, Conjuration or Enchantment.
+#   Walked builds still only reach five: Tanrielle Invocation + Divination; Xanwyn Nullification +
+#   Invocation (+ Transmutation via Spell School Initiate); Runt Elemental + Invocation +
+#   Nullification. catalog_verify re-parses spells.md and asserts every list here matches it, so
+#   the source stays the spec and this file cannot drift.
 
 catalog_version: 1
 model: schools
@@ -129,3 +132,63 @@ schools:
     - Radiant Imbued
     - Shadowbind
     - Umbral Imbued
+  Astromancy:
+    - Arcane Bolt
+    - Arcane Wave
+    - Banish
+    - Blessing of Air
+    - Blessing of Zephyr
+    - Gravity Shift
+    - Gravity Well
+    - Haste
+    - Increase Gravity
+    - Slow Time
+    - Teleport
+    - Telekinesis
+    - Time Stop
+    - Translocation
+    - Reduce Inertia
+  Conjuration:
+    - Arcane Barrier
+    - Arcane Weapon
+    - Bind
+    - Call Familiar
+    - Chaos Bomb
+    - Disguise Self
+    - Elemental Weapon
+    - Entangle
+    - Forcefield
+    - Illusory Image
+    - Illusory Duplicate
+    - Illusory Writing
+    - Mage Armor
+    - Mystical Weapon
+    - Nature’s Tether
+    - Oil Slick
+    - Tendrils from Beyond
+    - Unholy Aura
+    - Summon Aberration
+    - Summon Beast
+    - Summon Celestial
+    - Summon Construct
+    - Summon Dragon
+    - Summon Elemental
+    - Summon Fey
+    - Summon Fiend
+    - Summon Ooze
+    - Summon Plant
+    - Summon Undead
+  Enchantment:
+    - Charm
+    - Command
+    - Confusion
+    - Fear
+    - Hex
+    - Message
+    - Mind Blast
+    - Mockery
+    - Planar Protection
+    - Psi Bolt
+    - Psychic Wave
+    - Shatter Reality
+    - Slumber

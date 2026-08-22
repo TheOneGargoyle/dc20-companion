@@ -17,6 +17,7 @@ stacking), per-skill die bonuses, spell/maneuver legality vs school lists.
 import argparse
 import math
 import os
+import re
 import sys
 
 import yaml
@@ -131,9 +132,38 @@ def all_entries(ledger, level):
 # child rebuilds the derived half without ever touching the declared half. Both are summed here.
 GRANT_KEYS = ("grants", "granted_effects")
 
+# BUG-39 (2026-08-21): a THIRD grant dict, and the only CONDITIONAL one. `grants_unarmored` is an
+# effect that applies only while no Armor is worn: Barbarian Berserker Defense "+2 AD while you
+# aren't wearing Armor" (classes.md l.114-115), Thick-Skinned / Quick Reactions (ancestries.md
+# l.396 / l.365). class_features.yaml and ancestries.yaml have carried the key since BUG-22 and
+# CH-5 Tier-1, but ONLY THE BUILDER read it, at pick time, merging the result into `grants`. That
+# froze the condition into a flat number: bonan.yaml carried `grants: {ad: 2}`, so equipping armour
+# kept the +2 AND added the armour's AD. Reading the key here instead keeps the condition live,
+# because the engine re-resolves it against the ledger's own equipment on every build.
+#
+# The armour test is a NAME MATCH, and deliberately so: the equipment model carries no armour TYPE.
+# That heuristic is documented in class_features.yaml and is now defined once, here, rather than in
+# the builder (trap 2, and CH-10 row C1).
+ARMOUR_NAME_RE = re.compile(r"armor|armour", re.I)
 
-def _entry_grants(obj, key, fold, val):
-    for gk in GRANT_KEYS:
+
+def is_unarmored(ledger):
+    """True when nothing armour-like is equipped. The ONE definition; builder_api imports it."""
+    return not any(ARMOUR_NAME_RE.search(str(e.get("name") or ""))
+                   for e in (ledger.get("equipment") or []))
+
+
+CONDITIONAL_GRANT_KEYS = {"grants_unarmored": is_unarmored}
+
+
+def active_grant_keys(ledger):
+    """The grant dicts that apply to THIS ledger: the unconditional pair plus any conditional
+    dict whose condition currently holds. Resolved once per query, off the ledger."""
+    return GRANT_KEYS + tuple(k for k, holds in CONDITIONAL_GRANT_KEYS.items() if holds(ledger))
+
+
+def _entry_grants(obj, key, fold, val, keys=GRANT_KEYS):
+    for gk in keys:
         g = obj.get(gk) or {}
         if key in g:
             val = fold(val, g[key])
@@ -152,8 +182,9 @@ def _grant_bearers(ledger, level):
 
 def sum_grants(ledger, level, key):
     total = 0
+    keys = active_grant_keys(ledger)
     for obj in _grant_bearers(ledger, level):
-        total = _entry_grants(obj, key, lambda a, b: a + b, total)
+        total = _entry_grants(obj, key, lambda a, b: a + b, total, keys)
     return total
 
 
@@ -192,7 +223,7 @@ def unresolved_attribute_grants(ledger, level):
     """
     n = 0
     for obj in _grant_bearers(ledger, level):
-        for gk in GRANT_KEYS:
+        for gk in active_grant_keys(ledger):
             if "attribute" in (obj.get(gk) or {}):
                 n += 1
     return n
@@ -234,8 +265,9 @@ def ancestry_budget(ledger, level, table):
 def grant_flag(ledger, level, key, default=None):
     """Last non-None value of a NON-numeric grant flag (e.g. jump_from: might)."""
     val = default
+    keys = active_grant_keys(ledger)
     for obj in _grant_bearers(ledger, level):
-        val = _entry_grants(obj, key, lambda _a, b: b, val)
+        val = _entry_grants(obj, key, lambda _a, b: b, val, keys)
     return val
 
 

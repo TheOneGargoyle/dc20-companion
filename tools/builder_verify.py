@@ -3320,6 +3320,28 @@ def _rt_fleet():
         if tal:
             for o in tal["options"]:
                 note(o["name"], "%s L2" % cls, "talent")
+
+    # BUG-43 (2026-08-21): a modelled option can sit behind a SUBCLASS grant rather than an L1
+    # choice or an L2 talent. The Spellblade's Rune Knight grants {runes: 2} and the six runes are
+    # only ever offered as grant-children of that subclass pick, so the fleet above could not see
+    # them. That stayed invisible while every rune was `no_effect`; the moment the Lightning and
+    # Wind Runes became modelled, the reachability assertion correctly called them unreachable.
+    # Driven off `subclass_grants` rather than a hard-coded "Rune Knight", so the next subclass to
+    # grant a child resource is covered without editing this fleet.
+    for cls in sorted(builder_api.CLASS_NAMES):
+        sg = _fresh_at(cls, "Human").ccat.get("subclass_grants") or {}
+        for sub in sorted(k for k, v in sg.items()
+                          if set(v.get("grants") or {}) & set(builder_api.GRANT_CHILD_SLOTS)):
+            api = _fresh_at(cls, "Human", levels=3)      # far enough to expose the subclass slot
+            dec = next((d for d in json.loads(api.state())["decisions"]
+                        if d["slot"] == "subclass"), None)
+            if not dec:
+                continue
+            api.set_decision(str(dec["id"]), sub)
+            for d in json.loads(api.state())["decisions"]:
+                if str(d.get("id")).startswith("GC#%s#" % dec["id"]):
+                    for o in (d.get("options") or []):
+                        note(o["name"], "%s L%s %s" % (cls, dec.get("level"), sub), d["slot"])
     return index
 
 
@@ -3514,19 +3536,42 @@ def _rt_check_option(o, index):
         api, tal = _rt_probe_talent(cls, 2)
         before = _rt_snap(api)
         api.set_decision(tal["id"], name)
-    else:
+    elif _rt_chargen_slot(name, index)[0]:
         # chargen choice children: disciplines (spellblade), pact boons (warlock)
         cls, slot = _rt_chargen_slot(name, index)
-        if not cls:
-            _rt_ok(name, "%-64s is offered in a chargen choice" % label, False,
-                   "not found in the fleet")
-            return
         api = _fresh_at(cls, "Human")
         before = _rt_snap(api)
         s = json.loads(api.state())
         d = [x for x in s["decisions"] if x["slot"] == slot
              and name in {o2["name"] for o2 in (x.get("options") or [])}][0]
         api.set_decision(d["id"], name)
+    else:
+        # BUG-43 (2026-08-21): subclass-granted children (Spellblade Rune Knight -> runes). The
+        # option is not offered at L1 at all: the SUBCLASS pick materialises the child pickers, so
+        # the probe has to advance, pick the subclass, and only THEN snapshot, or the subclass's own
+        # {runes: 2} grant would be inside the window we are attributing to the rune.
+        probe = _rt_subclass_child(name, index)
+        if not probe:
+            _rt_ok(name, "%-64s is offered in a chargen choice" % label, False,
+                   "not found in the fleet")
+            return
+        cls, lvl, sub, slot = probe
+        api = _fresh_at(cls, "Human", levels=max(1, lvl - 1))
+        dec = next((d for d in json.loads(api.state())["decisions"]
+                    if d["slot"] == "subclass" and d.get("level") == lvl), None)
+        if not dec:
+            _rt_ok(name, "%-64s has a subclass slot at L%s" % (label, lvl), False, "none found")
+            return
+        api.set_decision(str(dec["id"]), sub)
+        before = _rt_snap(api)                      # AFTER the subclass, BEFORE the child pick
+        kid = next((x for x in json.loads(api.state())["decisions"]
+                    if x["slot"] == slot and str(x.get("id")).startswith("GC#")
+                    and name in {o2["name"] for o2 in (x.get("options") or [])}), None)
+        if not kid:
+            _rt_ok(name, "%-64s is offered by %s at L%s" % (label, sub, lvl), False,
+                   "no %s child picker offers it" % slot)
+            return
+        api.set_decision(kid["id"], name)
 
     after = _rt_snap(api)
 
@@ -3579,6 +3624,19 @@ def _rt_class_offering(name, index):
     for label, slot in index.get(name, []):
         if slot == "talent":
             return label.split()[0]
+    return None
+
+
+def _rt_subclass_child(name, index):
+    """(class, level, subclass, slot) for an option only offered as a subclass grant-child.
+
+    The fleet records those probes as "<class> L<n> <subclass>" (BUG-43), which is what separates
+    them from the "<class> L1" chargen labels this file used to assume were the only other shape.
+    """
+    for label, slot in index.get(name, []):
+        parts = label.split()
+        if len(parts) >= 3 and re.fullmatch(r"L\d+", parts[1]):
+            return parts[0], int(parts[1][1:]), " ".join(parts[2:]), slot
     return None
 
 

@@ -222,14 +222,17 @@ ancestries:
     - {name: Short-Legged, cost: -1, grants: {speed: -1}}   # ancestries.md l.915
     - {name: Small-Sized, cost: -1, no_effect: size}
     - {name: Reckless, cost: -1, grants: {pd: -1}}   # ancestries.md l.520
-    # Natural Weapons
+    # Natural Weapons. BUG-44: ancestries.md l.927 states the prerequisite as a SENTENCE above the
+    # list ("The following Traits require the Natural Weapon Trait:"), so the inline-(requires X)
+    # parser could not see it and all six shipped unrestricted. `requires` IS enforced by the
+    # builder, so a scratch Beastborn could buy Rend with no Natural Weapon and report clean.
     - {name: Natural Weapon, cost: 1, no_effect: narrative}
-    - {name: Extended Natural Weapon, cost: 2, no_effect: narrative}
-    - {name: Natural Projectile, cost: 1, no_effect: narrative}
-    - {name: Natural Weapon Style, cost: 1, no_effect: narrative}
-    - {name: Rend, cost: 1, no_effect: situational}
-    - {name: Retractable Natural Weapon, cost: 1, no_effect: situational}
-    - {name: Venomous Natural Weapon, cost: 1, no_effect: situational}
+    - {name: Extended Natural Weapon, cost: 2, requires: Natural Weapon, no_effect: narrative}
+    - {name: Natural Projectile, cost: 1, requires: Natural Weapon, no_effect: narrative}
+    - {name: Natural Weapon Style, cost: 1, requires: Natural Weapon, no_effect: narrative}
+    - {name: Rend, cost: 1, requires: Natural Weapon, no_effect: situational}
+    - {name: Retractable Natural Weapon, cost: 1, requires: Natural Weapon, no_effect: situational}
+    - {name: Venomous Natural Weapon, cost: 1, requires: Natural Weapon, no_effect: situational}
     # Miscellaneous
     - {name: Fast Reflexes, cost: 2, no_effect: adv}
     - {name: Mimicry, cost: 1, no_effect: narrative}

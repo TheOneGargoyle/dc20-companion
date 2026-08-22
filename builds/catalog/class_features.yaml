@@ -76,6 +76,9 @@ classes:
       - name: Wild Form
         note: "1 AP + 1 MP: transform (Wild Form Stat Block + Trait Points); True Form on reverting"
         no_effect: situational
+      - name: Wild Speech
+        flavor: true
+        note: "classes.md l.1456: learn the Druidcraft Cantrip, then choose Animals / Plants / Weather"
     2:
       - name: Nature's Torrent
         note: "reaction damage when a creature within 10 Spaces takes Elemental damage"

@@ -145,11 +145,10 @@ def class_feature_grants(rows, unarmored=True):
     return agg
 
 
-def is_unarmored(ledger):
-    # the equipment model carries no armour TYPE, so match on the item name (documented heuristic in
-    # class_features.yaml). A fresh scratch build has no equipment at all, so it reads unarmoured.
-    return not any(re.search(r'armor|armour', str(e.get('name') or ''), re.I)
-                   for e in (ledger.get('equipment') or []))
+# BUG-39 (2026-08-21): the armour heuristic now has ONE definition, in the engine, because the
+# engine reads `grants_unarmored` off a ledger entry itself. This alias keeps the builder's call
+# sites (and their tests) pointing at that single definition instead of a second copy.
+is_unarmored = eng.is_unarmored
 
 
 def blank_ledger(cls, ccat, cfcat=None):

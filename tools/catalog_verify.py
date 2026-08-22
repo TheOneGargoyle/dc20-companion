@@ -128,6 +128,7 @@ anc = load("builds/catalog/ancestries.yaml")
 maneuvers_cat = load("builds/catalog/maneuvers.yaml")
 talents_cat = load("builds/catalog/talents.yaml")
 metamagic_cat = load("builds/catalog/metamagic.yaml")
+class_features_cat = load("builds/catalog/class_features.yaml")   # BUG-39/BUG-47: was never loaded here
 
 ALL_MANEUVERS = {m for lst in maneuvers_cat["maneuvers"].values() for m in lst}
 TALENT_NAMES = ({t["name"] for t in talents_cat["general"]}
@@ -173,6 +174,37 @@ expect({r["name"] for r in _sb.get("runes", [])} == {"Earth", "Flame", "Frost", 
 expect((_sb.get("subclass_grants") or {}).get("Rune Knight", {}).get("grants") == {"runes": 2},
        f"Spellblade Rune Knight must grant runes: 2, got {(_sb.get('subclass_grants') or {}).get('Rune Knight')}")
 print("  Spellblade rune catalog (6 runes) present + Rune Knight grants runes: 2 OK")
+
+# BUG-43 (2026-08-21): the runes that carry a NUMERIC grant must carry the number the prose gives.
+# Lightning's Quickness (+1 Speed) and Wind's Wind Swept (+3 Jump Distance) sat as
+# `no_effect: situational` for weeks even though `speed` and `jump` are first-class engine grant
+# keys, so a scratch Rune Knight who picked either was permanently short. The expected value is
+# PARSED out of classes.md rather than restated here, because a literal in the check is the same
+# defect one layer up: it can only ever agree with the catalog it is checking.
+_clstext = read("rules/classes.md")
+RUNE_PROSE = {"speed": r"Your Speed increases by (\d+)",      # Lightning, Quickness
+              "jump": r"\+(\d+) Jump Distance"}              # Wind, Wind Swept
+for _r in _sb.get("runes", []):
+    _g = _r.get("grants") or {}
+    if not _g:
+        continue
+    _m = re.search(r"^%s Rune$" % re.escape(_r["name"]), _clstext, re.M)
+    expect(bool(_m), f"Spellblade rune {_r['name']}: no '{_r['name']} Rune' heading in classes.md")
+    if not _m:
+        continue
+    _nxt = re.search(r"^\w+ Rune$|^Rune Expert", _clstext[_m.end():], re.M)
+    _block = _clstext[_m.end(): _m.end() + (_nxt.start() if _nxt else 400)]
+    for _k, _v in _g.items():
+        _pat = RUNE_PROSE.get(_k)
+        expect(_pat is not None,
+               f"Spellblade rune {_r['name']}: grant {_k!r} has no prose pattern to check it against")
+        if not _pat:
+            continue
+        _pm = re.search(_pat, _block)
+        expect(bool(_pm) and int(_pm.group(1)) == _v,
+               f"Spellblade rune {_r['name']}: catalog {_k}={_v} vs classes.md "
+               f"{_pm.group(1) if _pm else None}")
+        print(f"  rune {_r['name']}: {_k} +{_v} matches its classes.md sentence")
 
 # FR-8 slice 4: cat-level metamagic catalog + Meta Magic talent grant (feeds the slice-2 child-slot backbone).
 # Cross-class (reached via the Sorcerer 'Meta Magic' MC feature), so it lives at catalog level, not in a class file.
@@ -513,6 +545,74 @@ def check_ledger(fname, led):
 for fname, led in LEDGERS.items():
     check_ledger(fname, led)
 
+
+# ---- (2b) ledger class-feature rows vs class_features.yaml -----------------
+# BUG-39 + BUG-47 (2026-08-21). CH-10 row C1: NOTHING reconciled a ledger's class-feature rows
+# against the catalog, and this file did not even load class_features.yaml. What that allowed, on a
+# live character: bonan.yaml's L1 row named `Battlecry` (a LEVEL 2 feature), named `Shouts` (which
+# occurs zero times in classes.md: they are Battlecry's three options, not a feature), omitted
+# `Shattering Force`, and hand-copied Berserker Defense as a flat `grants: {ad: 2}` when the catalog
+# declares it `grants_unarmored`, so equipping armour kept the +2 AND added the armour's AD.
+#
+# What is asserted: every name a ledger claims is a real feature of THAT class at THAT level, and
+# the entry's grants equal the catalog's, with the conditional half compared as `grants_unarmored`
+# rather than merged, so a re-frozen conditional fails here. Expected values come from the catalog;
+# the catalog's own agreement with classes.md is section (3)'s job.
+print("\n## (2b) Ledger class-feature rows vs class_features.yaml (BUG-39)")
+_cf_classes = class_features_cat["classes"]
+_cf_rows = _cf_uncurated = _cf_missing = 0
+for fname, led in LEDGERS.items():
+    cls = led.get("class")
+    per_class = _cf_classes.get(cls)
+    if per_class is None:
+        continue
+    entries = [(1, e) for e in ((led.get("chargen") or {}).get("class_choices") or [])
+               if str(e.get("slot", "")).startswith("class_feature")]
+    entries += [(int(lvl), e) for lvl, es in (led.get("levels") or {}).items() for e in (es or [])
+                if str(e.get("slot", "")).startswith("class_feature")]
+    for lvl, e in entries:
+        who = f"{fname} L{lvl}"
+        rows = per_class.get(lvl)
+        if rows is None:                     # outside the curated L1-L4 range (CH-4)
+            _cf_uncurated += 1
+            print(f"  {who}: {e.get('pick') or e.get('picks')} - L{lvl} not curated yet (CH-4), skipped")
+            continue
+        by_name = {r["name"]: r for r in rows}
+        picks = e.get("picks") or ([e["pick"]] if e.get("pick") else [])
+        for name in picks:
+            expect(name in by_name,
+                   f"{who}: {name!r} is not a {cls} L{lvl} class feature "
+                   f"(class_features.yaml has {sorted(by_name)})")
+        if e.get("slot") == "class_features":          # the plural carrier: the class grants ALL of them
+            expect(set(picks) == set(by_name),
+                   f"{who}: lists {sorted(picks)} but {cls} L{lvl} grants {sorted(by_name)}")
+        # grants: the catalog is the spec, and the conditional half must STAY conditional
+        want, want_un = {}, {}
+        for name in picks:
+            r = by_name.get(name) or {}
+            if r.get("choice"):
+                continue                              # its effects live in that picker
+            want.update(r.get("grants") or {})
+            want_un.update(r.get("grants_unarmored") or {})
+        expect((e.get("grants") or {}) == want,
+               f"{who}: ledger grants {e.get('grants')} vs catalog {want or None}")
+        expect((e.get("grants_unarmored") or {}) == want_un,
+               f"{who}: ledger grants_unarmored {e.get('grants_unarmored')} vs catalog "
+               f"{want_un or None} (a conditional grant flattened into `grants` is BUG-39)")
+        _cf_rows += 1
+        print(f"  {who}: {picks} reconcile with class_features.yaml"
+              + (f", grants {want}" if want else "")
+              + (f" + unarmoured {want_un}" if want_un else ""))
+    # completeness, reported not asserted: a curated level whose features are absent from the ledger
+    have = {lvl for lvl, _e in entries}
+    for lvl, rows in sorted(per_class.items()):
+        if rows and lvl not in have and lvl <= (led.get("current_level") or 1):
+            _cf_missing += 1
+            print(f"  {fname}: L{lvl} class features {[r['name'] for r in rows]} are NOT on the ledger"
+                  f" (display gap only: none of them carries a numeric grant, see the note below)")
+print(f"  => {_cf_rows} ledger class-feature row(s) reconcile, {_cf_uncurated} outside the curated"
+      f" range, {_cf_missing} curated level(s) with no row at all")
+
 # ---- (3) curated files vs rules source ------------------------------------
 print("\n## (3) Curated lists vs rules/*.md")
 anctext = read("rules/ancestries.md")
@@ -527,19 +627,42 @@ def ancestry_region(md, heading):
     return md[start: min(ends)] if ends else md[start:]
 
 
+# BUG-44 (2026-08-21): a prerequisite can be stated as a SENTENCE ABOVE A BULLETED LIST rather than
+# inline in the trait name. ancestries.md l.927 reads "The following Traits require the Natural Weapon
+# Trait:" and then bullets six Beastborn traits. The old parser only read an inline "(requires X)", so
+# md_req came back None for all six, the six catalog rows carried no `requires`, and the reconcile
+# below agreed with the omission: a scratch Beastborn could buy Rend with no Natural Weapon and the
+# build reported clean. `requires` IS enforced by the builder, so this was a live legality hole.
+#
+# Scope of a sentence-stated prerequisite: it applies to the BULLET rows that follow it, and ends at
+# the first non-bullet trait row (in ancestries.md the six bullets are followed by "(2) Fast
+# Reflexes", the first Miscellaneous trait). Verified as the only occurrence of the sentence in the
+# file, so this stays a narrow rule rather than a guess about layout.
+LIST_REQ_RE = re.compile(r"The following Traits require the (.+?) Trait:", re.I)
+
+
 def parse_ancestry(md, heading):
     body = ancestry_region(md, heading)
     out, reqs = {}, {}
-    for mm in re.finditer(r"^(?:-\s*)?\((-?\d+)\)\s+(.+?):", body, re.MULTILINE):
-        raw = mm.group(2)
+    pending = None                       # a sentence-stated prerequisite awaiting its bullets
+    for mm in re.finditer(r"^(?:(-)\s*)?\((-?\d+)\)\s+(.+?):|^(The following Traits require .+?:)$",
+                          body, re.MULTILINE):
+        if mm.group(4):                                            # the sentence itself
+            pending = re.sub(r"\s+", " ", norm(LIST_REQ_RE.search(mm.group(4)).group(1))).strip()
+            continue
+        bullet, raw = mm.group(1), mm.group(3)
         rq = re.search(r"\(requires ([^)]*)\)", raw)              # "(requires X)" inside the name
         if not rq:
             after = body[mm.end():mm.end() + 60]                   # or just after the colon
             rq = re.match(r"\s*\(requires ([^)]*)\)", after)
         name = base_name(re.sub(r"\s*\(requires[^)]*\)", "", norm(raw)))
-        out[name] = int(mm.group(1))
+        out[name] = int(mm.group(2))
         if rq:
             reqs[name] = re.sub(r"\s+", " ", norm(rq.group(1))).strip()
+        elif pending and bullet:
+            reqs[name] = pending
+        if not bullet:
+            pending = None                                         # the bulleted list has ended
     return out, reqs
 
 

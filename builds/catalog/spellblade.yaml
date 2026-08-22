@@ -114,11 +114,13 @@ runes:
 - name: Frost
   no_effect: situational
 - name: Lightning
-  no_effect: situational
+  grants: {speed: 1}
+  note: "Quickness: +1 Speed (classes.md l.3103). Charged (Stunned 1 on a failed Save when you Smite) stays situational."
 - name: Water
   no_effect: situational
 - name: Wind
-  no_effect: situational
+  grants: {jump: 3}
+  note: "Wind Swept: +3 Jump Distance (classes.md l.3114-3116). The 'no longer halved on a Stand Jump' half and Hurricane (push 1 Space) stay situational."
 subclasses:
 - Paladin
 - Rune Knight

@@ -24,14 +24,17 @@ chargen:
     - {name: Halfling Endurance, source: Halfling, cost: 1}
     # Total 5 = L1 budget; Jumper + Strong Jumper = the L4 spend (budget-inferred, ties to the Jump audit).
   class_choices:
-    - {slot: class_features, picks: [Rage, Berserker, Battlecry, Shouts], grants: {ad: 2, speed: 1, jump_from: might},
-       note: "Berserker (classes.md): Defense +2 AD unarmored (explains PD 9); Fast Movement +1 Speed; Mighty Leap = use Might for Jump Distance"}
+    - {slot: class_features, picks: [Rage, Berserker, Shattering Force],
+       grants: {speed: 1, jump_from: might}, grants_unarmored: {ad: 2},
+       note: "The Barbarian's three L1 features, per class_features.yaml. Berserker (classes.md l.110-119): Berserker Defense +2 AD *while not wearing Armor*, Fast Movement +1 Speed, Mighty Leap = Might for Jump Distance; Charge is situational. Shattering Force is the L1 Flavor Feature. BUG-39 (2026-08-21): the +2 AD was a flat `grants` entry here, which kept applying if he equipped armour, and this row also named Battlecry (an L2 feature, now at level 2) and Shouts (not a feature at all: they are Battlecry's three options) while omitting Shattering Force."}
   spells: []
   maneuvers: [Whirlwind, Side Step]
   combat_training: [Weapons, Armors, Shields]
 
 levels:
   2:
+    - {slot: class_feature, pick: Battlecry,
+       note: "1 AP + 1 SP: Fortitude / Fury / Urgent shout in 5 Spaces (classes.md l.127). Situational, no derived-stat effect. Moved here from the L1 class_features row by BUG-39; the class table puts it at L2."}
     - {slot: talent, pick: "MC Bard: Remarkable Repertoire", grants: {spells: 2, skill_points: 2},
        granted_spells: [Command, Charm],
        note: "2 Skill Points, 2 Spells, Expression (Auditory). BUG-30 (2026-07-27): Magical Secrets reaches ANY Spell List, so its 2 spells are now CHILDED here (granted_spells) instead of sitting in the flat pool, which is what lets every other picker stay filtered to the character's own lists. Which 2 of the 3 L2 spells came from the talent vs the Spellcaster path rank is not recorded (see the note below), so Command + Charm is an assumption; all three are legal either way and the counts are identical. The {spells:2} grant is CONSUMED by these children (the engine counts it via grant totals, not by name), so the spell total is unchanged."}

@@ -44,7 +44,8 @@ class_talents:
     - {name: Wild Form Expansion, requires: "Wild Form, Level 3", no_effect: situational}
     - {name: Nature's Vortex, requires: "Nature's Torrent, Level 3", no_effect: situational}
   Sorcerer:
-    - {name: Expanded Meta Magic, requires: "Meta Magic", grants: {mp: 2}}
+    - {name: Expanded Meta Magic, requires: "Meta Magic", grants: {mp: 2, metamagic: 2},
+       note: "character-creation.md l.548-553: +2 max MP AND 2 additional Meta Magic Spell Enhancements (BUG-46)"}
     - {name: Greater Innate Power, requires: "Innate Power, Level 3", grants: {mp: 1}}
     - {name: Font of Magic, requires: "Meta Magic, Level 3", no_effect: situational}
   Spellblade:
