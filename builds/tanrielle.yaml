@@ -24,7 +24,10 @@ chargen:
     # 'Attribute Increase' and parse the target out of the name; the grant key IS the target now,
     # so renaming this pick without changing the key would no longer change the stat.
     - {name: Attribute Increase (Might), source: Human, cost: 2, grants: {attr_might: 1}}
+    # BUG-20: the chosen trade is carried as DATA on this entry. The engine reads it via
+    # expertise_raises(); the Herbalism mastery row no longer hand-writes a limit_raise string.
     - {name: Trade Expertise (Herbalism), source: Human, cost: 1,
+       expertise: {kind: trades, target: Herbalism},
        note: "Mastery Cap AND Level +1 in Herbalism (free step), ancestries.md l.343"}
     - {name: Discerning Sight, source: Elf, cost: 0}
     - {name: Nimble, source: Elf, cost: 2}
@@ -91,7 +94,7 @@ skills:
     Survival: {mastery: Novice}
 trades:
   masteries:
-    Herbalism: {mastery: Adept, limit_raise: "Trade Expertise (Human ancestry trait)"}
+    Herbalism: {mastery: Adept}   # cap + free step from the Trade Expertise trait entry (BUG-20)
     Gaming: {mastery: Novice}
     Brewing: {mastery: Novice}
     Cooking: {mastery: Novice}

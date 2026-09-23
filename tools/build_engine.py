@@ -253,6 +253,33 @@ def unresolved_attribute_grants(ledger, level):
     return n
 
 
+# BUG-20 (2026-09-23): Skill / Trade Expertise. "Choose a Skill/Trade. Your Mastery Cap and Mastery
+# Level in the chosen one both increase by 1. You can only benefit from 1 Feature that increases
+# your Mastery Limit at a time" (ancestries.md l.334-346). The CHOSEN target is carried on the
+# LEDGER ENTRY as `expertise: {kind: trades, target: Herbalism}`, never parsed out of the pick
+# name and never hand-written onto the mastery row (the old `limit_raise: "Trade Expertise ..."`
+# string, which nothing checked was backed by a trait: CH-10 row C4 / BUG-49).
+EXPERTISE_KINDS = ("skills", "trades")
+
+
+def expertise_raises(ledger, level):
+    """{(kind, target): [label, ...]} for every Expertise entry in effect at `level`.
+
+    The ONE definition: the engine's point/limit maths, the builder's allocator and its plan-level
+    cap walk all read this (trap 2). A list per target, not a set, so a second raise on the SAME
+    target stays visible and is reported instead of silently collapsing (the BUG-49 shape)."""
+    out = {}
+    for obj in _grant_bearers(ledger, level):
+        ex = obj.get("expertise")
+        if not isinstance(ex, dict):
+            continue
+        label = str(obj.get("name") or obj.get("pick") or "Expertise")
+        if obj.get("source"):
+            label += " (%s)" % obj["source"]
+        out.setdefault((ex.get("kind"), ex.get("target")), []).append(label)
+    return out
+
+
 def ancestry_grant_levels(ledger, level, table):
     """Every level (<= `level`) at which the character GAINED ancestry points.
 
@@ -461,26 +488,49 @@ def replay(ledger, level, class_tables=None):
         earned_sp = (BACKGROUND_SKILL + attrs.get("intelligence", 0)
                      + cumulative(table, level, "skill")
                      + sum_grants(ledger, level, "skill_points"))
+        exr = expertise_raises(ledger, level)
+        for (_k, _t), _labels in sorted(exr.items(), key=str):
+            if _k not in EXPERTISE_KINDS:
+                rep.problem(f"Expertise entry {_labels[0]} names kind {_k!r}, not skills/trades")
+            elif _t not in ((ledger.get(_k) or {}).get("masteries") or {}):
+                rep.problem(f"{_labels[0]} targets {_t}, which has no {_k[:-1]} mastery row "
+                            f"(its free Mastery Level step is unused)")
+            if len(_labels) > 1:
+                rep.problem(f"{_t} is raised by {len(_labels)} Expertise features ({', '.join(_labels)}); "
+                            f"only 1 Mastery Limit raise per {_k[:-1]} applies (ancestries.md l.336, l.345)")
+
+        def mastery_cost(kind, name, m):
+            # points a mastery row costs, and a limit check. Point purchase: +1 point, cap +1.
+            # Expertise: cap +1 AND one free step, so -1 point. Never both (one raise per target).
+            purchase = "skill_point_purchase" if kind == "skills" else "trade_point_purchase"
+            lr = m.get("limit_raise")
+            ex = (kind, name) in exr
+            steps = MASTERY_STEPS[m.get("mastery")]
+            if lr and lr != purchase:
+                rep.problem(f"{kind[:-1].title()} {name} carries a hand-written limit_raise {lr!r}; "
+                            f"only {purchase!r} is valid, an Expertise raise lives on its trait entry")
+            if lr == purchase:
+                steps += 1
+                if ex:
+                    rep.problem(f"{kind[:-1].title()} {name} has both a point-purchased limit raise and "
+                                f"an Expertise raise; only 1 applies (ancestries.md l.336, l.345)")
+            if ex:
+                steps -= 1
+            raises = (1 if lr == purchase else 0) + (1 if ex else 0) + (1 if lr and lr != purchase else 0)
+            if MASTERY_STEPS[m.get("mastery")] > MASTERY_STEPS[mastery_limit(level)] + min(raises, 1):
+                rep.problem(f"{kind[:-1].title()} {name} at {m.get('mastery')} above L{level} limit"
+                            + (" even with its limit raise" if raises else " with no limit_raise"))
+            return steps
+
         spent_sp = 0
         for name, m in (sk.get("masteries") or {}).items():
-            steps = MASTERY_STEPS[m.get("mastery")]
-            spent_sp += steps
-            if m.get("limit_raise") == "skill_point_purchase":
-                spent_sp += 1
-            elif MASTERY_STEPS[m.get("mastery")] > MASTERY_STEPS[mastery_limit(level)] \
-                    and not m.get("limit_raise"):
-                rep.problem(f"Skill {name} at {m.get('mastery')} above L{level} limit with no limit_raise")
+            spent_sp += mastery_cost("skills", name, m)
         tr = ledger.get("trades", {})
         earned_tp = (BACKGROUND_TRADE + cumulative(table, level, "trade")
                      + sum_grants(ledger, level, "trade_points"))
         spent_tp = 0
         for name, m in (tr.get("masteries") or {}).items():
-            steps = MASTERY_STEPS[m.get("mastery")]
-            if m.get("limit_raise") == "trade_point_purchase":
-                steps += 1  # 1 TP spent to raise the Mastery Limit itself
-            elif m.get("limit_raise") and "Expertise" in str(m.get("limit_raise")):
-                steps -= 1  # Trade/Skill Expertise: Cap AND Level +1 = one free step
-            spent_tp += steps
+            spent_tp += mastery_cost("trades", name, m)
         langs = ledger.get("languages", []) or []
         # Subclass/feature-granted languages are free regardless of fluency (e.g. Eldritch
         # grants Fluent Deep Speech, classes.md l.3432): a `granted: true` language costs 0 LP.
@@ -527,6 +577,15 @@ def replay(ledger, level, class_tables=None):
         if spent_lp > lp_avail:
             rep.problem(f"Language points over-spent: {spent_lp} vs {lp_avail}")
         rep.add()
+        # FR-39: the same numbers, structured, so the builder's "x of y spent" readout is not a
+        # second derivation or a parse of the report prose above (trap 2). `spent` includes the
+        # points converted away; `avail` includes the points converted in.
+        rep.derived["points"] = {
+            "skills": {"spent": total_sp, "avail": earned_sp, "converted_out": conv_sp},
+            "trades": {"spent": tp_total, "avail": tp_avail, "converted_out": conv_tp,
+                       "converted_in": conv_sp * 2},
+            "languages": {"spent": spent_lp, "avail": lp_avail, "converted_in": conv_tp * 2},
+        }
 
     # --- derived table ------------------------------------------------------
     exp = (ledger.get("expected") or {}) if not plan else {}

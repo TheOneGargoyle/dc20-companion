@@ -84,6 +84,10 @@ Same conventions as the live file: no em-dashes anywhere.
 | FR-45 | Headless DOM smoke test: drive the real page in a real browser (`tools/builder_smoke.py`) + a CI workflow that runs all three harnesses | feature | repo | P1 | DONE - BUILT + VERIFIED, AWAITING PUSH (2026-07-27; closes the discovery gap behind BUG-31/32; already reproduces BUG-34; see note below) |
 | BUG-36 | Ancestry Increase (General Talent) grants nothing: it declares `grants: {ancestry_points: 4}` but `_anc_budget` never read the key, so the ancestry-point budget stayed at 5 | bug | builder+engine | P2 | DONE - PUSHED + CHROME-VERIFIED `3130157` (2026-07-28; budget now owned by `eng.ancestry_budget`, one definition for both consumers; `RT_KNOWN_FAIL` emptied and mutation case 2 inverted; see the note below) |
 | CH-5 Tier-2 | The engine slice: retire the two `build_engine.py` name-matches so Move Speed and per-attribute deltas come from catalog DATA | chore | catalog+engine+builder | P2 | DONE - PUSHED + CHROME-VERIFIED `83c3f36` (2026-07-29; 7 options closed not 6, burn-down 11 -> 4 distinct; new `attr_<name>` grant keys + `targets: attributes`; `RT_NAME_MATCHED` / `RT_VARIANT_MATCHED` retired; mutation-tested 7 of 7; see the note below) |
+| BUG-20 | Skill / Trade Expertise raise the cap and level of a CHOSEN skill/trade | bug | builder+engine+catalog | P2 | DONE (2026-09-23, Expertise batch) |
+| FR-39 | Points-spent x of y readout for skills/trades/languages | feature | builder+engine | P2 | DONE (2026-09-23, Expertise batch) |
+| BUG-49 | `_TODO_CANON_OK` bare-name dedup hole; allowance retired, todo set keyed on (list, name) | bug | tools | P2 | DONE (2026-09-23, Expertise batch) |
+| BUG-55 | Re-targeting a targeted ancestry pick kept the old target's grant (base_name strips the target) | bug | builder | P2 | DONE (2026-09-23, found and fixed in the Expertise batch) |
 
 ---
 
@@ -580,3 +584,4 @@ Note that mutating the CATALOG is deliberately NOT caught, and should not be: th
 
 **A `--only <substring>` flag was added to builder_verify** while doing this. The full pass is ~45s, which does not fit the sandbox's background-process budget, so mutation-testing one section needed a way to run it alone. It prints `PASS - sections matching [...] only (NOT a full pass)` so it can never be mistaken for a clean run, and CI always runs the whole suite.
 
+**2026-09-23 Expertise batch (BUG-20 + FR-39 + BUG-49 + BUG-55).** Full note in `BACKLOG.md` under that heading. Things to carry: the Expertise target is DATA on the trait entry (`expertise: {kind, target}`), never a `limit_raise` string on the mastery row, and `build_engine.expertise_raises()` is its only reader. The picker variants (design A) are interim; FR-42's sub-choice node should replace the picker, not the data. A targeted pick must compare its whole name when deciding whether it changed, or re-targeting is a no-op (BUG-55).

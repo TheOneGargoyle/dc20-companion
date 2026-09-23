@@ -82,6 +82,9 @@ PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
 MASTERIES = [None, 'Novice', 'Adept', 'Expert']
 UNDECIDED = '(undecided)'
 BUILDER_NOTE = 'Added in builder'
+# BUG-20: the mastery row an Expertise pick creates for its target (the free Mastery Level step).
+# Starts with BUILDER_NOTE so it stays removable; the suffix marks it as the trait's to clean up.
+EXPERTISE_ROW_NOTE = BUILDER_NOTE + '; Expertise free step'
 LANG_COSTS = {'Limited': 1, 'Fluent': 2}
 CLASS_NAMES = {'spellblade': 'Spellblade', 'warlock': 'Warlock', 'commander': 'Commander',
                'barbarian': 'Barbarian', 'druid': 'Druid'}
@@ -482,17 +485,62 @@ class BuilderAPI:
                     % (base_name(name), row['cost'], cost))
         return None
 
+    def _row_targets(self, row):
+        """The legal targets of a targeted ancestry option, or None if it is untargeted.
+
+        `targets: attributes` -> the four Attributes (CH-5). `expertise: skills|trades` -> every
+        catalog skill / trade (BUG-20), narrowed by the row's `trade_categories` when the rules
+        restrict it (Dwarf: "a Crafting or Services Trade", ancestries.md l.406). Categories come
+        from skills_trades.yaml, whose membership catalog_verify asserts against core-rules.md."""
+        if row.get('targets') == 'attributes':
+            return list(ATTRS)
+        kind = row.get('expertise')
+        if kind not in eng.EXPERTISE_KINDS:
+            return None
+        stc = self.cat.get('skills_trades') or {}
+        if kind == 'skills':
+            return [n for grp in (stc.get('skills') or {}).values() for n in grp]
+        names = list(stc.get('trades') or [])
+        cats = row.get('trade_categories')
+        if cats:
+            allowed = set()
+            for c in cats:
+                allowed |= set(stc.get('knowledge_trades') or []) if c == 'Knowledge' \
+                    else set((stc.get('trade_categories') or {}).get(c) or [])
+            names = [n for n in names if n in allowed]
+        return names
+
+    @staticmethod
+    def _pick_target(value):
+        m = re.search(r'\(([^)]+)\)\s*$', str(value))
+        return m.group(1).strip() if m else None
+
+    def _drop_expertise_row(self, t):
+        # BUG-20: undo the free mastery row an Expertise pick created, but only while it is still
+        # exactly what the pick made (Novice, builder-marked). A row the player has since raised or
+        # that was there before the pick is theirs, so it stays.
+        ex = t.get('expertise')
+        if not isinstance(ex, dict):
+            return
+        ms = (self.ledger.get(ex.get('kind')) or {}).get('masteries') or {}
+        m = ms.get(ex.get('target'))
+        if m and m.get('mastery') == 'Novice' and str(m.get('note', '')) == EXPERTISE_ROW_NOTE:
+            ms.pop(ex.get('target'), None)
+
     def _anc_options(self):
         opts = []
         for lst in self._anc_lists():
             for row in self.cat['ancestries']['ancestries'][lst]:
-                if row.get('targets') == 'attributes':
-                    # emit per-attribute variants; a target-less pick is meaningless to
+                tg = self._row_targets(row)
+                if tg is not None:
+                    # emit per-target variants; a target-less pick is meaningless to
                     # the engine (and used to crash its '(target)' parse). CH-5 (2026-07-28):
                     # driven by the catalog row's `targets`, not by matching the name
                     # 'Attribute Increase', so Attribute Decrease gets the same treatment
                     # from data alone. Anti-mirror: one flag, no per-name list here.
-                    for a in ATTRS:
+                    # BUG-20: Skill / Trade Expertise use the same variants, targets from
+                    # skills_trades.yaml via the row's `expertise` kind (design A, 2026-09-23).
+                    for a in tg:
                         nm = '%s (%s)' % (row['name'], a)
                         opts.append({'name': nm, 'cost': row['cost'], 'group': lst,
                                      'label': '%s (%s, cost %s)' % (nm, lst, row['cost'])})
@@ -1085,10 +1133,13 @@ class BuilderAPI:
         # lift the ceiling by 1), plus +1 for each cap+ pick in a PLAN level strictly below `level`.
         gkey = 'granted_%s' % kind
         caps = {}
-        for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
-            if m.get('limit_raise'):
-                caps[name] = caps.get(name, 0) + 1
         cur = self.ledger['current_level']
+        # BUG-20: an Expertise raise lives on its trait entry, not the mastery row. One raise per
+        # target however many sources claim it (the engine reports a stack as a problem).
+        exr = eng.expertise_raises(self.ledger, cur)
+        for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
+            if m.get('limit_raise') or (kind, name) in exr:
+                caps[name] = caps.get(name, 0) + 1
         for L in sorted(self.ledger.get('levels') or {}):
             if L <= cur or L >= level:
                 continue
@@ -1206,6 +1257,21 @@ class BuilderAPI:
     # ---------- catalog-level legality (the layer the engine does not do) ----------
     def catalog_problems(self):
         probs = []
+        # BUG-20: an Expertise pick must resolve to a legal target of ITS row (Dwarf: Crafting or
+        # Services only). An unresolved or off-list target applies nothing, so it is named here.
+        _cg = self.ledger.get('chargen') or {}
+        _tr = [('name', t) for t in (_cg.get('ancestry_traits') or [])]
+        _tr += [('pick', e) for L in sorted(self.ledger.get('levels') or {})
+                for e in (self.ledger['levels'][L] or []) if e.get('slot') == 'ancestry_trait']
+        for _key, _t in _tr:
+            _lst, _row = self._anc_find(_t.get(_key, ''))
+            if _row is None or not _row.get('expertise') or str(_t.get(_key)) == UNDECIDED:
+                continue
+            _ex = _t.get('expertise') or {}
+            if _ex.get('target') not in (self._row_targets(_row) or []):
+                probs.append('catalog: %s has no legal %s target (%s allows %s)'
+                             % (_t.get(_key), _row['expertise'][:-1], _lst,
+                                ', '.join(_row.get('trade_categories') or ['any'])))
         # BUG-30: an any-list grant's own spells are childed under the granting feature and are legal by
         # construction (their picker offers every spell), so they never reach this flat sweep. What this
         # DOES cover is a hand-authored / received ledger that left such spells in the flat pool (the
@@ -1652,6 +1718,12 @@ class BuilderAPI:
                     m = re.search(r'\(([^)]+)\)', str(pick))
                     d['current'] = '%s (%s)' % (row['name'],
                                                 m.group(1).strip().lower() if m else ATTRS[0])
+                elif row is not None and row.get('expertise'):
+                    # BUG-20: the <select> value is the decorated variant. Display only: the effect
+                    # is read off the entry's `expertise` data, and catalog_verify asserts the
+                    # name's target and the data's target agree (the rename guard).
+                    tgt = self._pick_target(pick)
+                    d['current'] = '%s (%s)' % (row['name'], tgt) if tgt else row['name']
                 elif row is not None:
                     d['current'] = row['name']   # resolve ledger aliases (e.g. Arcane Spell)
             if slot == 'talent':
@@ -1991,14 +2063,20 @@ class BuilderAPI:
 
     def _alloc(self):
         out = []
+        exr = eng.expertise_raises(self.ledger, self.ledger['current_level'])
         for kind in ('skills', 'trades'):
             for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
                 lr = m.get('limit_raise')
+                ex = exr.get((kind, name))
                 purchase = 'skill_point_purchase' if kind == 'skills' else 'trade_point_purchase'
                 out.append({'id': '%s:%s' % (kind, name), 'kind': kind, 'name': name,
-                            'mastery': m.get('mastery'), 'limit_raise': lr,
+                            'mastery': m.get('mastery'),
+                            # BUG-20: an Expertise raise is shown from its trait entry; a 1-point
+                            # purchase cannot stack on it (one raise per skill/trade)
+                            'limit_raise': lr or ('; '.join(ex) if ex else None),
+                            'expertise': ex or [],
                             'options': [str(x) for x in MASTERIES],
-                            'purchasable': (not lr) or lr == purchase,
+                            'purchasable': not ex and ((not lr) or lr == purchase),
                             'purchased': lr == purchase,
                             'removable': self.scratch or BUILDER_NOTE in str(m.get('note', ''))})
         return out
@@ -2112,6 +2190,7 @@ class BuilderAPI:
             'languages': self._langs(),
             'language_options': self._language_options(),
             'stats': stats, 'budgets': budgets,
+            'points': rep.derived.get('points'),   # FR-39: structured x-of-y for skills/trades/languages
             'advisories': [b for b in budgets if 'SPARE' in b],
             'problems': rep.problems,
             'catalog_problems': self.catalog_problems(),
@@ -2365,7 +2444,14 @@ class BuilderAPI:
         # stale grant-child (and a phantom spell in the engine count) cannot linger (mirrors
         # _apply_grants' changed-clear).
         changed = base_name(str(t.get(key))) != base_name(str(value))
+        # BUG-55 (2026-09-23): for a TARGETED row the target is the parenthetical, which base_name
+        # strips, so re-targeting 'Attribute Increase (might)' to '(agility)' read as unchanged and
+        # the entry kept attr_might. Compare the whole pick (case-insensitive) for those rows.
+        if not changed and row is not None and self._row_targets(row) is not None:
+            changed = str(t.get(key)).strip().lower() != str(value).strip().lower()
         if changed:
+            self._drop_expertise_row(t)
+            t.pop('expertise', None)
             t.pop('granted_spells', None)
             t.pop('spell_access', None)
             t.pop('sorcerous_origin', None)
@@ -2421,6 +2507,18 @@ class BuilderAPI:
                 cat_access = row.get('spell_access')
                 if cat_access and int(cat_grants.get('spells', 0) or 0) > 0:
                     t['spell_access'] = dict(cat_access)
+                # BUG-20: Skill / Trade Expertise. The chosen target goes onto the entry as DATA
+                # (the engine's expertise_raises() reads it), resolved once here from the variant
+                # the picker emitted, and the target gets its free Mastery Level step as a Novice
+                # row if it had none. An off-list target is left unresolved, and catalog_problems
+                # names it, so it cannot silently apply.
+                if row.get('expertise'):
+                    tgt = self._pick_target(value)
+                    if tgt in (self._row_targets(row) or []):
+                        t['expertise'] = {'kind': row['expertise'], 'target': tgt}
+                        ms = self.ledger.setdefault(row['expertise'], {}).setdefault('masteries', {})
+                        if tgt not in ms:
+                            ms[tgt] = {'mastery': 'Novice', 'note': EXPERTISE_ROW_NOTE}
         was_added = BUILDER_NOTE in str(t.get('note', ''))
         t['note'] = ('%s; cost %s from catalog (%s).'
                      % (BUILDER_NOTE if was_added else 'Edited in builder',
@@ -2551,6 +2649,8 @@ class BuilderAPI:
         m = self.ledger[kind]['masteries'][name]
         purchase = 'skill_point_purchase' if kind == 'skills' else 'trade_point_purchase'
         if str(on) in ('1', 'true', 'True', 'on', 'yes'):
+            if (kind, name) in eng.expertise_raises(self.ledger, self.ledger['current_level']):
+                return self.state()   # BUG-20: already raised by Expertise; one raise per target
             m['limit_raise'] = purchase
         elif m.get('limit_raise') in ('skill_point_purchase', 'trade_point_purchase'):
             m.pop('limit_raise', None)   # never clobber a non-purchase (Expertise) raise
@@ -2604,9 +2704,11 @@ class BuilderAPI:
     def remove_decision(self, did):
         did = str(did)
         if did.startswith('cg:trait:'):
+            self._drop_expertise_row(self.ledger['chargen']['ancestry_traits'][int(did.split(':')[2])])
             del self.ledger['chargen']['ancestry_traits'][int(did.split(':')[2])]
         elif did.startswith('L'):
             lvl, idx = did[1:].split(':')
+            self._drop_expertise_row(self.ledger['levels'][int(lvl)][int(idx)])
             del self.ledger['levels'][int(lvl)][int(idx)]
         return self.state()
 

@@ -42,3 +42,12 @@ trades:
 - Weaving
 - Vehicles
 knowledge_trades: [Arcana, Engineering, History, Nature, Occultism, Religion]
+# BUG-20: the other four Trade categories (core-rules.md "#### Artistry/Crafting/Services/Subterfuge"
+# headings, l.488-775), for Expertise rows that restrict their target (Dwarf: Crafting or Services).
+# Knowledge is knowledge_trades above, not repeated here. catalog_verify asserts the five groups
+# partition `trades` exactly and match the headings in the rules text.
+trade_categories:
+  Artistry: [Illustration, Musician, Theatre]
+  Crafting: [Alchemy, Blacksmithing, Glassblowing, Herbalism, Jeweler, Leatherworking, Sculpting, Tinkering, Weaving]
+  Services: [Brewing, Carpentry, Cartography, Cooking, Masonry, Vehicles]
+  Subterfuge: [Cryptography, Disguise, Gaming, Lockpicking]

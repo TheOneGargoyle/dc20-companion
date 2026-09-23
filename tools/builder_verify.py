@@ -236,9 +236,11 @@ def check_trips():
     api = builder_api.BuilderAPI("tanrielle", CATPATHS)
     s = st(api)
     d = find_dec(s, lambda d: d["slot"] == "ancestry_trait"
-                 and str(d.get("current")) == "Trade Expertise")
+                 and str(d.get("current")) == "Trade Expertise (Herbalism)")
     ok("Trade Expertise picker carries current_group == Human (ledger source)",
        d.get("current_group") == "Human", d.get("current_group"))
+    ok("Trade Expertise picker's current value is one of its options (BUG-20 variant)",
+       any(o["name"] == d["current"] for o in d["options"]), d["current"])
     # allocator over-spend trip (tanrielle)
     api = builder_api.BuilderAPI("tanrielle", CATPATHS)
     s2 = json.loads(api.set_mastery("skills:Athletics", "Adept"))
@@ -819,6 +821,90 @@ def check_l5_class_features():
                any(d["slot"] == "discipline" and d["pick"] == "Spell Breaker" for d in l5), l5)
     ok("no L5 falls back to a generic Class Feature label",
        all(n and not n[0].startswith("Class ") for n in names.values()), names)
+
+
+def check_expertise():
+    """(40) BUG-20 + FR-39 + BUG-49 + BUG-55, 2026-09-23. Skill / Trade Expertise raise the cap and
+    level of a CHOSEN target (the choice is data on the trait entry); the allocator carries an
+    engine-derived "x of y spent" readout; a re-targeted pick really moves its effect. The fleet
+    (section 39) drives every Expertise row once; this section covers the paths it does not."""
+    print()
+    print("## (40) Skill / Trade Expertise, points readout, re-targeting (BUG-20/FR-39/BUG-49/BUG-55)")
+    # --- Tanrielle, the one canon consumer: unchanged numbers, raise now read off her trait
+    api = builder_api.BuilderAPI("tanrielle", CATPATHS)
+    s = st(api)
+    herb = next(a for a in s["alloc"] if a["name"] == "Herbalism")
+    ok("Tanrielle Herbalism raise comes from her Trade Expertise trait entry",
+       herb["expertise"] == ["Trade Expertise (Herbalism) (Human)"] and herb["purchasable"] is False, herb)
+    ok("Tanrielle's ledger no longer hand-writes an Expertise limit_raise",
+       "limit_raise" not in api.ledger["trades"]["masteries"]["Herbalism"], api.ledger["trades"]["masteries"]["Herbalism"])
+    ok("Tanrielle is clean at L4 (no engine or catalog problem)", not s["problems"] and not s["catalog_problems"],
+       (s["problems"], s["catalog_problems"]))
+    ok("FR-39: Tanrielle's point readout is structured and balanced at L4",
+       all(s["points"][k]["spent"] == s["points"][k]["avail"] for k in ("skills", "trades", "languages")), s["points"])
+    ok("FR-39: the structured numbers are the ones the budget prose prints",
+       any("earned %d" % s["points"]["skills"]["avail"] in b for b in s["budgets"]), (s["points"], s["budgets"]))
+    ok("Tanrielle's L5 plan can still take Herbalism to Expert (the cap carries)",
+       "Herbalism: Expert" in {o["name"] for o in api._plan_options("trades", 5)})
+    # --- the engine's one-raise-per-target rule and the hand-written-string guard
+    led = copy.deepcopy(api.ledger)
+    led["trades"]["masteries"]["Herbalism"]["limit_raise"] = "trade_point_purchase"
+    probs = builder_api.eng.replay(led, led["current_level"]).problems
+    ok("Expertise + a point purchase on the same trade is a problem (one raise per trade)",
+       any("both a point-purchased" in p for p in probs), probs)
+    led = copy.deepcopy(api.ledger)
+    led["trades"]["masteries"]["Herbalism"]["limit_raise"] = "Trade Expertise (Human ancestry trait)"
+    probs = builder_api.eng.replay(led, led["current_level"]).problems
+    ok("a hand-written Expertise limit_raise string is a problem (BUG-49)",
+       any("hand-written limit_raise" in p for p in probs), probs)
+    led = copy.deepcopy(api.ledger)
+    led["chargen"]["ancestry_traits"].append({"name": "Trade Expertise (Herbalism)", "source": "Elf", "cost": 1,
+                                              "expertise": {"kind": "trades", "target": "Herbalism"}})
+    probs = builder_api.eng.replay(led, led["current_level"]).problems
+    ok("two Expertise raises on one trade are reported, not collapsed (BUG-49 shape)",
+       any("raised by 2 Expertise" in p for p in probs), probs)
+    led = copy.deepcopy(api.ledger)
+    led["chargen"]["ancestry_traits"][1].pop("expertise")
+    probs = builder_api.eng.replay(led, led["current_level"]).problems
+    ok("without the trait's expertise data, Adept Herbalism at L4 is over the limit",
+       any("Herbalism" in p and "limit" in p for p in probs), probs)
+    # --- scratch: Dwarf restriction, re-target, removal
+    dw = _fresh_at("druid", "Dwarf")
+    _s, did, offered = _rt_open_trait(dw)
+    tgts = sorted(o[len("Trade Expertise ("):-1] for o in offered if o.startswith("Trade Expertise ("))
+    stc = yaml.safe_load(open(CATPATHS["skills_trades"], encoding="utf-8"))
+    want = sorted(stc["trade_categories"]["Crafting"] + stc["trade_categories"]["Services"])
+    ok("Dwarf Trade Expertise offers only Crafting or Services trades", tgts == want and len(want) > 0, tgts)
+    hu = _fresh_at("druid", "Human")
+    _s, did, offered = _rt_open_trait(hu)
+    hu.set_decision(did, "Trade Expertise (Alchemy)")
+    s1 = json.loads(hu.set_decision(did, "Trade Expertise (Cooking)"))
+    names = {a["name"]: a for a in s1["alloc"] if a["kind"] == "trades"}
+    ok("re-targeting Expertise moves the free row (Alchemy gone, Cooking Novice)",
+       "Alchemy" not in names and names.get("Cooking", {}).get("expertise"), sorted(names))
+    s2 = json.loads(hu.remove_decision(did))
+    ok("removing the Expertise trait removes its untouched free row",
+       "Cooking" not in {a["name"] for a in s2["alloc"]}, [a["name"] for a in s2["alloc"]])
+    hu2 = _fresh_at("druid", "Human")
+    _s, did2, _o = _rt_open_trait(hu2)
+    hu2.set_decision(did2, "Trade Expertise (Alchemy)")
+    hu2.set_mastery("trades:Alchemy", "Adept")
+    s3 = json.loads(hu2.remove_decision(did2))
+    a3 = next((a for a in s3["alloc"] if a["name"] == "Alchemy"), None)
+    ok("a free row the player has since raised is theirs and survives removal (then flags over-limit)",
+       a3 is not None and any("Alchemy" in p and "limit" in p for p in s3["problems"]), (a3, s3["problems"]))
+    # --- BUG-55: re-targeting an Attribute Increase used to keep the OLD attribute's grant
+    hu3 = _fresh_at("druid", "Human")
+    _s, did3, _o = _rt_open_trait(hu3)
+    hu3.set_decision(did3, "Attribute Increase (charisma)")
+    hu3.set_decision(did3, "Attribute Increase (intelligence)")
+    t = hu3.ledger["chargen"]["ancestry_traits"][-1]
+    ok("BUG-55: re-targeting Attribute Increase rewrites its grant key",
+       t.get("grants") == {"attr_intelligence": 1}, t)
+    # --- FR-39: the page renders the readout from s.points (assert the artifact, trap 3)
+    page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("FR-39: builder.html carries the skills/trades and languages readouts, fed by s.points",
+       'id="stpts"' in page and 'id="lgpts"' in page and "s.points" in page)
 
 
 # ---------------------------------------------------------------- (38) Companion damage/roll surface
@@ -3249,6 +3335,10 @@ RT_KNOWN_FAIL = {}
 # fail to move) and the L1 attribute limit (3, where an increase would trip a problem line). A
 # probe whose baseline sits on a boundary proves nothing, which is the same lesson as Mighty Leap.
 RT_ATTR_TARGET = "charisma"
+# BUG-20: the targets used when driving a Skill / Trade Expertise option. Alchemy is a Crafting
+# trade, so it is legal for EVERY Trade Expertise row, including Dwarf's Crafting-or-Services one.
+# Neither is held by the druid probe, so the free Novice row is visibly created by the pick.
+RT_EXPERTISE_TARGET = {"skills": "Medicine", "trades": "Alchemy"}
 
 
 def _rt_attr_keys():
@@ -3284,6 +3374,8 @@ def _rt_variant_pick(row, name, grants):
     pick means nothing to the engine, and the builder rewrites the placeholder `attribute` grant
     key to attr_<target> on pick. The round-trip therefore has to drive the variant and expect
     the resolved key, both derived from the catalog row rather than listed by name here."""
+    if row.get("expertise") in RT_EXPERTISE_TARGET:
+        return "%s (%s)" % (name, RT_EXPERTISE_TARGET[row["expertise"]]), grants
     if row.get("targets") != "attributes" or "attribute" not in (grants or {}):
         return name, grants
     resolved = dict(grants)
@@ -3384,7 +3476,8 @@ def _rt_fleet():
 
     _anccat = yaml.safe_load(open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"]
     _targeted = {r["name"] for rows in _anccat.values() if isinstance(rows, list)
-                 for r in rows if isinstance(r, dict) and r.get("targets") == "attributes"}
+                 for r in rows if isinstance(r, dict)
+                 and (r.get("targets") == "attributes" or r.get("expertise"))}
     ancestries = sorted(_anccat)
     for anc in ancestries:
         api = _rt_probe_ancestry(anc)
@@ -3723,6 +3816,8 @@ def _rt_check_option(o, index):
         if grants_un:
             _rt_assert_grants(name, label, before, after, grants_un, unarmored=True)
 
+    if "expertise" in row:
+        _rt_assert_expertise(name, label, api, before, after, row["expertise"])
     if "spell_access" in row:
         _rt_assert_spell_access(name, label, before, after, row["spell_access"])
     if "choice" in row:
@@ -3733,6 +3828,30 @@ def _rt_check_option(o, index):
         _rt_ok(name, "%-64s brings its combat training to the sheet" % label,
                set(row["training"]) <= set(json.loads(api.sheet()).get("combat_training") or []),
                json.loads(api.sheet()).get("combat_training"))
+
+
+def _rt_assert_expertise(name, label, api, before, after, kind):
+    """BUG-20: Expertise raises the Mastery Cap AND Level of the CHOSEN target by 1.
+
+    Asserted on the surfaces a player sees: the allocator row (the free Novice step appears and
+    names its Expertise source), the FR-39 structured point readout (that step costs nothing),
+    and the engine's limit check (the raised cap admits one tier above the level's limit, and a
+    point purchase cannot be stacked on it)."""
+    tgt = RT_EXPERTISE_TARGET[kind]
+    row = next((a for a in after["s"]["alloc"] if a["kind"] == kind and a["name"] == tgt), None)
+    _rt_ok(name, "%-64s creates a free Novice %s row" % (label, tgt),
+           row is not None and row["mastery"] == "Novice" and row["expertise"], row)
+    spent = lambda st: st["points"][kind]["spent"]
+    _rt_ok(name, "%-64s free step costs 0 points (FR-39 readout)" % label,
+           spent(after["s"]) == spent(before["s"]), (spent(before["s"]), spent(after["s"])))
+    s2 = json.loads(api.set_mastery("%s:%s" % (kind, tgt), "Adept"))
+    over = [p for p in s2["problems"] if tgt in p and "limit" in p]
+    _rt_ok(name, "%-64s raised cap admits %s at Adept at L1" % (label, tgt), not over, over)
+    _rt_ok(name, "%-64s Adept costs exactly 1 point" % label,
+           spent(s2) == spent(before["s"]) + 1, (spent(before["s"]), spent(s2)))
+    a2 = next(a for a in s2["alloc"] if a["name"] == tgt and a["kind"] == kind)
+    _rt_ok(name, "%-64s no point purchase can stack on the Expertise" % label,
+           a2["purchasable"] is False, a2)
 
 
 def _rt_any_movement(before, after, grants):
@@ -3941,7 +4060,7 @@ def main():
                     check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
                     check_bug34_grant_child_effects, check_fr46_round_trip,
                     check_companion_dmg_roll, check_companion_rest_points,
-                    check_l5_class_features):
+                    check_l5_class_features, check_expertise):
             run(_fn)
     finally:
         os.chdir(old)

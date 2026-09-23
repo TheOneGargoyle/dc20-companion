@@ -508,6 +508,28 @@ def j_sheet(P, cfcat):
     P.pg.wait_for_timeout(300)
 
 
+def j_expertise_readout(P):
+    """(S7) BUG-20 + FR-39: a Trade Expertise pick reaches the rendered allocator as a free Novice
+    row, and the "x of y spent" readouts render from the engine's structured numbers."""
+    print("## (S7) Trade Expertise reaches the allocator; FR-39 point readouts render")
+    P.start("barbarian")
+    P.point_buy()
+    P.ancestry("Human")
+    txt = lambda sel: P.pg.evaluate("s => (document.querySelector(s)||{}).innerText||''", sel)
+    before = txt("#stpts")
+    P.add_trait("Trade Expertise (Alchemy)")
+    alloc = txt("#alloc")
+    ok("Trade Expertise (Alchemy) adds an Alchemy row with an Expertise cap marker",
+       "Alchemy" in alloc and "Expertise" in alloc, alloc[:200])
+    after, lg = txt("#stpts"), txt("#lgpts")
+    ok("skills/trades readout renders 'x of y spent' for both",
+       bool(re.search(r"Skill points: \d+ of \d+ spent", after))
+       and bool(re.search(r"Trade points: \d+ of \d+ spent", after)), after[:200])
+    ok("the free Novice step leaves the trade readout unchanged", before == after, (before, after))
+    ok("languages readout renders 'x of y spent'",
+       bool(re.search(r"Language points: \d+ of \d+ spent", lg)), lg[:120])
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -624,7 +646,8 @@ def main():
                                          ("s2", j_trait_effects, (anccat,), 400),
                                          ("s3", j_class_talents, (), 240),
                                          ("s4", j_sheet, (cfcat,), 120),
-                                         ("s6", j_rule_panel, (), 180)):
+                                         ("s6", j_rule_panel, (), 180),
+                                         ("s7", j_expertise_readout, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

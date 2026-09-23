@@ -1096,31 +1096,116 @@ _todo_names = sorted({o.name for o in _cov_opts if o.kind == "todo"})
 print("  %d options; burn-down = %d rows / %d distinct: %s"
       % (len(_cov_opts), _cov_totals.get("todo", 0), len(_todo_names), ", ".join(_todo_names[:6]) + " ..."))
 # Canon safety net: no walked ledger may DEPEND on a todo option, because a todo option is
-# by definition not applying its effect. ONE documented exception is left: Tanrielle's Trade
-# Expertise cap is hand-authored in her trades block, which is why 90/90 holds while BUG-20 is
-# open. CH-5 (2026-07-28) retired the other two, Attribute Increase and Speed Increase, which
-# were allowed here because the engine name-matched them; they are ordinary grants now.
-# The allowance is itself asserted below: an entry that stops being a todo FAILS rather than
-# rotting into a silent hole, the same discipline coverage.py applies to its EXCLUDE sets.
-_TODO_CANON_OK = {"Trade Expertise"}
-expect(_TODO_CANON_OK <= set(_todo_names),
-       f"coverage: stale _TODO_CANON_OK allowance {sorted(_TODO_CANON_OK - set(_todo_names))} "
-       f"is no longer a todo - retire it")
+# by definition not applying its effect. There is NO allowance any more: BUG-20 (2026-09-23)
+# modelled Skill/Trade Expertise and retired `_TODO_CANON_OK`, the last one (Tanrielle's
+# hand-authored Herbalism cap). Do not reintroduce an allowance set; model the option instead.
+#
+# BUG-49: the todo set is keyed on (ancestry list, name), not the bare name. Keyed on the name,
+# modelling Human's Trade Expertise while Elf's stayed a todo left the name in the set, so an
+# allowance for it stayed green while the effect was applied twice (once by the model, once by
+# a hand-written ledger cap). A pick matches a todo only in ITS list (the entry's `source:`);
+# a pick with no source is checked against every list carrying that name, the strict reading.
+_todo_keys = set()
+for o in _cov_opts:
+    if o.kind == "todo":
+        _todo_keys.add((o.path.split(".")[-1] if o.filename == "ancestries.yaml" else o.filename,
+                        o.name))
+expect(all(isinstance(k, tuple) and len(k) == 2 for k in _todo_keys),
+       "coverage: todo keys must be (list, name) pairs (BUG-49)")
 for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     _led = yaml.safe_load(open(_lf, encoding="utf-8"))
     if not isinstance(_led, dict):
         continue
-    _picks = [t.get("name", "") for t in (_led.get("chargen") or {}).get("ancestry_traits", []) or []]
+    _picks = [(t.get("name", ""), t.get("source")) for t in
+              (_led.get("chargen") or {}).get("ancestry_traits", []) or []]
     for _lvl, _ents in (_led.get("levels") or {}).items():
         for _e in _ents or []:
             if _e.get("slot") == "ancestry_trait":
-                _picks.append(_e.get("pick", ""))
-    for _p in _picks:
-        _hit = [t for t in _todo_names if base_name(norm(_p)) == t]
-        expect(not _hit or _hit[0] in _TODO_CANON_OK,
-               f"coverage: {os.path.basename(_lf)} picks {_p!r}, whose effect is an open todo "
-               f"(so its derived stats are wrong)")
-print("  no walked ledger depends on an un-modelled option (Tanrielle's Trade Expertise is ledger-covered)")
+                _picks.append((_e.get("pick", ""), _e.get("source")))
+    for _p, _src in _picks:
+        _bn = base_name(norm(_p))
+        _hit = [k for k in _todo_keys if k[1] == _bn and (_src is None or k[0] == _src)]
+        expect(not _hit,
+               f"coverage: {os.path.basename(_lf)} picks {_p!r} ({_src or 'no source'}), whose "
+               f"effect is an open todo {_hit} (so its derived stats are wrong)")
+print("  no walked ledger depends on an un-modelled option (todo set keyed on (list, name), no allowances)")
+
+# ---- Skill / Trade Expertise (BUG-20, 2026-09-23) --------------------------------------------
+print("\n## (2e) Skill / Trade Expertise: categories, rows and ledger entries (BUG-20)")
+_st = load("builds/catalog/skills_trades.yaml")
+_trades = list(_st["trades"])
+_cats = dict(_st.get("trade_categories") or {})
+_cats_all = dict(_cats, Knowledge=list(_st["knowledge_trades"]))
+# The five categories must PARTITION the trade list: every trade in exactly one group.
+_seen = [t for grp in _cats_all.values() for t in grp]
+expect(sorted(_seen) == sorted(_trades) and len(_seen) == len(set(_seen)),
+       f"skills_trades: trade_categories + knowledge_trades must partition trades exactly "
+       f"(missing {sorted(set(_trades) - set(_seen))}, dup/extra {sorted(set(t for t in _seen if _seen.count(t) > 1) | (set(_seen) - set(_trades)))})")
+# ...and each group must match its "#### <Category>" heading in the rules text (derive, do not
+# trust the hand copy). A trade belongs to the heading section its own entry line sits under.
+_core = open(os.path.join(ROOT, "rules", "core-rules.md"), encoding="utf-8").read().split("\n")
+_hd = [(i, ln[5:].strip()) for i, ln in enumerate(_core) if ln.startswith("#### ")]
+def _section_of(trade):
+    for i, ln in enumerate(_core):
+        if ln.strip() == trade:
+            prev = [h for j, h in _hd if j < i]
+            if prev and prev[-1] in _cats_all:
+                return prev[-1]
+    return None
+_bad_cat = {t: (c, _section_of(t)) for c, grp in _cats_all.items() for t in grp if _section_of(t) != c}
+expect(not _bad_cat, f"skills_trades: category membership disagrees with core-rules.md headings: {_bad_cat}")
+expect(len(_cats_all) == 5, f"expected 5 trade categories, got {sorted(_cats_all)}")
+# Every catalog Expertise row: a valid kind, valid categories, and a real skill/trade list behind it.
+_ex_rows = [(lst, r) for lst, rows in anc["ancestries"].items() if isinstance(rows, list)
+            for r in rows if isinstance(r, dict) and "expertise" in r]
+expect(len(_ex_rows) >= 5, f"expected the Human Skill Expertise + 4 Trade Expertise rows, got {len(_ex_rows)}")
+_skills_all = [n for grp in _st["skills"].values() for n in grp]
+def _ex_targets(r):
+    if r["expertise"] == "skills":
+        return list(_skills_all)
+    allowed = set(t for c in (r.get("trade_categories") or _cats_all) for t in _cats_all.get(c, []))
+    return [t for t in _trades if t in allowed]
+for lst, r in _ex_rows:
+    expect(r["expertise"] in ("skills", "trades"), f"ancestries: {lst} {r['name']} expertise kind {r['expertise']!r}")
+    expect(set(r.get("trade_categories") or []) <= set(_cats_all),
+           f"ancestries: {lst} {r['name']} unknown trade_categories {r.get('trade_categories')}")
+    expect(bool(_ex_targets(r)), f"ancestries: {lst} {r['name']} has no legal targets")
+_dw = next((r for lst, r in _ex_rows if lst == "Dwarf"), None)
+expect(_dw is not None and sorted(_ex_targets(_dw)) == sorted(_cats["Crafting"] + _cats["Services"]),
+       "ancestries: Dwarf Trade Expertise must be limited to Crafting or Services (ancestries.md l.406)")
+# Every LEDGER entry naming an Expertise row carries the target as data, the name agrees with
+# the data (the rename guard), the target is legal for its row, and it has a mastery row. A
+# mastery row may carry only a point-purchase limit_raise: the engine flags anything else, and
+# this pass counts what it walked so an empty walk cannot pass (trap 4).
+_ex_walked = 0
+for _fn, _led in sorted(LEDGERS.items()):
+    _ents = [("name", t) for t in (_led.get("chargen") or {}).get("ancestry_traits", []) or []]
+    _ents += [("pick", e) for L, es in (_led.get("levels") or {}).items() for e in es or []
+              if e.get("slot") == "ancestry_trait"]
+    for _k, _e in _ents:
+        _nm = str(_e.get(_k, ""))
+        _row = next((r for lst, r in _ex_rows if r["name"] == base_name(norm(_nm))
+                     and (_e.get("source") in (None, lst))), None)
+        if _row is None:
+            expect("expertise" not in _e, f"{_fn}: {_nm!r} carries expertise but is not an Expertise trait")
+            continue
+        _ex_walked += 1
+        _ex = _e.get("expertise") or {}
+        _m = re.search(r"\(([^)]+)\)\s*$", _nm)
+        expect(_ex.get("kind") == _row["expertise"], f"{_fn}: {_nm!r} expertise kind {_ex.get('kind')!r} != {_row['expertise']!r}")
+        expect(_m is not None and _m.group(1).strip() == _ex.get("target"),
+               f"{_fn}: {_nm!r} names a target that its expertise data ({_ex.get('target')!r}) does not carry")
+        expect(_ex.get("target") in _ex_targets(_row), f"{_fn}: {_nm!r} target is not legal for its row")
+        expect(_ex.get("target") in ((_led.get(_ex.get("kind")) or {}).get("masteries") or {}),
+               f"{_fn}: {_nm!r} target has no mastery row")
+    for _kind in ("skills", "trades"):
+        for _mn, _mm in ((_led.get(_kind) or {}).get("masteries") or {}).items():
+            _lr = _mm.get("limit_raise")
+            expect(_lr in (None, "skill_point_purchase", "trade_point_purchase"),
+                   f"{_fn}: {_kind} {_mn} carries a hand-written limit_raise {_lr!r} (BUG-49: an Expertise raise lives on its trait)")
+expect(_ex_walked >= 1, "no ledger Expertise entry walked (Tanrielle's Trade Expertise (Herbalism) should be one)")
+print(f"  5 trade categories partition {len(_trades)} trades and match core-rules.md; "
+      f"{len(_ex_rows)} Expertise rows; {_ex_walked} ledger Expertise entr{'y' if _ex_walked == 1 else 'ies'} reconcile")
 
 # ---- ledger entry grants must agree with the catalog row they name (CH-5, 2026-07-28) --------
 # The engine reads EFFECTS off the ledger entry, never off the pick name. That is the point of

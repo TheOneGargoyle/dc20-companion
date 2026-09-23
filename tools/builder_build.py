@@ -311,12 +311,14 @@ pre.yaml{background:#111;color:#c8e6c9;padding:.7rem;border-radius:6px;font-size
     </div>
     <div class="card">
       <h3 class="sec">Skills &amp; Trades <span class="wlabel">skill/trade allocator</span></h3>
+      <div class="src" id="stpts"></div>
       <div class="alloc" id="alloc"></div>
       <div class="addrow"><select class="select" id="ska-pick" style="max-width:220px"></select>
         <input class="select" id="ska-name" placeholder="custom name" style="display:none">
         <select class="select" id="ska-kind" style="max-width:100px;display:none"><option value="skills">skill</option><option value="trades">trade</option></select>
         <button class="exportbtn small" id="ska-btn">+ add</button></div>
       <h3 class="sec" style="margin-top:.8rem">Languages</h3>
+      <div class="src" id="lgpts"></div>
       <div class="langs" id="langs"></div>
       <div class="addrow"><select class="select" id="lang-pick" style="max-width:200px"></select>
         <input class="select" id="lang-name" placeholder="custom name" style="display:none">
@@ -914,11 +916,27 @@ function render(s){
     if(s.spell_budget>0 || s.spell_have>0) resbit('Spells', s.spell_have, s.spell_budget);
     $('resreadout').innerHTML = bits.join(' &middot; ');
   }
+  // FR-39: live "x of y spent" for skills / trades / languages, same colours as the ancestry
+  // readout. The numbers are the engine's own (s.points), never re-derived here (trap 2).
+  const ptsbit = (label, p, extra) => {
+    if(!p) return '';
+    let col='var(--ok)', tail=' &mdash; balanced';
+    if(p.spent>p.avail){ col='var(--bad)'; tail=` &mdash; over by ${p.spent-p.avail}`; }
+    else if(p.spent<p.avail){ col='var(--warn)'; tail=` &mdash; ${p.avail-p.spent} to spend`; }
+    return `${label}: <b style="color:${col}">${p.spent} of ${p.avail} spent</b>${tail}${extra||''}`;
+  };
+  const P = s.points || {};
+  if($('stpts')) $('stpts').innerHTML = [
+    ptsbit('Skill points', P.skills, P.skills && P.skills.converted_out ? ` (incl. ${P.skills.converted_out} converted to ${P.skills.converted_out*2} TP)` : ''),
+    ptsbit('Trade points', P.trades, P.trades && P.trades.converted_out ? ` (incl. ${P.trades.converted_out} converted to LP)` : '')
+  ].filter(Boolean).join(' &middot; ');
+  if($('lgpts')) $('lgpts').innerHTML = ptsbit('Language points', P.languages,
+    P.languages && P.languages.converted_in ? ` (${P.languages.converted_in} from TP)` : '');
   // skills / trades allocator
   $('alloc').innerHTML = s.alloc.map(a => {
     const capctl = a.purchasable
       ? `<label class="capraise" title="spend 1 ${a.kind==='skills'?'Skill':'Trade'} Point to raise this Mastery Limit by 1"><input type="checkbox" data-lr="${esc(a.id)}" ${a.purchased?'checked':''}> cap+</label>`
-      : (a.limit_raise?`<span class="capraise" style="color:var(--muted)" title="Mastery Limit already raised (${esc(a.limit_raise)})">cap&uarr;</span>`:'');
+      : (a.limit_raise?`<span class="capraise" style="color:var(--muted)" title="Mastery Limit already raised (${esc(a.limit_raise)})">${(a.expertise||[]).length?'Expertise':'cap'}&uarr;</span>`:'');
     return `<div class="row"><span class="nm" title="${esc(a.name)}">${esc(a.kind==='skills'?'':'[T] ')}${esc(a.name)}${a.limit_raise?' *':''}</span>
      <span><select class="select" style="max-width:100px" data-mast="${esc(a.id)}">` +
      a.options.map(o=>`<option value="${esc(o)}" ${String(a.mastery)===o?'selected':''}>${o==='None'?'-':esc(o)}</option>`).join("") +

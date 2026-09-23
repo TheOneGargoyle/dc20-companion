@@ -46,11 +46,11 @@ ancestries:
     # Default Traits
     - {name: Attribute Increase, cost: 2, targets: attributes, grants: {attribute: 1},   # ancestries.md l.332
        note: "targeted: the builder emits per-attribute variants and rewrites the grant key to attr_<chosen>"}
-    - {name: Skill Expertise, cost: 2, todo: "limit_raise on a CHOSEN skill (BUG-20)"}
+    - {name: Skill Expertise, cost: 2, expertise: skills}   # ancestries.md l.334; target chosen via picker variant (BUG-20)
     - {name: Human Resolve, cost: 1, no_effect: narrative}
     - {name: Undying, cost: 0, no_effect: adv}
     # Expanded Traits
-    - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
+    - {name: Trade Expertise, cost: 1, expertise: trades}   # ancestries.md l.343/372/442 (BUG-20)
     - {name: Human Determination, cost: 1, no_effect: adv}
     - {name: Unbreakable, cost: 1, no_effect: adv}
     - {name: Attribute Decrease, cost: -1, targets: attributes, grants: {attribute: -1},   # ancestries.md l.351
@@ -66,7 +66,7 @@ ancestries:
     - {name: Peerless Sight, cost: 1, no_effect: adv}
     - {name: Climb Speed, cost: 1, no_effect: movement_mode}
     - {name: Speed Increase, cost: 2, grants: {speed: 1}}   # ancestries.md l.371
-    - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
+    - {name: Trade Expertise, cost: 1, expertise: trades}   # ancestries.md l.343/372/442 (BUG-20)
     - {name: Plant Knowledge, cost: 1, no_effect: adv}
     - {name: Brittle, cost: -1, grants: {ad: -1}}   # ancestries.md l.380
     - {name: Frail, cost: -1, grants: {hp: -2}}   # ancestries.md l.381
@@ -83,7 +83,7 @@ ancestries:
     - {name: Stone Blood, cost: 1, no_effect: adv}
     - {name: Minor Tremorsense, cost: 1, no_effect: sense}
     - {name: Stubborn, cost: 2, no_effect: adv}
-    - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
+    - {name: Trade Expertise, cost: 1, expertise: trades, trade_categories: [Crafting, Services]}   # ancestries.md l.406 (BUG-20)
     - {name: Earthen Knowledge, cost: 1, no_effect: adv}
     - {name: Charisma Attribute Decrease, cost: -1, grants: {attr_charisma: -1}}   # ancestries.md l.414
     - {name: Short-Legged, cost: -1, grants: {speed: -1}}   # ancestries.md l.416
@@ -98,7 +98,7 @@ ancestries:
     # Expanded Traits
     - {name: Beast Insight, cost: 1, no_effect: narrative}
     - {name: Burst of Bravery, cost: 1, no_effect: situational}
-    - {name: Trade Expertise, cost: 1, todo: "limit_raise on a CHOSEN trade (BUG-20)"}
+    - {name: Trade Expertise, cost: 1, expertise: trades}   # ancestries.md l.343/372/442 (BUG-20)
     - {name: Critter Knowledge, cost: 1, no_effect: adv}
     - {name: Brittle, cost: -1, grants: {ad: -1}}   # ancestries.md l.380
     - {name: Intelligence Attribute Decrease, cost: -1, grants: {attr_intelligence: -1}}   # ancestries.md l.450
