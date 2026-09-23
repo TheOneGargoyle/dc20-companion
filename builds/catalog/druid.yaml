@@ -103,3 +103,11 @@ spellcasting:
 paths:
 - Martial
 - Spellcaster
+combat_training:
+- Spell Focuses
+- Light Armor
+path_training:
+  Martial:
+  - Weapons
+  Spellcaster:
+  - Spell Focuses

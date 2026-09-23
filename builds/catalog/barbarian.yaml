@@ -102,3 +102,12 @@ spellcasting:
 paths:
 - Martial
 - Spellcaster
+combat_training:
+- Weapons
+- All Armor
+- All Shields
+path_training:
+  Martial:
+  - Weapons
+  Spellcaster:
+  - Spell Focuses

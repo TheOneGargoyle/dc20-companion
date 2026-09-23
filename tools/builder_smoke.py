@@ -534,6 +534,39 @@ def j_expertise_readout(P):
        bool(re.search(r"Language points: \d+ of \d+ spent", lg)), lg[:120])
 
 
+def j_spell_list_widening(P):
+    """(S8) FR-42 + FR-48: Spellcasting Expansion's choice node renders in the page, picking
+    '3 Spell Schools' renders 3 school pickers, and the scratch sheet carries the class's base
+    Combat Training plus the talent's Spell Focuses."""
+    print("## (S8) Spellcasting Expansion choice node renders; FR-48 training on the sheet")
+    P.start("barbarian")
+    P.point_buy()
+    P.ancestry("Human")
+    P.add_level()
+    did = next((d for d in P.decs("") if "Spellcasting Expansion" in P.options(d)), None)
+    ok("Spellcasting Expansion is offered to an L2 Barbarian", did is not None)
+    if not did:
+        return
+    P.choose(did, "Spellcasting Expansion")
+    P.pg.wait_for_timeout(500)
+    node = P.decs("#choice#0$")
+    ok("...and picking it renders the choice node with 4 options",
+       len(node) == 1 and len(P.options(node[0])) >= 4, node)
+    if node:
+        P.choose(node[0], "3 Spell Schools")
+        P.pg.wait_for_timeout(500)
+        kids = P.decs("#choice_pick#")
+        ok("...and '3 Spell Schools' renders 3 school pickers", len(kids) == 3, kids)
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet shows the class base training and the talent's Spell Focuses (FR-48)",
+       "All Armor" in text and "Spell Focuses" in text, text[text.find("Combat"):][:160])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -651,7 +684,8 @@ def main():
                                          ("s3", j_class_talents, (), 240),
                                          ("s4", j_sheet, (cfcat,), 120),
                                          ("s6", j_rule_panel, (), 180),
-                                         ("s7", j_expertise_readout, (), 120)):
+                                         ("s7", j_expertise_readout, (), 120),
+                                         ("s8", j_spell_list_widening, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)
@@ -689,6 +723,7 @@ def main():
     print("       ancestry traits move the rendered derived stats (CH-5, grants + grants_unarmored)")
     print("       class talents apply flat and structural grants (BUG-33)")
     print("       the character sheet displays what the model holds (BUG-32)")
+    print("       Spellcasting Expansion's choice node renders; scratch sheets carry base training (FR-42/48)")
     sys.exit(0)
 
 

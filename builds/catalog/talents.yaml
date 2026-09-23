@@ -24,8 +24,17 @@ general:
   - {name: Attribute Increase, grants: {attribute_points: 2}}
   - {name: Skill Increase, grants: {skill_points: 4}}
   - {name: Martial Expansion, grants: {maneuvers: 2}, once: true,
+     training: [Weapons, Heavy Armors, All Shields],   # character-creation.md l.349-350 (FR-48)
      note: "Combat Training (Weapons, Heavy Armors, all Shields) + a Stamina Regen of choice"}
   - {name: Spellcasting Expansion, grants: {spells: 3}, once: true,
+     training: [Spell Focuses],   # character-creation.md l.361-362 (FR-48)
+     # FR-42: "add 1 Spell Source or 3 Spell Schools of your choice to your Spell List" (l.363-364).
+     # A sub_choice node (not class_features' `choice: <slot>`): the answer is stored on the ledger entry and widens the Spell List.
+     sub_choice: {kind: spell_list, label: spell list widening, options: [
+       {name: Arcane Source, adds: {source: Arcane}},
+       {name: Divine Source, adds: {source: Divine}},
+       {name: Primal Source, adds: {source: Primal}},
+       {name: 3 Spell Schools, then: {slot: spell_school, n: 3}}]},
      note: "Combat Training (Spell Focuses) + 1 Spell Source or 3 Spell Schools added to Spell List"}
 multiclass:
   - {name: Novice Multiclass, repeatable: true, gives: "a Level 1 Class Feature from any Class", no_effect: delegated}

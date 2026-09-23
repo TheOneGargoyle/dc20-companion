@@ -17,7 +17,7 @@ The ledger closes that by making the disposition EXPLICIT and machine-checkable.
 option resolves to exactly one of:
 
   modelled   - carries a real effect the builder/engine consumes: grants, grants_unarmored,
-               spell_access, expertise, opens, choice, languages, training
+               spell_access, expertise, opens, choice, sub_choice, languages, training
   no_effect  - deliberately has no build-time effect, with a CATEGORY saying why
                (see NO_EFFECT_CATEGORIES). `flavor: true` is a legacy alias for narrative.
   todo       - a real unmodelled effect, with a note saying what it should grant. This is
@@ -52,7 +52,7 @@ CATALOG_DIR = os.path.join(ROOT, "builds", "catalog")
 # BUG-20: `limit_raise` was listed here but no catalog row ever carried it (it is a LEDGER
 # mastery-row value); `expertise` is the catalog key the builder actually copies.
 EFFECT_KEYS = {"grants", "grants_unarmored", "spell_access", "expertise", "opens",
-               "choice", "languages", "training"}
+               "choice", "sub_choice", "languages", "training"}   # sub_choice: FR-42
 
 # Declared-neutral categories. Deliberately coarse: the point is to record WHY an option
 # has no build-time delta, not to model the effect in prose.

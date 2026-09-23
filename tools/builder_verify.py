@@ -3247,18 +3247,21 @@ def check_bug34_grant_child_effects():
        and tuple(a - b for a, b in zip(snap(s), cbase)) == (0, 0, 1),
        (parent.get("granted_effects"), cbase, snap(s)))
     # combat training: the non-numeric half, on BOTH paths, and it must reach the sheet
+    # FR-48: a scratch sheet now starts from the class base line, so the discipline's training is
+    # asserted as what it ADDS on top of that base (in acquisition order), not as the whole list.
+    sb_base = list(api.ccat.get("combat_training") or [])
     ok("a granted Warrior brings its combat training to the sheet",
-       json.loads(api.sheet()).get("combat_training") == ["Heavy Armor", "Heavy Shield"],
+       json.loads(api.sheet()).get("combat_training") == sb_base + ["Heavy Armor", "Heavy Shield"],
        json.loads(api.sheet()).get("combat_training"))
     ok("...and so does a first-class Warrior (the gap was on every path)",
-       json.loads(ref.sheet()).get("combat_training") == ["Heavy Armor", "Heavy Shield"],
+       json.loads(ref.sheet()).get("combat_training") == sb_base + ["Heavy Armor", "Heavy Shield"],
        json.loads(ref.sheet()).get("combat_training"))
     canon = builder_api.BuilderAPI("xanwyn", CATPATHS)
-    # FR-48 guard: with nothing granted and no base list, the sheet must render NO training row
-    # rather than "None recorded", which would read as "trained in nothing" on a scratch build.
+    # FR-48 (closed 2026-09-23): a scratch build with nothing granted shows exactly its class
+    # base line, which is non-empty for every class, so the old "empty, row hidden" case is gone.
     bare = _fresh_at("spellblade", "Human")
-    ok("a scratch build with no granted training reports an empty list (row hidden, not 'None')",
-       json.loads(bare.sheet()).get("combat_training") == [],
+    ok("a scratch build with nothing granted shows exactly its class base Combat Training (FR-48)",
+       json.loads(bare.sheet()).get("combat_training") == sb_base and sb_base,
        json.loads(bare.sheet()).get("combat_training"))
     page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
     ok("...and the GENERATED page emits that row conditionally (ctRow), never a bare placeholder",
@@ -3874,6 +3877,14 @@ def _rt_check_option(o, index):
         _rt_assert_spell_access(name, label, before, after, row["spell_access"])
     if "choice" in row:
         _rt_assert_choice(name, label, before, after, row["choice"])
+    if "sub_choice" in row:
+        # FR-42: a catalog-declared choice node must spawn its sub_choice picker, offering exactly
+        # the declared options. What the answer DOES is asserted per kind in (41).
+        new = [d for d in _rt_new_decs(before, after) if d[1] == "sub_choice"]
+        dd = [d for d in after["s"]["decisions"] if new and str(d.get("id")) == new[0][0]]
+        _rt_ok(name, "%-64s spawns its sub_choice node with the declared options" % label,
+               bool(dd) and [o["name"] for o in dd[0].get("options") or []]
+               == [o["name"] for o in row["sub_choice"]["options"]], new)
     if "opens" in row:
         _rt_assert_opens(name, label, api, row["opens"])
     if "training" in row:
@@ -4070,6 +4081,109 @@ def _all_grant_bearers(ledger):
     return out
 
 
+
+# ---------------------------------------------------------------- (41) FR-42 + FR-48
+def check_fr42_fr48():
+    """FR-42: Spellcasting Expansion's catalog-declared choice node widens the SPELL LIST (every
+    spell picker, not a local pool). FR-48: a scratch build carries its class's base Combat Training,
+    and a picked Path or Expansion talent adds its rider. Asserted on the decision surface the page
+    renders from and on api.sheet(), not on internal helpers."""
+    print("\n## (41) FR-42 choice node widens the Spell List; FR-48 base + rider Combat Training")
+    meta = json.load(open("spells_meta.json", encoding="utf-8"))
+
+    def dec(s, slot, lvl=None):
+        return [d for d in s["decisions"] if d["slot"] == slot and (lvl is None or d["level"] == lvl)]
+
+    def spell_opts(s):
+        ds = dec(s, "spell")
+        ok("  a flat spell picker exists to read options from", bool(ds), [d["slot"] for d in s["decisions"]][:8])
+        return {o["name"] for o in (ds[0].get("options") or [])} if ds else set()
+
+    def take_talent(api, name):
+        s = st(api)
+        t = [d for d in dec(s, "talent") if d["level"] == 2]
+        assert t, "no L2 talent picker"
+        return json.loads(api.set_decision(t[0]["id"], name))
+
+    only_arcane = sorted(n for n, m in meta.items() if m.get("sources") == ["Arcane"])
+    ok("probe pool: Arcane-only spells exist in the metadata", bool(only_arcane), len(only_arcane))
+    x = only_arcane[0]
+
+    # ---- Druid (source model, Primal): Arcane Source, then 3 Schools, then re-pick the talent
+    api = _fresh_at("druid", "Human", levels=1)
+    s0 = st(api)
+    ok("druid: Arcane-only %s is not on the Primal list before the talent" % x, x not in spell_opts(s0))
+    s1 = take_talent(api, "Spellcasting Expansion")
+    node = dec(s1, "sub_choice")
+    ok("druid: Spellcasting Expansion renders ONE sub_choice node with 4 options",
+       len(node) == 1 and [o["name"] for o in node[0]["options"]] ==
+       ["Arcane Source", "Divine Source", "Primal Source", "3 Spell Schools"], node)
+    ok("druid: the node is a grant-child glued under the talent (GC# id)",
+       node and str(node[0]["id"]).startswith("GC#") and str(node[0]["id"]).endswith("#choice#0"), node)
+    s2 = json.loads(api.set_decision(node[0]["id"], "Arcane Source"))
+    ok("druid + Arcane Source: %s is now on the flat spell list" % x, x in spell_opts(s2))
+    ok("druid + Arcane Source: no spell_school children for a Source pick", not dec(s2, "spell_school"))
+    # a primal-and-not-arcane school's spell for the schools probe
+    s3 = json.loads(api.set_decision(node[0]["id"], "3 Spell Schools"))
+    kids = [d for d in dec(s3, "spell_school") if "#choice_pick#" in str(d["id"])]
+    ok("druid + 3 Spell Schools: exactly 3 school pickers", len(kids) == 3, [d["id"] for d in kids])
+    ok("druid: switching Source -> Schools drops the Arcane widening", x not in spell_opts(s3))
+    sch = meta[x]["school"]
+    s4 = json.loads(api.set_decision(kids[0]["id"], sch))
+    kids = [d for d in dec(s4, "spell_school") if "#choice_pick#" in str(d["id"])]
+    ok("druid: school pickers are sibling-distinct (%s not offered twice)" % sch,
+       all(sch not in {o["name"] for o in k["options"]} for k in kids[1:]), None)
+    ok("druid + school %s: %s joins the list through its school" % (sch, x), x in spell_opts(s4))
+    sh = json.loads(api.sheet())
+    ok("druid: the sheet shows the choice under Talent choices",
+       any(e.get("pick") == "3 Spell Schools" for e in sh["abilities"].get("sub_choice", [])),
+       sh["abilities"].get("sub_choice"))
+    s5 = take_talent(api, "Martial Expansion")
+    ok("druid: re-picking the talent drops the node and the widening",
+       not dec(s5, "sub_choice") and x not in spell_opts(s5))
+
+    # ---- Spellblade (schools model): a Source widening reaches the schools-model list too
+    api = _fresh_at("spellblade", "Human", levels=1)
+    before = spell_opts(st(api))
+    s1 = take_talent(api, "Spellcasting Expansion")
+    s2 = json.loads(api.set_decision(dec(s1, "sub_choice")[0]["id"], "Arcane Source"))
+    after = spell_opts(s2)
+    ok("spellblade + Arcane Source: every Arcane spell joins the list",
+       {n for n, m in meta.items() if "Arcane" in (m.get("sources") or [])} <= after and len(after) > len(before),
+       (len(before), len(after)))
+
+    # ---- Barbarian (model none): left unrestricted, so the widening neither adds nor removes
+    api = _fresh_at("barbarian", "Human", levels=1)
+    s1 = take_talent(api, "Spellcasting Expansion")
+    b1 = spell_opts(s1)
+    s2 = json.loads(api.set_decision(dec(s1, "sub_choice")[0]["id"], "Divine Source"))
+    ok("barbarian (no recorded list): the widening leaves the unrestricted list as it was",
+       spell_opts(s2) == b1 and len(b1) == len(meta), (len(b1), len(spell_opts(s2)), len(meta)))
+
+    # ---- FR-48: base training per class, census non-empty
+    seen = 0
+    for cls in sorted(builder_api.CLASS_NAMES):
+        api = builder_api.BuilderAPI(None, CATPATHS, new_class=cls)
+        want = list(api.ccat.get("combat_training") or [])
+        got = json.loads(api.sheet()).get("combat_training")
+        ok("FR-48 %-10s scratch sheet carries the class Combat Training %s" % (cls, want),
+           bool(want) and got == want, got)
+        seen += 1
+    ok("FR-48 census covered every class", seen == len(builder_api.CLASS_NAMES) >= 5, seen)
+    # Path rider + talent rider on a Druid (base Spell Focuses, Light Armor; no Weapons)
+    api = _fresh_at("druid", "Human", levels=1)
+    s = st(api)
+    path = [d for d in dec(s, "path") if d["level"] == 2]
+    ok("FR-48 druid L2 has a builder-added Path picker", bool(path), None)
+    ct = lambda: json.loads(api.sheet()).get("combat_training") or []   # noqa: E731
+    api.set_decision(path[0]["id"], "Martial")
+    ok("FR-48 druid + Martial Path gains Weapons", "Weapons" in ct(), ct())
+    api.set_decision(path[0]["id"], "Spellcaster")
+    ok("FR-48 druid re-picked to Spellcaster Path loses Weapons", "Weapons" not in ct(), ct())
+    take_talent(api, "Martial Expansion")
+    ok("FR-48 druid + Martial Expansion gains Weapons, Heavy Armors, All Shields",
+       {"Weapons", "Heavy Armors", "All Shields"} <= set(ct()), ct())
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4112,7 +4226,7 @@ def main():
                     check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
                     check_bug34_grant_child_effects, check_fr46_round_trip,
                     check_companion_dmg_roll, check_companion_rest_points,
-                    check_l5_class_features, check_expertise):
+                    check_l5_class_features, check_expertise, check_fr42_fr48):
             run(_fn)
     finally:
         os.chdir(old)

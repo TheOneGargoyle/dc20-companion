@@ -331,9 +331,9 @@ def combat_training(ledger, level):
     from grant-children (a discipline picked as a child of Expanded Disciplines). Warrior's
     "Heavy Armor, Heavy Shield" reached neither before. Union, not sum: duplicates collapse.
 
-    NOTE the known gap this does NOT close: a SCRATCH build starts with an empty
-    chargen.combat_training because the class's base training is not catalog data yet, so a
-    scratch character shows only what its options granted. Filed as FR-48.
+    FR-48 (2026-09-23): a SCRATCH build's chargen.combat_training is seeded from the class's own
+    base line (catalog_build parses it out of classes.md), and a builder-picked Path or Expansion
+    talent carries its rider as `training` on the entry, so it arrives through the loop below.
     """
     out = []
     for t in (ledger.get("chargen", {}).get("combat_training") or []):

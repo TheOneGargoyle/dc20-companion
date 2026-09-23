@@ -40,7 +40,7 @@ SHEET_GROUPS = [('subclass', 'Subclass'), ('class_feature', 'Class features'),
                 ('bound_weapon_options', 'Bound weapon'), ('maneuver', 'Maneuvers'),
                 ('talent', 'Talents'), ('ancestry_trait', 'Ancestry'),
                 ('ancestry_origin', 'Origin'), ('spell_school', 'Spell schools'),
-                ('source_choice', 'Spell source')]
+                ('source_choice', 'Spell source'), ('sub_choice', 'Talent choices')]
 # slots that are deliberately NOT in the abilities list: spells have their own panel, and these are
 # point-buy / attribute bookkeeping rather than abilities.
 SHEET_SLOT_SKIP = {'spell', 'spell_tagged', 'spell_sourced', 'spell_any',
@@ -166,7 +166,7 @@ def blank_ledger(cls, ccat, cfcat=None):
           'ancestry_traits': [],
           'spells': [UNDECIDED] * sp1.get('spells', 0),
           'maneuvers': [UNDECIDED] * sp1.get('maneuvers', 0),
-          'combat_training': []}
+          'combat_training': list(ccat.get('combat_training') or [])}   # FR-48: class base line
     # BUG-19 / BUG-22: seed the L1 class features by NAME with their effects applied, so a fresh
     # character starts with what the class actually gives it (a scratch build previously showed no
     # class features at all at L1, and Berserker's +1 Speed / Might-Jump / +2 AD did nothing). Canon
@@ -832,6 +832,89 @@ class BuilderAPI:
             return None
         return src, (sa.get('schools') or None)
 
+    # ---------- FR-42: catalog-declared choice node ----------
+    # A catalog row may declare `sub_choice: {kind, options: [{name, adds?, then?}]}`. The node renders
+    # as ONE 'sub_choice' picker under the parent, and an option carrying `then: {slot, n}` opens n
+    # further sibling-distinct pickers of that slot. The answer lives on the LEDGER ENTRY as
+    # `choice: {pick: <option>, picks: [...]}`, never parsed out of a name, and consumers read it by
+    # `kind` (today: `spell_list`, Spellcasting Expansion). Generic on purpose: BUG-26's Sorcerous
+    # Origin and the Expertise picker are meant to move onto it.
+    def _choice_decl(self, entry):
+        if entry.get('slot') != 'talent':
+            return None
+        name = base_name(str(entry.get('pick') or ''))
+        row = next((t for t in self._talent_rows() if t['name'] == name), None)
+        return (row or {}).get('sub_choice')   # FR-42 (class_features' `choice: <slot>` is unrelated)
+
+    def _choice_option(self, decl, pick):
+        return next((o for o in decl.get('options') or [] if o['name'] == pick), None)
+
+    def _choice_children(self, parent, parentref, level, editable):
+        decl = self._choice_decl(parent)
+        if not decl:
+            return []
+        cur = self.ledger['current_level']
+        ch = parent.get('choice') or {}
+        pick = ch.get('pick', UNDECIDED)
+        d = self._dec('GC#%s#choice#0' % parentref, level, 'sub_choice', pick, None, False, editable,
+                      plan=level > cur, plan_editable=editable and level > cur)
+        d['options'] = [{'name': o['name'], 'group': '', 'label': o['name']} for o in decl['options']]
+        d['slotlabel'] = decl.get('label') or 'choice'
+        out = [d]
+        opt = self._choice_option(decl, pick)
+        then = (opt or {}).get('then')
+        if then:
+            picks = list(ch.get('picks') or [])
+            n = int(then.get('n', 0))
+            base_opts = self._options_for(then['slot'])
+            for k in range(n):
+                pk = picks[k] if k < len(picks) else UNDECIDED
+                sib = {str(x) for j, x in enumerate(picks[:n]) if j != k and str(x) != UNDECIDED}
+                c = self._dec('GC#%s#choice_pick#%d' % (parentref, k), level, then['slot'], pk, None,
+                              False, editable, plan=level > cur, plan_editable=editable and level > cur)
+                c['options'] = [o for o in base_opts if o['name'] not in sib]
+                out.append(c)
+        return out
+
+    def _set_choice(self, entry, resource, k, value):
+        decl = self._choice_decl(entry) or {}
+        ch = entry.setdefault('choice', {})
+        if resource == 'choice':
+            if str(ch.get('pick')) != str(value):
+                ch.clear()
+                ch['pick'] = value
+                then = (self._choice_option(decl, value) or {}).get('then')
+                if then:
+                    ch['picks'] = [UNDECIDED] * int(then.get('n', 0))
+                # the widening changed, so the talent's +N spells may now be off-list: they stay as
+                # picks and catalog_problems reports any that became illegal (never silently dropped)
+        else:
+            picks = list(ch.get('picks') or [])
+            picks = (picks + [UNDECIDED] * (k + 1))[:max(len(picks), k + 1)]
+            picks[k] = value
+            ch['picks'] = picks
+        return self.state()
+
+    def _list_widening(self):
+        # FR-42: Spellcasting Expansion "add 1 Spell Source or 3 Spell Schools of your choice to your
+        # Spell List" (character-creation.md l.363). -> (sources, schools) added to the Spell List.
+        sources, schools = set(), set()
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            for e in self.ledger['levels'][lvl] or []:
+                decl = self._choice_decl(e)
+                if not decl or decl.get('kind') != 'spell_list':
+                    continue
+                ch = e.get('choice') or {}
+                opt = self._choice_option(decl, ch.get('pick'))
+                if not opt:
+                    continue
+                src = (opt.get('adds') or {}).get('source')
+                if src:
+                    sources.add(src)
+                if (opt.get('then') or {}).get('slot') == 'spell_school':
+                    schools |= {str(x) for x in ch.get('picks') or [] if str(x) != UNDECIDED}
+        return sources, schools
+
     def _talent_rows(self):
         # BUG-33 (2026-07-27, found by the CH-5 Tier-1 probe): ONE list of every talent row this
         # character can actually pick, so a lookup can never see fewer rows than _talent_options
@@ -887,27 +970,39 @@ class BuilderAPI:
         # (see _grant_children), so every other picker stays honestly filtered. This set is also what
         # catalog_problems counts hand-authored off-list flat picks against.
         model = self.ccat['spellcasting']['model']
+        # FR-42: Spellcasting Expansion widens the Spell List itself, so every spell picker (this
+        # level and later ones) sees it, and the talent's +3 spells stay in the flat pool, as the
+        # rules word it ("learn 3 Spells from your Spell List"). A class with no recorded list
+        # (model none) is left unrestricted: its base list is an unrecorded Path choice.
+        w_src, w_sch = self._list_widening()
         if model == 'schools':
             chosen = [s for s in (list(self.ledger['chargen'].get('spell_schools') or [])
-                                  + self._ssi_schools()) if str(s) != UNDECIDED]
+                                  + self._ssi_schools() + sorted(w_sch)) if str(s) != UNDECIDED]
             tags = set(self.ccat['spellcasting'].get('tag_access') or []) | self._grant_tags()
             names = set()
             for sch in chosen:
                 names |= set(self.cat['spell_schools']['schools'].get(sch, []))
             names |= {n for n, m in self.meta.items() if set(m['tags']) & tags}
+            names |= {n for n, m in self.meta.items() if set(m.get('sources') or []) & w_src}
 
             def why(n):
                 m = self.meta.get(n)
                 if not m:
                     return None
+                if m['school'] in w_sch and m['school'] not in (self.ledger['chargen'].get('spell_schools') or []):
+                    return 'Spellcasting Expansion school ' + m['school']
                 if m['school'] in chosen:
                     return 'school ' + m['school']
+                if set(m.get('sources') or []) & w_src:
+                    return 'Spellcasting Expansion source ' + '/'.join(sorted(set(m['sources']) & w_src))
                 hit = set(m['tags']) & tags
                 return ('tag ' + '/'.join(sorted(hit))) if hit else None
             return names, why
         if model == 'source':
             src = self.ccat['spellcasting']['source']
             names = {sp for sch in self.cat['spell_sources']['sources'][src].values() for sp in sch}
+            names |= {n for n, m in self.meta.items()
+                      if set(m.get('sources') or []) & w_src or m.get('school') in w_sch}
 
             def why(n):
                 m = self.meta.get(n)
@@ -915,6 +1010,10 @@ class BuilderAPI:
                     return None
                 if src in m['sources']:
                     return src + ' source'
+                if set(m.get('sources') or []) & w_src:
+                    return 'Spellcasting Expansion source ' + '/'.join(sorted(set(m['sources']) & w_src))
+                if m.get('school') in w_sch:
+                    return 'Spellcasting Expansion school ' + m['school']
                 return ('Arcane grant slot' if 'Arcane' in m['sources'] else None)
             return names, why
         # model none: path-rider list choice unrecorded -> existence only
@@ -1252,6 +1351,8 @@ class BuilderAPI:
             # Divine, or Primal); narrowed to the sources actually present in the baked metadata.
             return [{'name': s, 'group': '', 'label': s}
                     for s in ('Arcane', 'Divine', 'Primal') if s in self._all_sources()]
+        if slot == 'sub_choice':   # FR-42: a catalog-declared choice node; options are per-parent
+            return []              # (the parent row's `choice` declaration), so _grant_children sets them
         if slot in ('skill', 'trade'):   # FR-3/FR-17 planned-level skill/trade child-slot: options are
             return []                      # level-aware, so _grant_children overrides d['options'].
         return []
@@ -1837,6 +1938,7 @@ class BuilderAPI:
         # as the tag branch (resource 'spells' -> granted_spells, consumed by the budget), options
         # filtered to the source (+ optional schools). Guarded off the tag case so the two never
         # double-render a parent that (hypothetically) had both.
+        out.extend(self._choice_children(parent, parentref, level, editable))   # FR-42
         # FR-13a slice 2: an EXPLICIT Sorcerous Origin node. A parent carrying a sorcerous_origin dict
         # (MC Sorcerer Innate Power) renders ONE 'source_choice' picker for the chosen Sorcerer Source
         # (Arcane/Divine/Primal). Emitted BEFORE the source-spell children so it reads top-down, and its
@@ -1906,6 +2008,7 @@ class BuilderAPI:
         if changed:
             entry.pop('granted_maneuvers', None)
             entry.pop('granted_spells', None)
+            entry.pop('choice', None)   # FR-42: the old option's sub-choice no longer applies
         for resource in GRANT_CHILD_SLOTS:
             gkey = 'granted_%s' % resource
             n = int(grants.get(resource, 0) or 0)
@@ -2010,6 +2113,8 @@ class BuilderAPI:
         _, parentref, resource, k = did.split('#')
         k = int(k)
         entry = self._grant_child_entry(parentref)
+        if resource in ('choice', 'choice_pick'):
+            return self._set_choice(entry, resource, k, value)
         if resource == 'sorcerous_origin':
             # FR-13a slice 2: the explicit Sorcerous Origin node writes the chosen Sorcerer Source.
             # If the source actually changed, reset the source-filtered spell children to UNDECIDED
@@ -2394,6 +2499,7 @@ class BuilderAPI:
                 row = next((t for t in self._talent_rows() if t['name'] == value), None)
                 e['pick'] = value
                 self._apply_grants(e, (row or {}).get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
+                self._sync_training(e, row or {})   # FR-48: Martial / Spellcasting Expansion training
                 self._edited(e)
                 self._sync_talent_rider(int(lvl), e)
             elif slot == 'subclass':
@@ -2431,6 +2537,9 @@ class BuilderAPI:
                 self._edited(e)
                 if slot == 'path' and BUILDER_NOTE in str(e.get('note', '')):
                     self._sync_path_rider(int(lvl), value)
+                    # FR-48: the Path's Combat Training rider (character-creation.md '#### <X> Path'),
+                    # builder-added paths only, so a canon ledger's hand-authored training is untouched.
+                    self._sync_training(e, {'training': (self.ccat.get('path_training') or {}).get(value, [])})
             if _was_composite:
                 e['note'] = 'Replaced composite/placeholder entry in builder (was: %s).' % _old_pick
             # BUG-28: if this re-pick shrank the level's maneuver/spell grant, drop the builder-added

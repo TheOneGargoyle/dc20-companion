@@ -76,9 +76,12 @@ RUNES = {
     "Earth": {"no_effect": "situational"},
     "Flame": {"no_effect": "situational"},
     "Frost": {"no_effect": "situational"},
-    "Lightning": {"no_effect": "situational"},
+    # BUG-43 (2026-08-21) was hand-applied to spellblade.yaml; carried here so a regenerate keeps it.
+    "Lightning": {"grants": {"speed": 1},
+                  "note": "Quickness: +1 Speed (classes.md l.3103). Charged (Stunned 1 on a failed Save when you Smite) stays situational."},
     "Water": {"no_effect": "situational"},
-    "Wind": {"no_effect": "situational"},
+    "Wind": {"grants": {"jump": 3},
+             "note": "Wind Swept: +3 Jump Distance (classes.md l.3114-3116). The 'no longer halved on a Stand Jump' half and Hurricane (push 1 Space) stay situational."},
 }
 
 # Subclass resource grants the walked ledgers record (cross-checked below):
@@ -225,6 +228,33 @@ def parse_subclasses(section, cls):
     sys.exit(f"Could not parse {cls} subclass list from classes.md")
 
 
+def parse_combat_training(block, what):
+    """FR-48: the first 'Combat Training: a, b, c' line in `block`, joined across a trailing-comma
+    wrap (Spellblade's line wraps mid-list). Returned verbatim from the rules text, in order."""
+    lines = block.splitlines()
+    for i, ln in enumerate(lines):
+        if ln.strip().startswith("Combat Training:"):
+            txt = ln.strip()[len("Combat Training:"):].strip()
+            j = i
+            while txt.endswith(",") and j + 1 < len(lines):
+                j += 1
+                txt += " " + lines[j].strip()
+            out = [t.strip() for t in txt.split(",") if t.strip()]
+            if out:
+                return out
+    sys.exit(f"Could not parse a Combat Training line for {what}")
+
+
+def path_training():
+    """FR-48: the Martial / Spellcaster Path riders (character-creation.md '#### <X> Path')."""
+    text = read(os.path.join(ROOT, "rules", "character-creation.md"))
+    out = {}
+    for p in ("Martial", "Spellcaster"):
+        start = text.index(f"\n#### {p} Path\n")
+        out[p] = parse_combat_training(text[start + 1:start + 600], f"the {p} Path")
+    return out
+
+
 def verify_names_present(section, names, what, cls):
     """Confirm every curated name literally appears in the class's rules text."""
     missing = [n for n in names if n not in section]
@@ -273,6 +303,10 @@ def build(cls):
         catalog["subclass_grants"] = sg
     catalog["spellcasting"] = cfg["spellcasting"]
     catalog["paths"] = ["Martial", "Spellcaster"]
+    # FR-48: the class's own base Combat Training, parsed from its class section, and the Path
+    # riders. Seeded into a scratch ledger (blank_ledger) and onto a picked Path entry.
+    catalog["combat_training"] = parse_combat_training(section, cls)
+    catalog["path_training"] = path_training()
     return catalog
 
 

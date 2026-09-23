@@ -167,6 +167,21 @@ for cls, cat in CLASS_CAT.items():
         expect(row.get("features") == list(deltas.get("features", [])), f"{cls} spine L{lvl} features drift")
 print("  spines match class_spines.yaml across all 10 levels x 5 classes")
 
+# 2026-09-23 (FR-48 thread): each SCRIPTED class file must equal what catalog_build.py generates.
+# spellblade.yaml carried a hand edit (BUG-43's rune grants) past its "do not hand-edit" header,
+# so the next regenerate would have silently reverted it. Compared as parsed YAML, so formatting
+# is free but content is not. Also FR-48: every class carries a non-empty base Combat Training.
+import catalog_build as _cb   # noqa: E402
+for _cls in _cb.CLASS_CONFIG:
+    _gen = _cb.build(_cls)
+    expect(_gen == CLASS_CAT[_cls],
+           f"{_cls.lower()}.yaml differs from catalog_build.py output (hand edit, or a stale regenerate): "
+           f"keys {sorted(k for k in set(_gen) | set(CLASS_CAT[_cls]) if _gen.get(k) != CLASS_CAT[_cls].get(k))}")
+    expect(bool(CLASS_CAT[_cls].get("combat_training")),
+           f"{_cls} has no base combat_training (FR-48)")
+expect(len(_cb.CLASS_CONFIG) == len(CLASS_CAT) >= 5, f"generator/catalog class sets differ: {sorted(CLASS_CAT)}")
+print(f"  {len(_cb.CLASS_CONFIG)} scripted class files equal catalog_build.py output; base Combat Training present")
+
 # FR-8 slice 3: Spellblade rune catalog + Rune Knight grant (feeds the slice-2 child-slot backbone)
 _sb = CLASS_CAT["Spellblade"]
 expect({r["name"] for r in _sb.get("runes", [])} == {"Earth", "Flame", "Frost", "Lightning", "Water", "Wind"},
@@ -1257,6 +1272,44 @@ for _lf in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
                    f"trait is priced and inert (the engine reads the entry, not the name)")
             _recon += 1
 print(f"  {_recon} ledger ancestry-trait grants reconcile with their catalog rows (name target == key target)")
+
+# ---- FR-42 / FR-48: talent training riders and the choice node, against the rules text ----------
+print("\n## (2f) Talent Combat Training riders and choice nodes (FR-42, FR-48)")
+_cc = read("rules/character-creation.md")
+_nt = 0
+for _t in talents_cat["general"]:
+    if not _t.get("training"):
+        continue
+    _i = _cc.find("\n" + _t["name"] + "\nGeneral Talent")
+    expect(_i >= 0, f"talent {_t['name']!r} carries training but has no rules block")
+    _blk = _cc[_i:_i + 700]
+    _m = re.search(r"Combat Training: You gain Combat Training with\s+(.+?)\.", _blk, re.S)
+    expect(_m is not None, f"{_t['name']}: no Combat Training bullet in its rules block")
+    if _m:
+        _want = [w.strip() for w in re.split(r",|\band\b", " ".join(_m.group(1).split())) if w.strip()]
+        _want = [w[0].upper() + w[1:] for w in _want]
+        expect(_t["training"] == _want, f"{_t['name']} training {_t['training']} vs rules {_want}")
+        _nt += 1
+expect(_nt >= 2, f"expected at least 2 talents with a training rider, found {_nt}")
+_schools = set(load("builds/catalog/spell_schools.yaml")["schools"])
+_nc = 0
+for _t in talents_cat["general"] + [r for rows in (talents_cat.get("class_talents") or {}).values() for r in rows]:
+    _c = _t.get("sub_choice")
+    if not _c:
+        continue
+    _nc += 1
+    expect(_c.get("kind") == "spell_list", f"{_t['name']}: unknown choice kind {_c.get('kind')!r}")
+    for _o in _c.get("options") or []:
+        _src = (_o.get("adds") or {}).get("source")
+        expect(_src is None or _src in {"Arcane", "Divine", "Primal"}, f"{_t['name']} option {_o['name']}: bad source {_src}")
+        _th = _o.get("then") or {}
+        expect(not _th or (_th.get("slot") == "spell_school" and int(_th.get("n", 0)) > 0),
+               f"{_t['name']} option {_o['name']}: bad then {_th}")
+        expect(bool(_src) != bool(_th), f"{_t['name']} option {_o['name']}: needs exactly one of adds.source / then")
+    expect(len(_c.get("options") or []) == 4, f"{_t['name']}: Spellcasting Expansion offers 3 Sources + Schools")
+expect(_nc >= 1, "no choice node declared (FR-42)")
+expect(len(_schools) == 8, f"spell_schools.yaml has {len(_schools)} schools")
+print(f"  {_nt} talent training riders match their rules bullet; {_nc} choice node(s) well-formed")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
