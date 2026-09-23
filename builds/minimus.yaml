@@ -148,6 +148,12 @@ equipment:
   mods: Commander's Call range 10, no see/hear needed; the party comms channel
 - name: Arcane Crossbow
   mods: Light Crossbow, Arcane Ammo, no Reload
+- name: Necklace of Luck
+  mods: >-
+    Luck property, Magic Power 2 (DC20 Magic Item System v2 magazine; not yet in
+    rules/, CH-18): when you make a Check or Save you can choose to gain ADV on it,
+    3 times per day. TABLE RULING on top: when he uses Commander's Call he can give
+    that ADV to the ally he calls. No derived-stat effect.
 expected:
   hp: 14
   sp: 3
