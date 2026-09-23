@@ -209,6 +209,19 @@ details .inner{padding:0 12px 12px}
     <button onclick="chg('grit',-1)">−</button><div class="val" id="gritVal"></div><button onclick="chg('grit',1)">+</button>
   </div>
   <div class="small" id="gritHint" style="text-align:center;margin:-2px 4px 6px">Grit — reduce damage taken, or gain ADV on a Save</div>
+  <!-- FR-55: Rest Points. Max = HP max (general-rules.md l.2083), so it follows the engine-derived HP. -->
+  <div class="tracker" id="rpRow" style="justify-content:center;gap:16px">
+    <span class="name" style="width:auto">Rest Pts</span>
+    <button onclick="chg('rp',-1)">&minus;</button><div class="val" id="rpVal"></div><button onclick="chg('rp',1)">+</button>
+  </div>
+  <div class="tracker" id="rpSpendRow" style="justify-content:center;gap:8px">
+    <span class="name" style="width:auto">Spend</span>
+    <button onclick="rpStep(-1)">&minus;</button><div class="val" id="rpN" style="min-width:36px"></div><button onclick="rpStep(1)">+</button>
+    <button id="rpSpendBtn" style="width:auto;font-size:13px;padding:6px 10px" onclick="rpSpend(rpSel)">Heal</button>
+    <button id="rpAllBtn" style="width:auto;font-size:13px;padding:6px 10px" onclick="rpSpend(Infinity)">Heal all</button>
+  </div>
+  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px">Spend on a Quick Rest (10 min, no limit), a Short Rest (1 hour) or during a Long Rest: 1 HP per Rest Point. All spent points return at the Half Long Rest.</div>
+  <div class="small" id="rpHooks" style="margin:-2px 4px 6px"></div>
   <div class="tracker">
     <span class="name" style="width:auto;white-space:nowrap">AP avail: <b id="apNum" style="color:var(--gold)"></b></span>
     <div class="appips" id="apPips"></div>
@@ -535,6 +548,7 @@ Object.keys(PARTY_DERIVED).forEach(k=>{const d=PARTY_DERIVED[k],c=CHARS[k];if(!c
   if(d.dr!==undefined)c.dr=d.dr;  // FR-16A: overwrite DR from the engine-derived bake
   if(d.stamina_regen!==undefined)c.stamina_regen=d.stamina_regen;  // FR-23: baked trigger(s)
   if(d.damage_addons!==undefined)c.damage_addons=d.damage_addons;  // FR-25: baked calc config
+  if(d.rest_hooks!==undefined)c.rest_hooks=d.rest_hooks;  // FR-55: baked Rest Point hooks
   c.sub=c.sub.replace(/<b>L\d+<\/b>/,'<b>L'+d.level+'<\/b>').replace(/CM \d+/,'CM '+d.cm);
   c.stats=c.stats.map(p=>{const v=p[0],l=p[1];
     if(l==='Attack')return[sgn(d.attack),l];
@@ -558,7 +572,7 @@ let cur=sget('curchar','tan');
 if(!(cur in CHARS))cur='tan';
 let S=null;
 function defState(c){const t={};c.toggles.forEach(x=>{t[x.k]=x.def!==undefined?x.def:true;});
-  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,ap:4,t:t,conds:{}};}
+  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp,halfLR:false,ap:4,t:t,conds:{}};}
 /* FR-26: conditions became a {name: stacks} map. Saved state from before that is an ARRAY of
    names, and players have live saves, so migrate rather than discard. */
 function condMigrate(v){if(!v)return {};if(!Array.isArray(v))return v;const o={};v.forEach(function(n){o[n]=1;});return o;}
@@ -568,19 +582,33 @@ function loadS(){const c=CHARS[cur];S=sget('cstate_'+cur,null);
     if(o){S={hp:o.hp,mp:o.mp,sp:o.sp,grit:0,ap:o.ap,t:{hide:!!o.hide,loh:!!o.loh,lt:!!o.lt,pf:!!o.pf},conds:o.conds||{}};}}
   if(!S)S=defState(c);
   S.conds=condMigrate(S.conds);
+  if(typeof S.rp!=='number')S.rp=c.hp;   // FR-55: saves from before Rest Points start full
   c.toggles.forEach(x=>{if(!(x.k in S.t))S.t[x.k]=x.def!==undefined?x.def:true;});
   saveS();}
 function saveS(){sset('cstate_'+cur,S);}
 function pickChar(k){cur=k;sset('curchar',k);loadS();renderParty();}
 function chg(k,d){const c=CHARS[cur];const lo=k==='hp'?-5:0;
-  const hi={hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit}[k];
+  const hi={hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp}[k];
   S[k]=Math.max(lo,Math.min(hi,S[k]+d));saveS();renderParty();}
 function tog(k){S.t[k]=!S.t[k];saveS();renderParty();}
 function newRound(){const c=CHARS[cur];S.ap=4;c.toggles.forEach(x=>{if(x.round)S.t[x.k]=true;});
   saveS();renderParty();toast('New turn — 4 AP.'+(c.roundtoast||''));}
-function restReset(){const c=CHARS[cur];const keep=S.t.hide;S=defState(c);
+/* FR-55: Rest Points (general-rules.md l.2083-2127). HP is NOT restored by a Long Rest in 0.10.5:
+   it comes back through Rest Points, which all return at the Half Long Rest (the first 4 hours). */
+let rpSel=1;
+function rpStep(d){rpSel=Math.max(1,rpSel+d);renderParty();}
+function rpSpend(n){const c=CHARS[cur];const miss=c.hp-S.hp;
+  const k=Math.min(n,S.rp,Math.max(0,miss));
+  if(k<=0){toast(S.rp<=0?'No Rest Points left.':'Already at full HP.');return;}
+  S.rp-=k;S.hp+=k;saveS();renderParty();toast('Spent '+k+' Rest Point'+(k>1?'s':'')+': +'+k+' HP.');}
+function rpGain(n,label){const c=CHARS[cur];const k=Math.min(n,c.hp-S.rp);
+  S.rp+=k;saveS();renderParty();toast(label+': +'+k+' Rest Point'+(k===1?'':'s')+'.');}
+function halfRest(){const c=CHARS[cur];S.rp=c.hp;S.halfLR=true;saveS();renderParty();
+  toast('Half Long Rest: all Rest Points back. Spend them for HP.');}
+function restReset(){const c=CHARS[cur];const keep=S.t.hide;const hp=S.hp,rp=S.rp,half=S.halfLR;S=defState(c);
   if('hide' in S.t && keep!==undefined)S.t.hide=keep;
-  saveS();renderParty();toast('Long Rest: everything restored.');}
+  S.hp=hp;S.rp=half?rp:c.hp;   // a Complete Long Rest includes the Half: refill only if it was skipped
+  saveS();renderParty();toast('Long Rest complete: MP, SP, Grit and rest features restored. HP comes back via Rest Points.');}
 /* FR-26: a stacking condition counts up on each tap; a plain one still toggles. Removing a stack
    is the separate small "-" chip that only appears while the condition is on, so the row stays
    readable and it works on a phone (no right-click, no long-press). */
@@ -665,6 +693,18 @@ function renderParty(){
    else{srEl.style.display='none';srEl.innerHTML='';}}
   document.getElementById('gritRow').style.display=c.grit?'':'none';document.getElementById('gritHint').style.display=c.grit?'':'none';
   if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
+  // FR-55: Rest Points row, the Spend control, and this character's baked hooks
+  document.getElementById('rpVal').textContent=S.rp+' / '+c.hp;
+  {const can=Math.min(S.rp,Math.max(0,c.hp-S.hp));rpSel=Math.min(rpSel,Math.max(1,can));
+   document.getElementById('rpN').textContent=rpSel;
+   document.getElementById('rpSpendBtn').textContent=can?'Heal '+Math.min(rpSel,can):'Heal';
+   document.getElementById('rpAllBtn').textContent='Heal all ('+can+')';}
+  {const hk=document.getElementById('rpHooks');hk.innerHTML='';
+   (c.rest_hooks||[]).forEach(h=>{const d=document.createElement('div');d.style.margin='2px 0';
+     d.innerHTML='<b>'+h.label+':</b> '+h.text;
+     if(h.gain){const b=document.createElement('button');b.className='togglebtn';b.style.marginLeft='6px';
+       b.textContent='+'+h.gain+' Rest Pts ('+h.label+')';b.onclick=()=>rpGain(h.gain,h.label);d.appendChild(b);}
+     hk.appendChild(d);});}
   document.getElementById('roundNote').innerHTML=c.roundnote;
   const pips=document.getElementById('apPips');pips.innerHTML='';
   // FR-24: deplete pips left-to-right (leftmost empties first); spent count = 4 - available AP.
@@ -676,7 +716,9 @@ function renderParty(){
     b.className='togglebtn'+(S.t[x.k]?' on':'');
     b.textContent=S.t[x.k]?(x.onl||('● '+x.l+(x.pd?' (+'+x.pd+' PD)':''))):('○ '+x.l);
     b.onclick=()=>tog(x.k);tr.appendChild(b);});
-  const lr=document.createElement('button');lr.className='togglebtn';lr.textContent='☀ Long Rest reset';
+  const hl=document.createElement('button');hl.className='togglebtn';hl.textContent='☾ Half Long Rest';
+  hl.onclick=halfRest;tr.appendChild(hl);
+  const lr=document.createElement('button');lr.className='togglebtn';lr.textContent='☀ Complete Long Rest';
   lr.onclick=restReset;tr.appendChild(lr);
   const cr=document.getElementById('condRow');cr.innerHTML='';
   CONDS_DATA.forEach(cd=>{const x=cd.n,n=condN(x);

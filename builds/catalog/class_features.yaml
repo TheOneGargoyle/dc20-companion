@@ -7,8 +7,8 @@
 # to show: a scratch character got no class features at L1 and a bare "Class Feature" row at L2, and
 # features with numeric effects (Barbarian Berserker) applied nothing.
 #
-# SCOPE (agreed with Darryl 2026-07-27): **levels 1 to 4 for the five walked classes**, which covers
-# every level any player is at (the party is L4). L5-L10 is a data-fill chore, see BACKLOG CH-4.
+# SCOPE (agreed with Darryl 2026-07-27): **levels 1 to 4 for the five walked classes**; L5 and L6
+# added 2026-09-23 ahead of the party's L5 level-up (L6 has no class feature). L7-L10 is CH-4's remainder.
 # Worth knowing when filling it: classes.md has NO "#### Level 5 Class Features" heading, so the L5
 # feature ("Expert <Class>") sits inside the L4 block. Do not mis-file it; the class table
 # (`class_spines.yaml`) is the authority for which level a feature belongs to (L4 = Talent + Ancestry
@@ -24,6 +24,8 @@
 #                                   # so it is listed for completeness but its grants live there
 #         grants: {...}             # engine grant keys (hp/mp/sp/speed/jump/jump_from/ad/pd/...)
 #         grants_unarmored: {...}   # applied ONLY while no armour is worn (see the note below)
+#         per_held_pact_boon: {<boon>: {...}}  # extra grants for each Pact Boon the ledger holds
+#                                   # (Expert Warlock); resolved by build_engine.class_feature_rider_grants
 #
 # grants_unarmored: DC20 has conditional defences the engine cannot express (it derives one number).
 # Barbarian Berserker Defense is +2 AD "while you aren't wearing Armor" (classes.md l.114-115). The
@@ -51,6 +53,11 @@ classes:
         no_effect: situational
     3: []      # the class table's L3 feature is the Subclass itself (its own picker)
     4: []      # L4 grants Talent + 2 Ancestry Points + Path only, no class feature
+    5:
+      - name: Expert Barbarian
+        note: "classes.md l.171: Rage free as a Reaction on Initiative; Charge 3 Spaces ignoring Difficult Terrain; Battlecry 10 Spaces plus SP-enhanced shouts"
+        no_effect: situational
+    6: []      # L6 grants Talent + Path only
 
   Commander:   # classes.md l.~330-370
     1:
@@ -67,6 +74,11 @@ classes:
         no_effect: situational
     3: []
     4: []
+    5:
+      - name: Expert Commander
+        note: "classes.md l.1186: Commander's Call 10 Spaces, +2 SP for a 2nd command; Inspiring Presence +1 HP; Help Die starts at d10 in your Aura; Rally / Reinforce"
+        no_effect: situational
+    6: []
 
   Druid:   # classes.md l.~1600-1700
     1:
@@ -85,6 +97,11 @@ classes:
         no_effect: situational
     3: []
     4: []
+    5:
+      - name: Expert Druid
+        note: "classes.md l.1613: 10 Domain Spaces (+8 per extra MP); Wild Growth +1 healing per 2 MP; Wild Forms +1 HP and +1 Trait Point; Nature's Torrent 15 Spaces plus MP enhancements"
+        no_effect: situational
+    6: []
 
   Spellblade:   # classes.md l.~2840-2930
     1:
@@ -102,6 +119,11 @@ classes:
         no_effect: situational
     3: []
     4: []
+    5:
+      - name: Expert Spellblade
+        grants: {disciplines: 1}
+        note: "classes.md l.3000: +1 Spellblade Discipline; Bound Damage ignores Resistance; Acolyte / Hex Warrior / Spell Warder scale with MP; Spellstrike spells may target multiple creatures or an Area"
+    6: []
 
   Warlock:   # classes.md l.~3200-3280
     1:
@@ -119,3 +141,12 @@ classes:
         no_effect: situational
     3: []
     4: []
+    5:
+      - name: Expert Warlock
+        grants: {hp: 2}
+        per_held_pact_boon:          # classes.md l.3366-3395: each HELD boon adds its own rider
+          Pact Weapon: {maneuvers: 1}  # +1 Attack Maneuver (and +1 point Weapon Property, not modelled)
+          Pact Armor: {maneuvers: 1}   # +1 Defense Maneuver (and +1 point Armor Property, not modelled)
+          Pact Spell: {spells: 2}      # 2 Spells from any Spell Source
+        note: "classes.md l.3366: Warlock Contract +2 max HP; Pact Boon riders per boon held; Life Tap checks at ADV"
+    6: []

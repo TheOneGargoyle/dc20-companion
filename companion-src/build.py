@@ -101,6 +101,8 @@ def conditions_list(camp):
 _REGEN_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "stamina_regen.yaml").read_text(encoding="utf-8"))
 # FR-25: Damage Calculator per-character add-ons, catalog-driven, shared engine helper.
 _DMG_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "damage_addons.yaml").read_text(encoding="utf-8"))
+# FR-55: Rest Point hooks (Recover, Close Wounds, Hearth, ...), catalog-driven, shared engine helper.
+_RP_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "rest_points.yaml").read_text(encoding="utf-8"))
 
 party_derived = {}
 for _k, _fn in PARTY_LEDGERS.items():
@@ -119,6 +121,7 @@ for _k, _fn in PARTY_LEDGERS.items():
         "dr": _d.get("dr", {}),  # FR-16A: engine-derived Damage Reduction, e.g. {"PDR":["half"],"MDR":["half"]}
         "stamina_regen": _be.stamina_regen(_led, _REGEN_CAT),  # FR-23
         "damage_addons": _be.damage_addons(_k, _DMG_CAT),  # FR-25
+        "rest_hooks": _be.rest_point_hooks(_led, _RP_CAT),  # FR-55
     }
     for (_dk, _f), _delta in DISPLAY_DELTAS.items():
         if _dk == _k:

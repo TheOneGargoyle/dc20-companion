@@ -162,6 +162,30 @@ def active_grant_keys(ledger):
     return GRANT_KEYS + tuple(k for k, holds in CONDITIONAL_GRANT_KEYS.items() if holds(ledger))
 
 
+def held_pact_boons(ledger):
+    """Every Pact Boon name the ledger holds, chargen and levels alike (L1 boon, Expanded Boon)."""
+    out = []
+    objs = list((ledger.get("chargen") or {}).get("class_choices") or [])
+    objs += [e for es in (ledger.get("levels") or {}).values() for e in (es or [])]
+    for o in objs:
+        if o.get("slot") in ("pact_boon", "pact_boons"):
+            out += [str(x) for x in (o.get("picks") or ([o["pick"]] if o.get("pick") else []))]
+    return out
+
+
+def class_feature_rider_grants(row, ledger):
+    """2026-09-23: the part of a class feature's effect that depends on what the ledger already
+    holds. Expert Warlock (classes.md l.3366-3395) adds a rider per HELD Pact Boon, so its grant is
+    `grants` plus one `per_held_pact_boon` entry per boon. ONE definition: the builder uses it to
+    write the entry at level-up, and catalog_verify (2b) uses it to compute what the entry must say."""
+    agg = {}
+    riders = row.get("per_held_pact_boon") or {}
+    for b in held_pact_boons(ledger):
+        for k, v in (riders.get(b) or {}).items():
+            agg[k] = agg.get(k, 0) + v
+    return agg
+
+
 def _entry_grants(obj, key, fold, val, keys=GRANT_KEYS):
     for gk in keys:
         g = obj.get(gk) or {}
@@ -610,6 +634,37 @@ def stamina_regen(ledger, regen_cat):
                 add(src, classes[src])
             elif str(src).lower() == "spellcaster":
                 add("Spellcaster", spellcaster_txt)
+    return out
+
+
+def held_names(ledger, kind, level=None):
+    """Every name of one KIND (spell / maneuver / rune / talent) the ledger holds up to `level`
+    (default: its current level): chargen lists, level picks and any granted_<kind>s list."""
+    level = level if level is not None else (ledger.get("current_level") or 1)
+    plural = kind + "s"
+    out = []
+    cg = ledger.get("chargen") or {}
+    out += [str(x) for x in (cg.get(plural) or []) if isinstance(x, str)]
+    objs = list(cg.get("class_choices") or []) + list(cg.get("ancestry_traits") or [])
+    objs += [e for _l, e in all_entries(ledger, level)]
+    for o in objs:
+        if o.get("slot") in (kind, plural):
+            out += [str(x) for x in (o.get("picks") or ([o["pick"]] if o.get("pick") else []))]
+        out += [str(x) for x in (o.get("granted_" + plural) or [])]
+    return out
+
+
+def rest_point_hooks(ledger, rp_cat):
+    """FR-55: the catalog Rest Point hooks this character holds, as [{name,label,spend,gain,text}].
+    Matched by kind + name on the ledger (a pick may carry a suffix, so a prefix match counts)."""
+    out = []
+    for h in (rp_cat or {}).get("hooks") or []:
+        names = held_names(ledger, h["kind"])
+        if any(n == h["name"] or n.startswith(h["name"] + " ") or n.startswith(h["name"] + ":")
+               for n in names):
+            out.append({"name": h["name"], "label": h.get("label") or h["name"],
+                        "spend": bool(h.get("spend")), "gain": int(h.get("gain") or 0),
+                        "text": h["text"]})
     return out
 
 

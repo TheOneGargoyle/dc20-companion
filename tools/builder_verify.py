@@ -735,6 +735,84 @@ def check_newstats():
        and ".sh-paper{width:100%;max-width:100%" in html)
 
 
+# ---------------------------------------------------------------- (39) Rest Points + L5 class features
+def check_companion_rest_points():
+    """FR-55: assert the ARTIFACT (trap 3). Build the player Companion, read PARTY_DERIVED back and
+    check each character's baked Rest Point hooks against the engine's own derivation, then check
+    the template wiring the tracker, the Spend control and the split Long Rest."""
+    print()
+    print("## (39) Companion Rest Points (FR-55)")
+    outdir = tempfile.mkdtemp(prefix="dc20-companion-rp-")
+    out = os.path.join(outdir, "companion.html")
+    try:
+        r = subprocess.run([sys.executable, os.path.join(REPO, "companion-src", "build.py"), out],
+                           capture_output=True, text=True)
+        ok("FR-55: Companion player artifact builds", r.returncode == 0, (r.stderr or "")[-400:])
+        if r.returncode != 0:
+            return
+        art = open(out, encoding="utf-8").read()
+        i = art.index("PARTY_DERIVED=") + len("PARTY_DERIVED=")
+        derived, _ = json.JSONDecoder().raw_decode(art[i:])
+        hooks = {h: [x["name"] for x in d.get("rest_hooks", [])] for h, d in derived.items()}
+        ok("FR-55: every character carries a rest_hooks list", all("rest_hooks" in d for d in derived.values()),
+           sorted(h for h, d in derived.items() if "rest_hooks" not in d))
+        ok("FR-55: at least one hook is baked (trap 4)", any(hooks.values()), hooks)
+        ok("FR-55: Bonan bakes Recover, Tanrielle Close Wounds, Xanwyn Hearth (Flame)",
+           "Recover" in hooks.get("bonan", []) and "Close Wounds" in hooks.get("tan", [])
+           and "Flame" in hooks.get("xan", []), hooks)
+        gains = [x for d in derived.values() for x in d.get("rest_hooks", []) if x.get("gain")]
+        ok("FR-55: a gain hook bakes a positive amount", bool(gains) and all(x["gain"] > 0 for x in gains), gains)
+        for frag, why in (("rp:c.hp,halfLR:false", "defState starts Rest Points at HP max"),
+                          ("if(typeof S.rp!=='number')S.rp=c.hp", "old saves migrate to full Rest Points"),
+                          ("grit:c.grit,rp:c.hp}[k]", "the RP stepper is capped at HP max"),
+                          ("S.rp-=k;S.hp+=k", "spending moves Rest Points into HP"),
+                          ("S.hp=hp;S.rp=half?rp:c.hp", "Complete Long Rest keeps HP and refills RP only if Half was skipped"),
+                          ("hl.onclick=halfRest", "the Half Long Rest button is wired"),
+                          ("c.rest_hooks=d.rest_hooks", "the baked hooks reach CHARS")):
+            ok("FR-55: " + why, frag in art, frag)
+    finally:
+        shutil.rmtree(outdir, ignore_errors=True)
+
+
+def check_l5_class_features():
+    """2026-09-23, ahead of the party's L5: every walked class names its Expert feature at L5, and the
+    two that carry numbers apply them. Expected values are read from the catalog (the spec), and the
+    Warlock riders from the ledger's own boons via the shared engine helper (trap 2)."""
+    print()
+    print("## (39b) L5 Expert class features (CH-4 L5 slice)")
+    cf = yaml.safe_load(open("class_features.yaml", encoding="utf-8"))["classes"]
+    ok("every curated class has an L5 row", all(cf[c].get(5) for c in cf), sorted(c for c in cf if not cf[c].get(5)))
+    for c in cf:
+        ok("%s L5 is named Expert %s" % (c, c), [r["name"] for r in cf[c].get(5, [])] == ["Expert " + c],
+           cf[c].get(5))
+    names = {}
+    for h in ("tanrielle", "minimus", "runt", "scaletrix", "bonan", "xanwyn"):
+        api = builder_api.BuilderAPI(h, CATPATHS)
+        s4 = json.loads(api.state())
+        s5 = json.loads(api.add_level())
+        l5 = [d for d in s5["decisions"] if d["level"] == 5]
+        names[h] = [d["pick"] for d in l5 if d["slot"] == "class_feature"]
+        stat = lambda s, k: next(int(r[1]) for r in s["stats"] if r[0] == k)
+        if h == "runt":
+            led = api.ledger
+            row = cf["Warlock"][5][0]
+            extra = builder_api.eng.class_feature_rider_grants(row, led)
+            ok("Runt holds Pact Weapon and Pact Armor, so riders are +2 maneuvers",
+               extra == {"maneuvers": 2}, extra)
+            ok("Runt L5 HP = L4 + class table 2 + Expert Warlock 2", stat(s5, "HP") == stat(s4, "HP") + 4,
+               (stat(s4, "HP"), stat(s5, "HP")))
+            ok("Runt L5 maneuver budget rises by the 2 riders", s5["man_budget"] == s4["man_budget"] + 2,
+               (s4["man_budget"], s5["man_budget"]))
+        if h == "xanwyn":
+            ok("Xanwyn L5 gets an Expert Spellblade discipline child picker",
+               any(d["slot"] == "discipline" and d["id"].startswith("GC#") for d in l5), [d["id"] for d in l5])
+        if h == "tanrielle":
+            ok("Tanrielle's planned L5 keeps Spell Breaker as the Expert Spellblade child",
+               any(d["slot"] == "discipline" and d["pick"] == "Spell Breaker" for d in l5), l5)
+    ok("no L5 falls back to a generic Class Feature label",
+       all(n and not n[0].startswith("Class ") for n in names.values()), names)
+
+
 # ---------------------------------------------------------------- (38) Companion damage/roll surface
 def check_companion_dmg_roll():
     """BUG-52 + FR-52: assert the ARTIFACT, not the template (trap 3).
@@ -3137,6 +3215,12 @@ RT_FIXED = {"Berserker": "barbarian",
             "Spellblade Disciplines": "spellblade",
             "Pact Boon": "warlock"}
 
+# Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
+# (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
+# stripped from an in-memory copy of the catalog, so the delta is attributable to the row alone.
+RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
+               "Expert Warlock": ("warlock", 5)}
+
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
 # KNOWN_FAIL registry: if one of these starts PASSING, that is a FAILURE, so the entry is
@@ -3387,7 +3471,8 @@ def check_fr46_round_trip():
     # ---- 2. reachability: the fleet must reach every modelled option
     index = _rt_fleet()
     unreached = sorted({o.name for o in modelled
-                        if o.name not in index and o.name not in RT_FIXED})
+                        if o.name not in index and o.name not in RT_FIXED
+                        and o.name not in RT_FIXED_AT})
     ok("the probe fleet reaches every modelled option it is supposed to",
        set(unreached) == set(RT_UNREACHABLE), "unreached=%s expected=%s"
        % (unreached, sorted(RT_UNREACHABLE)))
@@ -3407,6 +3492,7 @@ def check_fr46_round_trip():
 
     # ---- 4. the fixed class features: effect applied without a pick
     _rt_check_fixed(modelled)
+    _rt_check_fixed_at(modelled, index)
 
     # ---- 4b. no modelled option may pass by asserting NOTHING. This is the guard against the
     # failure mode this section itself shipped with on the first run: the three fixed class
@@ -3504,11 +3590,53 @@ def _rt_assert_grants(name, label, before, after, grants, unarmored=False):
                "unknown grant key %r" % key)
 
 
+def _rt_check_fixed_at(options, index):
+    """A fixed class feature granted above L1 (RT_FIXED_AT). Level a scratch character to the
+    level twice, once with the real catalog and once with that row's grants stripped, and assert
+    every declared grant key moves by exactly its amount."""
+    by_name = {o.name: o for o in options}
+    for name, (cls, lvl) in sorted(RT_FIXED_AT.items()):
+        o = by_name.get(name)
+        if o is None:
+            _rt_ok(name, "fixed@L/%-56s is still in the coverage ledger" % name, False, "retire it")
+            continue
+        _rt_ok(name, "fixed@L/%-40s is not offered as a pick" % name, name not in index, index.get(name))
+        row = _rt_catalog_row(o)
+        real = _fresh_at(cls, "Human", levels=lvl - 1)
+        bare = _fresh_at(cls, "Human", levels=lvl - 2)
+        cfcat = copy.deepcopy(bare.cat["class_features"])
+        for r in cfcat["classes"][builder_api.CLASS_NAMES[cls]][lvl]:
+            if r["name"] == name:
+                r.pop("grants", None)
+        bare.cat["class_features"] = cfcat
+        bare.add_level()
+        sr, sb = json.loads(real.state()), json.loads(bare.state())
+        _rt_ok(name, "fixed@L/%-40s is named on the L%d sheet row" % (name, lvl),
+               any(d["level"] == lvl and d["pick"] == name for d in sr["decisions"]),
+               [d["pick"] for d in sr["decisions"] if d["level"] == lvl])
+        for key, amount in sorted((row.get("grants") or {}).items()):
+            if key in RT_STAT:
+                a, b = _rt_num(_rt_stats(sr)[RT_STAT[key]]), _rt_num(_rt_stats(sb)[RT_STAT[key]])
+                _rt_ok(name, "fixed@L/%-24s %-12s %s %+d" % (name, key, RT_STAT[key], amount),
+                       a - b == amount, (a, b))
+            elif key in RT_BUDGET:
+                _rt_ok(name, "fixed@L/%-24s %-12s budget %+d" % (name, key, amount),
+                       sr[RT_BUDGET[key]] - sb[RT_BUDGET[key]] == amount,
+                       (sr[RT_BUDGET[key]], sb[RT_BUDGET[key]]))
+            elif key in builder_api.GRANT_CHILD_SLOTS:
+                kids = [d for d in sr["decisions"] if d["level"] == lvl
+                        and str(d["id"]).startswith("GC#") and ("#%s#" % key) in str(d["id"])]
+                _rt_ok(name, "fixed@L/%-24s %-12s spawns %d child picker(s)" % (name, key, amount),
+                       len(kids) == amount, [d["id"] for d in sr["decisions"] if d["level"] == lvl])
+            else:
+                _rt_ok(name, "fixed@L/%-24s %-12s has an assertion" % (name, key), False, "add one")
+
+
 def _rt_check_option(o, index):
     """Drive one modelled option and assert its declared effect arrives."""
     name = o.name
-    if name in RT_FIXED or name in RT_UNREACHABLE:
-        return                                    # handled by _rt_check_fixed / reachability
+    if name in RT_FIXED or name in RT_FIXED_AT or name in RT_UNREACHABLE:
+        return                                    # handled by _rt_check_fixed(_at) / reachability
     row = _rt_catalog_row(o)
     grants = row.get("grants") or {}
     grants_un = row.get("grants_unarmored") or {}
@@ -3804,7 +3932,8 @@ def main():
                     check_option_effects, check_class_features, check_sheet_groups,
                     check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
                     check_bug34_grant_child_effects, check_fr46_round_trip,
-                    check_companion_dmg_roll):
+                    check_companion_dmg_roll, check_companion_rest_points,
+                    check_l5_class_features):
             run(_fn)
     finally:
         os.chdir(old)

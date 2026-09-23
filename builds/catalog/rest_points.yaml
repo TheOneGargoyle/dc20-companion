@@ -1,0 +1,39 @@
+# CURATED - hand-maintained. The options that SPEND or REGAIN Rest Points, for the Companion's Rest
+# Points row (FR-55, 2026-09-23). Rest Points themselves are core rules, not options:
+#   general-rules.md l.2083: "You have a number of Rest Points equal to your HP maximum."
+#   Quick Rest (10 min, no limit) and Short Rest (1 hour): spend any number, 1 HP each.
+#   Long Rest: spend at any point; all spent Rest Points come back at the Half Long Rest (4 hours).
+# Each hook below is shown only to a character whose ledger HOLDS it (build_engine.rest_point_hooks,
+# matched by kind + name, never by character handle). catalog_verify asserts that every `cite`
+# line range really contains the hook's name and the words Rest Point, so a typo cannot ship.
+#
+#   kind:  spell | maneuver | rune | talent   (where the engine looks on the ledger)
+#   spend: true   the option lets its user or target SPEND Rest Points for HP (the Spend control)
+#   gain:  N      the option REGAINS N Rest Points (the Companion shows a +N button)
+catalog_version: 1
+ruleset: DC20 0.10.5
+source: rules/general-rules.md l.2083-2127
+
+hooks:
+  - name: Recover
+    kind: maneuver
+    spend: true
+    cite: [combat.md, 1476, 1490]
+    text: "1 AP, DC 15 Martial Check: spend up to 2 Rest Points on a Failure, up to 3 on a Success, +1 per 5 over. Increased Healing (1 AP or 1 SP, repeatable): +1 more."
+  - name: Close Wounds
+    kind: spell
+    spend: true
+    cite: [spells.md, 5171, 5191]
+    text: "1 AP, 10 Spaces, DC 15 Spell Check: the TARGET spends up to 1 Rest Point on a Failure, up to 2 on a Success, +1 per 5 over. Increased Healing (1 AP, repeatable): +2 more. The target spends on their own card."
+  - name: Flame
+    kind: rune
+    label: Hearth
+    gain: 2
+    cite: [classes.md, 3086, 3093]
+    text: "Flame Rune: regain 2 Rest Points when you complete a Short Rest, if you engaged in Combat since applying the Rune."
+  - name: Font of Magic
+    kind: talent
+    label: Font of Magic
+    gain: 2
+    cite: [character-creation.md, 561, 567]
+    text: "Regain 2 Rest Points when you roll for Initiative; spend 2 Rest Points in place of 1 MP on Meta Magic."

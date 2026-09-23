@@ -76,6 +76,7 @@ EXCLUDE_FILES = {
     "languages.yaml":      "allocator inventory, not options",
     "damage_addons.yaml":  "EV-model inputs for tools/ev_model.py, not builder options",
     "stamina_regen.yaml":  "trigger descriptions surfaced on the sheet (FR-23), not options",
+    "rest_points.yaml":    "Rest Point hook descriptions for the Companion (FR-55), not options",
     "class_spines.yaml":   "the per-level class table itself; the engine reads it directly",
 }
 

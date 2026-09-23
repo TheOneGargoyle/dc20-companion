@@ -35,7 +35,7 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from build_engine import replay, load_class_tables  # noqa: E402
+from build_engine import replay, load_class_tables, class_feature_rider_grants  # noqa: E402
 import coverage  # noqa: E402  (the option-coverage ledger: one walker, no mirrored lists)
 
 # FR-12.0: the class spines are authored data now, read by the engine AND catalog_build.
@@ -573,7 +573,7 @@ for fname, led in LEDGERS.items():
     for lvl, e in entries:
         who = f"{fname} L{lvl}"
         rows = per_class.get(lvl)
-        if rows is None:                     # outside the curated L1-L4 range (CH-4)
+        if rows is None:                     # outside the curated L1-L6 range (CH-4)
             _cf_uncurated += 1
             print(f"  {who}: {e.get('pick') or e.get('picks')} - L{lvl} not curated yet (CH-4), skipped")
             continue
@@ -593,6 +593,8 @@ for fname, led in LEDGERS.items():
             if r.get("choice"):
                 continue                              # its effects live in that picker
             want.update(r.get("grants") or {})
+            for _k, _v in class_feature_rider_grants(r, led).items():   # Expert Warlock boon riders
+                want[_k] = want.get(_k, 0) + _v
             want_un.update(r.get("grants_unarmored") or {})
         expect((e.get("grants") or {}) == want,
                f"{who}: ledger grants {e.get('grants')} vs catalog {want or None}")
@@ -1027,6 +1029,31 @@ expect("additional +2 to your Melee Attack" in _gen_md,
 expect("Multiple Help Penalty" in _combat_md and "(d8 > d6 > d4)" in _combat_md,
        "FR-52: the Multiple Help Penalty decay chain not found in combat.md")
 print(f"  {len(_resolved)} characters resolve; defs + rules grounding reconcile")
+
+# ---- (5b) Rest Point hooks catalog (FR-55) ---------------------------------
+# Every hook's cited line range must contain its own name and "Rest Point", so the text the
+# Companion shows is anchored in rules/ (trap: intake claims are not evidence). The expected set of
+# holders is derived by the engine from the ledgers, and asserted NON-EMPTY (trap 4).
+print("\n## (5b) Rest Point hooks catalog (FR-55)")
+from build_engine import rest_point_hooks as _rp_hooks  # noqa: E402
+_rp = load("builds/catalog/rest_points.yaml")
+_rp_list = _rp.get("hooks") or []
+expect(len(_rp_list) >= 3, f"rest_points: expected at least 3 hooks, found {len(_rp_list)}")
+expect("Rest Points equal to your" in read("rules/general-rules.md"),
+       "FR-55: the 'Rest Points equal to your HP maximum' rule is no longer in general-rules.md")
+for _h in _rp_list:
+    _f, _a, _b = _h["cite"]
+    _lines = read("rules/" + _f).splitlines()[_a - 1:_b]
+    _blk = " ".join(_lines)
+    expect(_h["name"] in _blk, f"rest_points: {_h['name']!r} not in {_f} l.{_a}-{_b}")
+    expect("Rest Point" in _blk, f"rest_points: {_f} l.{_a}-{_b} does not mention Rest Points")
+    expect(bool(_h.get("spend")) != bool(_h.get("gain")),
+           f"rest_points: {_h['name']} must declare exactly one of spend / gain")
+    expect(_h["kind"] in ("spell", "maneuver", "rune", "talent"), f"rest_points: bad kind {_h['kind']}")
+_rp_held = {f: [x["name"] for x in _rp_hooks(led, _rp)] for f, led in LEDGERS.items()}
+expect(any(_rp_held.values()), "rest_points: no ledger holds any hook (an empty set proves nothing)")
+print(f"  {len(_rp_list)} hooks cite-checked; held: " + ", ".join(
+    f"{f.split('.')[0]}={v}" for f, v in _rp_held.items() if v))
 
 # ---- (4) option-coverage ledger -------------------------------------------
 # Every pickable catalog option must DECLARE its effect: modelled, no_effect with a

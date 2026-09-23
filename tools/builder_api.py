@@ -129,7 +129,7 @@ def class_feature_rows(cfcat, cls, level):
     return list(((cfcat.get('classes') or {}).get(cls) or {}).get(level) or [])
 
 
-def class_feature_grants(rows, unarmored=True):
+def class_feature_grants(rows, unarmored=True, ledger=None):
     # BUG-22: aggregate the numeric effects of a level's class features. `grants_unarmored` is only
     # counted when nothing armour-like is worn (Barbarian Berserker Defense, classes.md l.114-115);
     # grants on a feature that is really an existing picker (`choice:`) are left to that picker.
@@ -140,6 +140,9 @@ def class_feature_grants(rows, unarmored=True):
         src = dict(f.get('grants') or {})
         if unarmored:
             src.update(f.get('grants_unarmored') or {})
+        if ledger is not None:   # Expert Warlock: one rider per held Pact Boon (engine helper)
+            for k, v in eng.class_feature_rider_grants(f, ledger).items():
+                src[k] = src.get(k, 0) + v
         for k, v in src.items():
             agg[k] = (agg.get(k, 0) + v) if isinstance(v, (int, float)) else v
     return agg
@@ -2675,7 +2678,7 @@ class BuilderAPI:
                              'note': ((fr.get('note') + '. ') if fr.get('note') else '')
                                      + ('flavor feature. ' if fr.get('flavor') else '')
                                      + BUILDER_NOTE}
-                        g = class_feature_grants([fr], unarmored=unarm)
+                        g = class_feature_grants([fr], unarmored=unarm, ledger=self.ledger)
                         if g:
                             d['grants'] = g
                             if fr.get('grants_unarmored'):
