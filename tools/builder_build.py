@@ -786,6 +786,14 @@ function render(s){
         Object.keys(t.attrs).map(a=>`<label>${a} <select class="select" style="max-width:70px" data-attr="${a}">${sel(a)}</select></label>`).join("") +
         `<span class="spent${bad}">point buy: ${t.spent}/${t.budget}</span></span></div>`;
     }
+    // 2026-09-23: strip builder bookkeeping from a displayed note. BUILDER_NOTE ("Added in builder")
+    // stays IN the ledger because builder_api reads it to decide removability; it is just never shown.
+    // The generated-row prefixes are dev provenance too, and the `rule` chip already cites the text.
+    const cleanNote = n => String(n||"")
+      .replace(/\s*Added in builder\.?/g, "")
+      .replace(/^L1 class features \(auto from class_features\.yaml\)\.\s*/, "")
+      .replace(/^auto - see classes\.md\.\s*/, "")
+      .replace(/\.\s*$/, "").trim();
     // FR-36: the left accent is now the category colour (cat0..cat3 from FR20_CAT). The old
     // amber 'Added in builder' border is dropped entirely - it was dev bookkeeping, not player
     // UI, and the ledger notes it flagged are noise on the pickers (Darryl live-verify 2026-07-18);
@@ -809,7 +817,7 @@ function render(s){
       const replHTML = (t.replaceable && t.options)
         ? ` <select class="select repl" data-dec="${esc(t.id)}" title="replace this with a single valid ${esc(t.slot)}"><option value="" selected>&mdash; replace &mdash;</option>${optHTML(t.options, null, null)}</select>`
         : '';
-      body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${t.note?` <span style="font-size:.7rem;color:var(--warn)">${esc(t.note)}</span>`:''}${allocHint}${replHTML}</span>`;
+      body = `<span class="pick">${esc(t.pick)}${ruleTag(t.pick)}${cost}${t.inferred?' <span style="font-size:.7rem">[inferred]</span>':''}${t.plan?' <span style="font-size:.7rem">[plan]</span>':''}${cleanNote(t.note)?` <span style="font-size:.7rem;color:var(--warn)">${esc(cleanNote(t.note))}</span>`:''}${allocHint}${replHTML}</span>`;
     }
     const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced'||t.slot==='spell_any') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
                     : (t.slot==='source_choice') ? 'sorcerer source'                 // FR-13a slice 2: Sorcerous Origin node

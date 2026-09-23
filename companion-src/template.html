@@ -73,6 +73,10 @@ details .inner{padding:0 12px 12px}
 .tracker .name{font-size:13px;color:var(--dim);width:34px}
 .tracker .val{font-size:22px;font-weight:700;min-width:72px;text-align:center}
 .tracker button{width:44px;height:40px;font-size:20px;padding:0}
+.tracker.slim{padding-top:4px;padding-bottom:4px}
+.tracker.slim button{width:34px;height:30px;font-size:16px}
+.tracker.slim .val{font-size:16px;min-width:26px}
+.tracker.slim button.wide{width:auto;font-size:13px;padding:0 10px}
 .tracker .tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
 .hpbar{height:7px;border-radius:4px;background:#3a2a20;overflow:hidden;margin:4px 0 2px}
 .hpbar div{height:100%;background:var(--green);transition:width .2s}
@@ -204,23 +208,21 @@ details .inner{padding:0 12px 12px}
     <button id="spMinus" onclick="chg('sp',-1)">−</button><div class="val" id="spVal"></div><button id="spPlus" onclick="chg('sp',1)">+</button>
   </div>
   <div class="small" id="staminaRegen" style="text-align:center;margin:-2px 4px 6px"></div>
-  <div class="tracker" id="gritRow" style="justify-content:center;gap:16px">
-    <span class="name">Grit</span>
-    <button onclick="chg('grit',-1)">−</button><div class="val" id="gritVal"></div><button onclick="chg('grit',1)">+</button>
-  </div>
-  <div class="small" id="gritHint" style="text-align:center;margin:-2px 4px 6px">Grit — reduce damage taken, or gain ADV on a Save</div>
-  <!-- FR-55: Rest Points. Max = HP max (general-rules.md l.2083), so it follows the engine-derived HP. -->
-  <div class="tracker" id="rpRow" style="justify-content:center;gap:16px">
-    <span class="name" style="width:auto">Rest Pts</span>
+  <!-- FR-55 compaction (2026-09-23): Grit and Rest Points share one row, the Spend control is a
+       slim row under it, and the two hints are one line. Max Rest Points = HP max (general-rules.md l.2083). -->
+  <div class="tracker" id="gritRpRow" style="justify-content:center;gap:12px">
+    <span class="name" style="width:auto" id="gritLab">Grit</span>
+    <button id="gritMinus" onclick="chg('grit',-1)">&minus;</button><div class="val" id="gritVal"></div><button id="gritPlus" onclick="chg('grit',1)">+</button>
+    <span class="name" style="width:auto">Rest</span>
     <button onclick="chg('rp',-1)">&minus;</button><div class="val" id="rpVal"></div><button onclick="chg('rp',1)">+</button>
   </div>
-  <div class="tracker" id="rpSpendRow" style="justify-content:center;gap:8px">
-    <span class="name" style="width:auto">Spend</span>
-    <button onclick="rpStep(-1)">&minus;</button><div class="val" id="rpN" style="min-width:36px"></div><button onclick="rpStep(1)">+</button>
-    <button id="rpSpendBtn" style="width:auto;font-size:13px;padding:6px 10px" onclick="rpSpend(rpSel)">Heal</button>
-    <button id="rpAllBtn" style="width:auto;font-size:13px;padding:6px 10px" onclick="rpSpend(Infinity)">Heal all</button>
+  <div class="tracker slim" id="rpSpendRow" style="justify-content:center;gap:6px">
+    <span class="name" style="width:auto">Heal from Rest</span>
+    <button onclick="rpStep(-1)">&minus;</button><div class="val" id="rpN"></div><button onclick="rpStep(1)">+</button>
+    <button id="rpSpendBtn" class="wide" onclick="rpSpend(rpSel)">Heal</button>
+    <button id="rpAllBtn" class="wide" onclick="rpSpend(Infinity)">All</button>
   </div>
-  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px">Spend on a Quick Rest (10 min, no limit), a Short Rest (1 hour) or during a Long Rest: 1 HP per Rest Point. All spent points return at the Half Long Rest.</div>
+  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px"><span id="gritHint">Grit: reduce damage taken, or ADV on a Save. </span>Rest Points: 1 HP each on a Quick, Short or Long Rest; all return at the Half Long Rest.</div>
   <div class="small" id="rpHooks" style="margin:-2px 4px 6px"></div>
   <div class="tracker">
     <span class="name" style="width:auto;white-space:nowrap">AP avail: <b id="apNum" style="color:var(--gold)"></b></span>
@@ -691,14 +693,14 @@ function renderParty(){
   {const sr=c.stamina_regen||[],srEl=document.getElementById('staminaRegen');
    if(c.sp&&sr.length){srEl.style.display='';srEl.innerHTML=sr.map(t=>'<b>'+t.label+' Stamina Regen:</b> '+t.text).join('<br>')+(sr.length>1?'<br><i>Only 1 Stamina Regen benefit per Round.</i>':'');}
    else{srEl.style.display='none';srEl.innerHTML='';}}
-  document.getElementById('gritRow').style.display=c.grit?'':'none';document.getElementById('gritHint').style.display=c.grit?'':'none';
+  ['gritLab','gritMinus','gritVal','gritPlus','gritHint'].forEach(id=>document.getElementById(id).style.display=c.grit?'':'none');
   if(c.grit)document.getElementById('gritVal').textContent=S.grit+' / '+c.grit;
   // FR-55: Rest Points row, the Spend control, and this character's baked hooks
   document.getElementById('rpVal').textContent=S.rp+' / '+c.hp;
   {const can=Math.min(S.rp,Math.max(0,c.hp-S.hp));rpSel=Math.min(rpSel,Math.max(1,can));
    document.getElementById('rpN').textContent=rpSel;
    document.getElementById('rpSpendBtn').textContent=can?'Heal '+Math.min(rpSel,can):'Heal';
-   document.getElementById('rpAllBtn').textContent='Heal all ('+can+')';}
+   document.getElementById('rpAllBtn').textContent='All ('+can+')';}
   {const hk=document.getElementById('rpHooks');hk.innerHTML='';
    (c.rest_hooks||[]).forEach(h=>{const d=document.createElement('div');d.style.margin='2px 0';
      d.innerHTML='<b>'+h.label+':</b> '+h.text;

@@ -54,8 +54,8 @@ classes:
     3: []      # the class table's L3 feature is the Subclass itself (its own picker)
     4: []      # L4 grants Talent + 2 Ancestry Points + Path only, no class feature
     5:
-      - name: Expert Barbarian
-        note: "classes.md l.171: Rage free as a Reaction on Initiative; Charge 3 Spaces ignoring Difficult Terrain; Battlecry 10 Spaces plus SP-enhanced shouts"
+      - name: Expert Barbarian   # classes.md l.171
+        note: "Rage free as a Reaction on Initiative; Charge 3 Spaces ignoring Difficult Terrain; Battlecry 10 Spaces plus SP-enhanced shouts"
         no_effect: situational
     6: []      # L6 grants Talent + Path only
 
@@ -75,8 +75,8 @@ classes:
     3: []
     4: []
     5:
-      - name: Expert Commander
-        note: "classes.md l.1186: Commander's Call 10 Spaces, +2 SP for a 2nd command; Inspiring Presence +1 HP; Help Die starts at d10 in your Aura; Rally / Reinforce"
+      - name: Expert Commander   # classes.md l.1186
+        note: "Commander's Call 10 Spaces, +2 SP for a 2nd command; Inspiring Presence +1 HP; Help Die starts at d10 in your Aura; Rally / Reinforce"
         no_effect: situational
     6: []
 
@@ -88,9 +88,9 @@ classes:
       - name: Wild Form
         note: "1 AP + 1 MP: transform (Wild Form Stat Block + Trait Points); True Form on reverting"
         no_effect: situational
-      - name: Wild Speech
+      - name: Wild Speech   # classes.md l.1456
         flavor: true
-        note: "classes.md l.1456: learn the Druidcraft Cantrip, then choose Animals / Plants / Weather"
+        note: "learn the Druidcraft Cantrip, then choose Animals / Plants / Weather"
     2:
       - name: Nature's Torrent
         note: "reaction damage when a creature within 10 Spaces takes Elemental damage"
@@ -98,8 +98,8 @@ classes:
     3: []
     4: []
     5:
-      - name: Expert Druid
-        note: "classes.md l.1613: 10 Domain Spaces (+8 per extra MP); Wild Growth +1 healing per 2 MP; Wild Forms +1 HP and +1 Trait Point; Nature's Torrent 15 Spaces plus MP enhancements"
+      - name: Expert Druid   # classes.md l.1613
+        note: "10 Domain Spaces (+8 per extra MP); Wild Growth +1 healing per 2 MP; Wild Forms +1 HP and +1 Trait Point; Nature's Torrent 15 Spaces plus MP enhancements"
         no_effect: situational
     6: []
 
@@ -120,9 +120,9 @@ classes:
     3: []
     4: []
     5:
-      - name: Expert Spellblade
+      - name: Expert Spellblade   # classes.md l.3000
         grants: {disciplines: 1}
-        note: "classes.md l.3000: +1 Spellblade Discipline; Bound Damage ignores Resistance; Acolyte / Hex Warrior / Spell Warder scale with MP; Spellstrike spells may target multiple creatures or an Area"
+        note: "+1 Spellblade Discipline; Bound Damage ignores Resistance; Acolyte / Hex Warrior / Spell Warder scale with MP; Spellstrike spells may target multiple creatures or an Area"
     6: []
 
   Warlock:   # classes.md l.~3200-3280
@@ -142,11 +142,11 @@ classes:
     3: []
     4: []
     5:
-      - name: Expert Warlock
+      - name: Expert Warlock   # classes.md l.3366
         grants: {hp: 2}
         per_held_pact_boon:          # classes.md l.3366-3395: each HELD boon adds its own rider
           Pact Weapon: {maneuvers: 1}  # +1 Attack Maneuver (and +1 point Weapon Property, not modelled)
           Pact Armor: {maneuvers: 1}   # +1 Defense Maneuver (and +1 point Armor Property, not modelled)
           Pact Spell: {spells: 2}      # 2 Spells from any Spell Source
-        note: "classes.md l.3366: Warlock Contract +2 max HP; Pact Boon riders per boon held; Life Tap checks at ADV"
+        note: "+2 max HP; Pact Weapon / Armor each gain +1 Property and +1 Attack / Defense Maneuver; Pact Spell learns 2 Spells; Life Tap Checks at ADV"
     6: []

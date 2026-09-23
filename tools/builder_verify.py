@@ -768,7 +768,9 @@ def check_companion_rest_points():
                           ("S.rp-=k;S.hp+=k", "spending moves Rest Points into HP"),
                           ("S.hp=hp;S.rp=half?rp:c.hp", "Complete Long Rest keeps HP and refills RP only if Half was skipped"),
                           ("hl.onclick=halfRest", "the Half Long Rest button is wired"),
-                          ("c.rest_hooks=d.rest_hooks", "the baked hooks reach CHARS")):
+                          ("c.rest_hooks=d.rest_hooks", "the baked hooks reach CHARS"),
+                          ('id="gritRpRow"', "Grit and Rest Points share one row (compaction)"),
+                          ('class="tracker slim" id="rpSpendRow"', "the Spend row is the slim variant")):
             ok("FR-55: " + why, frag in art, frag)
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
@@ -782,6 +784,12 @@ def check_l5_class_features():
     print("## (39b) L5 Expert class features (CH-4 L5 slice)")
     cf = yaml.safe_load(open("class_features.yaml", encoding="utf-8"))["classes"]
     ok("every curated class has an L5 row", all(cf[c].get(5) for c in cf), sorted(c for c in cf if not cf[c].get(5)))
+    cited = [r["name"] for c in cf for rows in cf[c].values() for r in (rows or [])
+             if ".md l." in str(r.get("note", ""))]
+    ok("class-feature notes are player prose, no source citations (the rule chip cites)", not cited, cited)
+    page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("the builder hides its bookkeeping: fixed-row notes render through cleanNote",
+       "const cleanNote" in page and "esc(cleanNote(t.note))" in page and "${esc(t.note)}" not in page)
     for c in cf:
         ok("%s L5 is named Expert %s" % (c, c), [r["name"] for r in cf[c].get(5, [])] == ["Expert " + c],
            cf[c].get(5))
