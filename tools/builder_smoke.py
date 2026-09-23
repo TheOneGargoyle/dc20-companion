@@ -504,6 +504,10 @@ def j_sheet(P, cfcat):
     missing = [w for w in want if w not in text]
     ok("the L1 class features reach the SHEET, not just the decision list",
        bool(want) and not missing, missing)
+    # 2026-09-23: a fresh build (no point-buy yet) has negative attributes, which is exactly the
+    # case that rendered '+-1' on Prime and Initiative. The rendered text must carry no '+-'.
+    ok("no signed value renders as '+-N' on the sheet", "+-" not in text,
+       re.findall(r".{20}\+-.{5}", text)[:3])
     P.pg.click("#shClose")
     P.pg.wait_for_timeout(300)
 

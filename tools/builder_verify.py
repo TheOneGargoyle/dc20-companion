@@ -656,6 +656,32 @@ def check_sheet():
        and "body.sheeting .wrap" in html and ".sh-paper" in html)
     ok("FR-15 sheet bakes the trade mastery-only note",
        "Bonus = Mastery only" in html)
+    # 2026-09-23 +-1 fix: the sheet prefixed a literal '+' to Prime, Attack/Spell and Initiative,
+    # so a negative value rendered as '+-1'. Assert the renderer (a) holds no literal '+${' prefix
+    # and (b) its signed helper really formats both signs, run in node, not read by eye.
+    i = html.find("function shBuild(")
+    j = html.find("function renderSheet(")
+    shsrc = html[i:j] if 0 <= i < j else ""
+    ok("sheet renderer found and prefixes no literal '+' to a value", shsrc and "+${" not in shsrc,
+       re.findall(r".{30}\+\$\{.{20}", shsrc)[:3])
+    m = re.search(r"function shSgn\(v\)\{.*?\}\n", html)
+    node = shutil.which("node")
+    if m and node:
+        r = subprocess.run([node, "-e", m.group(0) + "console.log([-1,0,2,-3].map(shSgn).join(' '))"],
+                           capture_output=True, text=True)
+        ok("shSgn formats -1 0 2 -3 as -1 +0 +2 -3", r.stdout.strip() == "-1 +0 +2 -3", r.stdout + r.stderr)
+    else:
+        ok("shSgn helper present on the page", bool(m))
+    # BUG-48: Human Resolve widens Death's Door by 1 through the engine's death_threshold, and
+    # the canon six (none of whom take it) keep Prime + CM, asserted above per ledger.
+    a0 = _fresh_at("barbarian", "Human")
+    d0 = json.loads(a0.sheet())
+    _pick_trait(a0, "Human Resolve")
+    d1 = json.loads(a0.sheet())
+    ok("BUG-48 Human Resolve: death threshold Prime + CM + 1 (was Prime + CM)",
+       d0["derived"]["death_threshold"] == d0["prime"] + d0["cm"]
+       and d1["derived"]["death_threshold"] == d1["prime"] + d1["cm"] + 1,
+       (d0["derived"]["death_threshold"], d1["derived"]["death_threshold"], d1["prime"], d1["cm"]))
 
 
 # ---------------------------------------------------------------- (10) new derived stats
@@ -2028,15 +2054,11 @@ def check_fr6():
 
 
 # ---------------------------------------------------------------- (21) FR-20 picker order
-FR20_RANK = {
-    'attributes': 0, 'attribute': 0,
-    'subclass': 1, 'pact_boon': 1, 'discipline': 1, 'spell_school': 1,
-    'talent': 1, 'path': 1, 'class_feature': 1, 'class_features': 1,
-    'spellblade_disciplines': 1, 'bound_weapon_options': 1,
-    'ancestry_trait': 2, 'ancestry_traits': 2,
-    'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spells': 3, 'maneuvers': 3,
-    'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
-}
+def FR20_RANK_OF(slot):
+    """BUG-42: the rank map is builder_api.FR20_CAT itself, never a hand-kept mirror (the mirror
+    drifted: ancestry_origin and source_choice were missing from both and the check, defaulting
+    on both sides, could not see it). Completeness is asserted in (21) instead."""
+    return builder_api.FR20_CAT.get(slot, builder_api.FR20_DEFAULT_RANK)
 
 
 def check_fr20():
@@ -2045,7 +2067,29 @@ def check_fr20():
     from collections import defaultdict
 
     def rank(slot):
-        return FR20_RANK.get(slot, 3)
+        return FR20_RANK_OF(slot)
+
+    # BUG-42: every TOP-LEVEL slot the API emits carries an EXPLICIT rank. A slot that falls to
+    # the default renders under Resources whatever it is, which is how the ancestry Origin
+    # pickers ended up detached from their ancestry block. Six ledgers plus a scratch build of
+    # every class x ancestry at L1; the observed set is asserted non-empty (trap 4).
+    seen = {}
+    apis = [(who, builder_api.BuilderAPI(who, CATPATHS)) for who in builder_build.CHARS]
+    _anc = sorted(yaml.safe_load(open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"])
+    for cls in sorted(builder_api.CLASS_NAMES):
+        for anc in _anc:
+            try:
+                apis.append(("%s/%s" % (cls, anc), _fresh_at(cls, anc)))
+            except Exception:
+                pass
+    for label, api in apis:
+        for d in st(api)["decisions"]:
+            if not str(d.get("id") or "").startswith("GC#"):
+                seen.setdefault(d["slot"], label)
+    ok("FR-20 slot census is non-empty and includes ancestry_origin",
+       len(seen) >= 5 and "ancestry_origin" in seen, sorted(seen))
+    unranked = sorted((sl, lb) for sl, lb in seen.items() if sl not in builder_api.FR20_CAT)
+    ok("every emitted top-level slot has an explicit FR20_CAT rank (BUG-42)", not unranked, unranked)
 
     for who in builder_build.CHARS:
         api = builder_api.BuilderAPI(who, CATPATHS)
@@ -2199,7 +2243,7 @@ def check_fr36():
            [(d["slot"], d.get("cat")) for d in rows if d.get("cat") not in (0, 1, 2, 3)][:3])
         top_bad = [(d["slot"], d.get("cat")) for d in rows
                    if not str(d.get("id") or "").startswith("GC#")
-                   and d.get("cat") != FR20_RANK.get(d["slot"], 3)]
+                   and d.get("cat") != FR20_RANK_OF(d["slot"])]
         ok("%s: top-level rows' cat == FR20 slot rank" % who, not top_bad, top_bad[:3])
         for i, d in enumerate(rows):
             if not str(d.get("id") or "").startswith("GC#"):
@@ -3288,6 +3332,8 @@ RT_ATTR_SLOTS = {"attribute_points"}
 RT_ANC_POINTS = {"ancestry_points"}
 # NON-numeric flag grants: key -> the derived stat that must re-key when the flag lands
 RT_FLAG = {"jump_from": "Jump Distance"}
+# grant key -> the api.sheet()['derived'] field it must move by the granted amount (BUG-48)
+RT_SHEET = {"death_threshold": "death_threshold"}
 
 # Modelled options the probe fleet legitimately cannot reach, each with the reason. Asserted
 # in BOTH directions: a stale entry (the option became reachable) fails loudly, so these get
@@ -3427,6 +3473,7 @@ def _rt_snap(api):
         "skill_earned": _rt_earned(s, "Skill points"),
         "trade_earned": _rt_earned(s, "Trade points"),
         "decs": [(str(d.get("id")), d["slot"]) for d in s["decisions"]],
+        "sheet": json.loads(api.sheet())["derived"],
     }
 
 
@@ -3559,7 +3606,7 @@ def check_fr46_round_trip():
     # `attribute` is the placeholder key a `targets: attributes` row declares; it is asserted
     # through _rt_variant_pick, which resolves it to the attr_<target> key the engine reads.
     known = (set(RT_STAT) | set(RT_BUDGET) | set(RT_POINTS) | RT_ATTR_SLOTS
-             | RT_ANC_POINTS | set(RT_FLAG) | set(builder_api.GRANT_CHILD_SLOTS)
+             | RT_ANC_POINTS | set(RT_FLAG) | set(RT_SHEET) | set(builder_api.GRANT_CHILD_SLOTS)
              | set(_rt_attr_keys()) | {"attribute"})
     used = set()
     for o in modelled:
@@ -3657,6 +3704,11 @@ def _rt_assert_grants(name, label, before, after, grants, unarmored=False):
             stat = RT_STAT[key]
             b, a = _rt_num(before["stats"].get(stat)), _rt_num(after["stats"].get(stat))
             _rt("%-64s moves %s by %+d" % (tag, stat, amount),
+               b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
+        elif key in RT_SHEET:
+            fld = RT_SHEET[key]
+            b, a = before["sheet"].get(fld), after["sheet"].get(fld)
+            _rt("%-64s moves sheet %s by %+d" % (tag, fld, amount),
                b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
         elif key in RT_BUDGET:
             fld = RT_BUDGET[key]

@@ -88,6 +88,8 @@ Same conventions as the live file: no em-dashes anywhere.
 | FR-39 | Points-spent x of y readout for skills/trades/languages | feature | builder+engine | P2 | DONE (2026-09-23, Expertise batch) |
 | BUG-49 | `_TODO_CANON_OK` bare-name dedup hole; allowance retired, todo set keyed on (list, name) | bug | tools | P2 | DONE (2026-09-23, Expertise batch) |
 | BUG-55 | Re-targeting a targeted ancestry pick kept the old target's grant (base_name strips the target) | bug | builder | P2 | DONE (2026-09-23, found and fixed in the Expertise batch) |
+| BUG-42 | `FR20_CAT` vs `FR20_RANK` drifted; ancestry_origin rendered under Resources | bug | builder | P2 | DONE (2026-09-23, sheet batch) |
+| BUG-48 | `Human Resolve` priced at 1 point, applied nothing | bug | catalog+engine | P3 | DONE (2026-09-23, sheet batch) |
 
 ---
 
@@ -275,6 +277,12 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Bugs
+
+**2026-09-23 sheet batch: BUG-42, BUG-48, and the sheet's `+-1`.** One rebuild, one verification cycle.
+- **BUG-42.** `builder_verify`'s `FR20_RANK` mirror is gone; `FR20_RANK_OF` reads `builder_api.FR20_CAT`. `ancestry_origin` is rank 2 (Dragonborn/Fiendborn Origin now sits with its ancestry block), `source_choice` rank 1. New (21) census: every top-level slot emitted by the six ledgers plus every class x ancestry scratch build must have an EXPLICIT rank, and the census must include `ancestry_origin`. Removing the new key fails it on Scaletrix.
+- **BUG-48.** Human Resolve grants `{death_threshold: 1}` (`ancestries.md` l.338). The engine now owns `death_threshold` (Prime + CM + grant) in `replay().derived`; `sheet()` reads it. FR-46 gained an `RT_SHEET` assertion table so the new key is round-tripped, not whitelisted. No canon ledger takes it; PARTY_DERIVED picks keys explicitly and does not move.
+- **`+-1`.** The sheet prefixed a literal `+` to Prime, Attack/Spell, Initiative and item PD/AD. All go through `shSgn`; Death renders `${-threshold}` and names any grant. Guarded twice: (9) asserts no `+${` in the renderer and runs `shSgn` in node, smoke (S4) asserts no `+-` in a fresh (negative-attribute) sheet. Reverting Prime/Initiative fails S4.
+- Baselines: catalog_verify PASS 1899 (90/90, unchanged), builder_verify PASS 872 -> 878, smoke PASS.
 
 **BUG-36. Ancestry Increase grants nothing** (found by FR-46 on its first run, 2026-07-28, with nobody looking for it).
 

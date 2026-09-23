@@ -70,8 +70,10 @@ FR20_CAT = {
     'subclass': 1, 'pact_boon': 1, 'discipline': 1, 'spell_school': 1,
     'talent': 1, 'path': 1, 'class_feature': 1, 'class_features': 1,
     'spellblade_disciplines': 1, 'bound_weapon_options': 1,
+    'source_choice': 1,   # BUG-42: the Sorcerous Origin node (FR-13a), a class-structure pick
     # 2: ancestry
     'ancestry_trait': 2, 'ancestry_traits': 2,
+    'ancestry_origin': 2,  # BUG-42: Dragonborn/Fiendborn Origin belongs with its ancestry block
     # 3: resources (spells, maneuvers, skill/trade point-buy carriers + their children)
     'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spell_sourced': 3, 'spell_any': 3,
     'spells': 3, 'maneuvers': 3,
@@ -2270,7 +2272,7 @@ class BuilderAPI:
             'core': {k: st.get(k) for k in ('Attack/Spell Check', 'Save DC', 'Initiative', 'Grit',
                                             'HP', 'SP', 'MP', 'Spells known', 'Maneuvers known', 'PD', 'AD')},
             'derived': {'bloodied': math.ceil(hp / 2), 'well_bloodied': math.ceil(hp / 4),
-                        'death_threshold': prime + cmv, 'rest_points': hp,
+                        'death_threshold': eder.get('death_threshold', prime + cmv), 'rest_points': hp,
                         'saves': eder.get('saves', {}), 'move': eder.get('move'),
                         'jump': eder.get('jump'), 'spend_limit': eder.get('spend_limit'),
                         'dr': eder.get('dr', {})},

@@ -625,6 +625,9 @@ def replay(ledger, level, class_tables=None):
     rep.derived["move"] = speed
     rep.derived["jump"] = jump
     rep.derived["spend_limit"] = spend_limit
+    # BUG-48: Death's Door Threshold is Prime + CM (sheet), widened by a `death_threshold` grant
+    # (Human Resolve: "expanded by 1", ancestries.md l.338). The ONE definition; the sheet reads it.
+    rep.derived["death_threshold"] = cm(level) + prime + sum_grants(ledger, level, "death_threshold")
     rep.derived["dr"] = dr
     rep.add()
 

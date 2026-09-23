@@ -430,6 +430,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeRulePan
 
 /* ---- character sheet (feature 3): print/PDF view rendered from api.sheet() ---- */
 function shEsc(x){return esc(x==null?'':x);}
+// Signed modifier: +2, +0, -1. Never prefix a literal '+' to a number that can be negative.
+function shSgn(v){v=Number(v)||0; return (v>=0?'+':'')+v;}
 function shBuild(d){
   const A=['Might','Agility','Charisma','Intelligence'];
   const attrRows=A.map(a=>{
@@ -486,7 +488,7 @@ function shBuild(d){
     return `<li><b>${shEsc(s.name)}</b>${s.school?` <span class="cat">${shEsc(s.school)}</span>`:''}${tags?' '+tags:''}</li>`;
   }).join(''):'<li class="sh-note">None</li>';
   const eqHtml=(d.equipment||[]).length?d.equipment.map(it=>{
-    const bonus=[]; if(it.pd)bonus.push(`+${it.pd} PD`); if(it.ad)bonus.push(`+${it.ad} AD`);
+    const bonus=[]; if(it.pd)bonus.push(`${shSgn(it.pd)} PD`); if(it.ad)bonus.push(`${shSgn(it.ad)} AD`);
     const b=bonus.length?` <span class="sh-tag">${bonus.join(' ')}</span>`:'';
     const mods=it.mods?`<div class="sh-note">${shEsc(it.mods)}</div>`:'';
     return `<li><b>${shEsc(it.name)}</b>${b}${mods}</li>`;
@@ -499,7 +501,7 @@ function shBuild(d){
       <div class="sh-chips">
         <div class="sh-chip"><div class="k">Level</div><div class="v">${d.level}</div></div>
         <div class="sh-chip"><div class="k">Combat Mastery</div><div class="v">${d.cm}</div></div>
-        <div class="sh-chip"><div class="k">Prime</div><div class="v">+${d.prime}</div></div>
+        <div class="sh-chip"><div class="k">Prime</div><div class="v">${shSgn(d.prime)}</div></div>
       </div>
     </div>
     <div class="sh-cols">
@@ -516,7 +518,7 @@ function shBuild(d){
         <div class="sh-sec"><h3>Vitals</h3>
           <div class="sh-big">
             <div class="sh-box"><div class="k">Health</div><div class="v">${c['HP']}</div><div class="sub">Blood ${der.bloodied} &middot; W-Blood ${der.well_bloodied}</div></div>
-            <div class="sh-box"><div class="k">Death</div><div class="v">-${der.death_threshold}</div><div class="sub">Prime + CM</div></div>
+            <div class="sh-box"><div class="k">Death</div><div class="v">${-der.death_threshold}</div><div class="sub">Prime + CM${(der.death_threshold-d.prime-d.cm)?` + ${der.death_threshold-d.prime-d.cm}`:''}</div></div>
           </div>
           <div class="sh-kv"><span class="lbl">Stamina (SP)</span><span class="val">${c['SP']}</span></div>
           <div class="sh-kv"><span class="lbl">Mana (MP)</span><span class="val">${c['MP']}</span></div>
@@ -528,10 +530,10 @@ function shBuild(d){
       <div>
         <div class="sh-sec"><h3>Combat</h3>
           <div class="sh-big">
-            <div class="sh-box"><div class="k">Attack / Spell</div><div class="v">+${c['Attack/Spell Check']}</div></div>
+            <div class="sh-box"><div class="k">Attack / Spell</div><div class="v">${shSgn(c['Attack/Spell Check'])}</div></div>
             <div class="sh-box"><div class="k">Save DC</div><div class="v">${c['Save DC']}</div></div>
           </div>
-          <div class="sh-kv"><span class="lbl">Initiative</span><span class="val">+${c['Initiative']}</span></div>
+          <div class="sh-kv"><span class="lbl">Initiative</span><span class="val">${shSgn(c['Initiative'])}</span></div>
           <div class="sh-kv"><span class="lbl">Spells / Maneuvers known</span><span class="val">${c['Spells known']} / ${c['Maneuvers known']}</span></div>
           ${ctRow}
         </div>

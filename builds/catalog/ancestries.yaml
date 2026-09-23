@@ -47,7 +47,7 @@ ancestries:
     - {name: Attribute Increase, cost: 2, targets: attributes, grants: {attribute: 1},   # ancestries.md l.332
        note: "targeted: the builder emits per-attribute variants and rewrites the grant key to attr_<chosen>"}
     - {name: Skill Expertise, cost: 2, expertise: skills}   # ancestries.md l.334; target chosen via picker variant (BUG-20)
-    - {name: Human Resolve, cost: 1, no_effect: narrative}
+    - {name: Human Resolve, cost: 1, grants: {death_threshold: 1}}   # ancestries.md l.338 (BUG-48)
     - {name: Undying, cost: 0, no_effect: adv}
     # Expanded Traits
     - {name: Trade Expertise, cost: 1, expertise: trades}   # ancestries.md l.343/372/442 (BUG-20)
