@@ -52,7 +52,8 @@ CATALOG_DIR = os.path.join(ROOT, "builds", "catalog")
 # BUG-20: `limit_raise` was listed here but no catalog row ever carried it (it is a LEDGER
 # mastery-row value); `expertise` is the catalog key the builder actually copies.
 EFFECT_KEYS = {"grants", "grants_unarmored", "spell_access", "expertise", "opens",
-               "choice", "sub_choice", "languages", "training"}   # sub_choice: FR-42
+               "choice", "sub_choice", "languages", "training",   # sub_choice: FR-42
+               "rider"}   # BUG-46: a sibling pick the option adds (Expanded Boon -> pact_boon)
 
 # Declared-neutral categories. Deliberately coarse: the point is to record WHY an option
 # has no build-time delta, not to model the effect in prose.

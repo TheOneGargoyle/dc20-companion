@@ -45,7 +45,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | DONE 2026-08-21, both modelled, both round-tripped by a NEW subclass-child probe in FR-46, both numbers parsed out of classes.md |
 | BUG-44 | Six Beastborn traits are missing `requires: Natural Weapon` | bug | catalog+tools | P2 | DONE 2026-08-21, all six carry it and `catalog_verify` now reads a prerequisite stated as a SENTENCE above a bulleted list. It WARNS, it does not gate the picker, see FR-54 |
 | BUG-45 | Three of the eight Spell Schools are unpickable in the builder | bug | catalog+builder | P2 | DONE 2026-08-21, all 8 schools offered to both schools-model classes; lists generated with catalog_verify's own parser so the md stays the spec |
-| BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog | P2 | PARTIAL 2026-08-21: Expanded Meta Magic now grants `{mp: 2, metamagic: 2}`. Expanded Boon still open, it needs a `pact_boons` grant-child key (note below) |
 | BUG-47 | Druid L1 feature `Wild Speech` missing from `class_features.yaml` | bug | catalog | P3 | DONE 2026-08-21, added; and `catalog_verify` LOADS the file now, which was the other half of this row |
 | BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | ready (CH-10; nothing reads the published Companion at all) |
 | BUG-51 | `sync-commit-push.bat` copies 5 subfolders and NO root files, so a root-level change cannot ship | bug | repo | P2 | ready (found 2026-08-14 when `.gitignore` could not reach the clone; see note) |
@@ -67,7 +66,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
 | FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | DONE 2026-08-14, UNPARKED: it fell out of BUG-40 for free, the rules mark stacking with a trailing X |
 | CH-18 | Extract the DC20 Magazine 02 magic-item property system into `rules/`, so item properties are citable and gear cards become checkable | chore | rules+corpus+builder+companion | P2 | ready (filed 2026-08-15; BLOCKED on the PDF from Darryl; run order is his call, next or in the queue) |
-| BUG-53 | The BUILDER still freezes a conditional grant at pick time, so armour bought later does not remove it | bug | builder | P2 | ready (filed 2026-08-21 out of BUG-39; the engine can do this live now, see note) |
 | BUG-54 | Five ledgers carry no class-feature rows for 8 curated levels, so those features never reach the sheet | bug | data | P3 | ready (filed 2026-08-21, surfaced by the new reconcile; display gap only, no numeric grant involved) |
 | FR-54 | `requires` warns after the pick instead of gating the picker | feature | builder | P3 | needs-clarification (filed 2026-08-21; design call, see note) |
 | FR-55 | Companion: track Rest Points (max = HP max), spend for HP, refill on Long Rest | feature | companion | P2 | DONE 2026-09-23, tracker + Spend + Half/Complete Long Rest; hooks catalog-driven (note below) |
@@ -146,6 +144,8 @@ Conjuration or Enchantment at all. All eight are in now, and the three new lists
 with the same parse `catalog_verify` uses on `spells.md` l.332-519, so the source stays the spec.
 Checked in the API afterwards: both classes offer 8, and picking Enchantment makes its spells legal
 picks with no catalog problems.
+
+**BUG-46 CLOSED 2026-09-24, BUG-53 CLOSED 2026-09-24: both moved to `BACKLOG_DONE.md` (head of Bugs). The two notes below are history.**
 
 **BUG-46 is half done.** `Expanded Meta Magic` now declares `{mp: 2, metamagic: 2}`; `metamagic` was
 already a grant-child key with a working picker, so the second half of the rule now materialises two

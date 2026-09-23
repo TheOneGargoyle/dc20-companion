@@ -1113,9 +1113,9 @@ def check_replace_hatch():
     # Expanded Boon's Pact Boon is now a first-class, catalog-driven pick (de-conflated from the talent)
     api3 = builder_api.BuilderAPI("runt", CATPATHS)
     boon = next((d for d in st(api3)["decisions"] if d.get("slot") == "pact_boon" and d.get("level") == 4), None)
-    ok("Expanded Boon's Pact Boon is a first-class editable pick (current Pact Armor, 4 catalog options)",
+    ok("Expanded Boon's Pact Boon is a first-class editable pick (current Pact Armor, 3 options: L1 Pact Weapon held, BUG-46)",
        bool(boon) and boon["widget"] == "picker" and boon.get("editable")
-       and boon.get("current") == "Pact Armor" and len(boon.get("options") or []) == 4, boon)
+       and boon.get("current") == "Pact Armor" and len(boon.get("options") or []) == 3, boon)
     api3.set_decision(boon["id"], "Pact Spell")
     e4 = next(e for e in api3.ledger["levels"][4] if e.get("slot") == "pact_boon")
     ok("changing the boon flows grants from the catalog and drops the old boon's captured maneuvers",
@@ -1125,9 +1125,9 @@ def check_replace_hatch():
     api4 = builder_api.BuilderAPI("runt", CATPATHS)
     l1boon = next((d for d in st(api4)["decisions"]
                    if d.get("slot") == "pact_boon" and d.get("level") == 1), None)
-    ok("FR-8 L1 Pact Weapon is a clean editable picker (not fixed text), current Pact Weapon, 4 options",
+    ok("FR-8 L1 Pact Weapon is a clean editable picker (not fixed text), current Pact Weapon, 3 options (L4 Pact Armor held, BUG-46)",
        bool(l1boon) and l1boon["widget"] == "picker" and l1boon.get("editable")
-       and l1boon.get("current") == "Pact Weapon" and len(l1boon.get("options") or []) == 4, l1boon)
+       and l1boon.get("current") == "Pact Weapon" and len(l1boon.get("options") or []) == 3, l1boon)
     api4.set_decision(l1boon["id"], "Pact Familiar")
     cc4 = next(c for c in api4.ledger["chargen"]["class_choices"] if c["slot"] == "pact_boon")
     ok("changing the L1 boon re-aggregates grants from the catalog (Pact Familiar grants none)",
@@ -2804,18 +2804,16 @@ def check_class_features():
     ok("Berserker grants +1 Speed / Jump-from-Might / +2 AD unarmoured (BUG-22)",
        stat(s, "Move Speed") == 6 and stat(s, "AD") == base_ad + 2 and stat(s, "Jump Distance") == 1,
        (stat(s, "Move Speed"), stat(s, "AD"), stat(s, "Jump Distance")))
-    ok("the L1 entry records the grants + an unarmoured caveat in its note",
-       (a.ledger["chargen"]["class_choices"][0].get("grants") or {}).get("ad") == 2
-       and "unarmoured" in a.ledger["chargen"]["class_choices"][0].get("note", ""),
-       a.ledger["chargen"]["class_choices"][0].get("grants"))
-    # armour suppresses the unarmoured-only half (documented name heuristic)
+    _l1 = a.ledger["chargen"]["class_choices"][0]
+    ok("the L1 entry keeps the +2 AD conditional (grants_unarmored, not grants) + a note (BUG-53)",
+       (_l1.get("grants_unarmored") or {}).get("ad") == 2 and "ad" not in (_l1.get("grants") or {})
+       and "unarmoured" in _l1.get("note", ""), (_l1.get("grants"), _l1.get("grants_unarmored")))
+    # armour suppresses the unarmoured-only half (documented name heuristic), resolved by the
+    # ENGINE at build time: equipping armour AFTER creation must drop the +2 (BUG-53)
     b = builder_api.BuilderAPI(None, CATPATHS, new_class="barbarian")
     b.ledger["equipment"] = [{"name": "Plate Armor", "pd": 2}]
-    sb = json.loads(b.add_level())
-    ok("the same feature at a level notes the unarmoured bonus is NOT applied when armour is worn",
-       any("NOT applied" in str(d.get("note")) for d in cf_rows(sb))
-       or all(val(d) != "Berserker" for d in cf_rows(sb, 2)),
-       [(val(d), d.get("note")) for d in cf_rows(sb)])
+    ok("armour equipped after creation drops Berserker's +2 AD (BUG-53)",
+       stat(st(b), "AD") == base_ad, stat(st(b), "AD"))
     # BUG-19 second half: a generated level row is NAMED, not a bare "Class Feature"
     s2 = json.loads(a.add_level())
     l2 = cf_rows(s2, 2)
@@ -2994,8 +2992,9 @@ def check_ch5_burndown():
        armoured_ad == plain_ad, "%s vs %s" % (armoured_ad, plain_ad))
     trait = [t for t in api.ledger["chargen"]["ancestry_traits"]
              if str(t.get("name")).startswith("Thick-Skinned")][0]
-    ok("...and the row says so in its note",
-       "NOT applied" in str(trait.get("note", "")), trait.get("note"))
+    ok("...and the row carries the bonus conditionally, with a note saying so (BUG-53)",
+       trait.get("grants_unarmored") == {"ad": 1} and "unarmoured" in str(trait.get("note", "")),
+       (trait.get("grants_unarmored"), trait.get("note")))
 
     # ---- Tier-2 (2026-07-28): the engine slice. Move Speed and the per-attribute deltas are
     # DATA now, not two name-matches in build_engine.py. Six options closed, and the assertion
@@ -3919,6 +3918,12 @@ def _rt_check_option(o, index):
                == [o["name"] for o in row["sub_choice"]["options"]], new)
     if "opens" in row:
         _rt_assert_opens(name, label, api, row["opens"])
+    if "rider" in row:
+        # BUG-46: a `rider: {slot}` must add ONE editable picker of that slot, with options
+        new = [d for d in _rt_new_decs(before, after) if d[1] == row["rider"]["slot"]]
+        dd = [d for d in after["s"]["decisions"] if new and str(d.get("id")) == new[0][0]]
+        _rt_ok(name, "%-64s adds its %s rider picker" % (label, row["rider"]["slot"]),
+               len(new) == 1 and bool(dd) and bool(dd[0].get("options")), new)
     if "training" in row:
         _rt_ok(name, "%-64s brings its combat training to the sheet" % label,
                set(row["training"]) <= set(json.loads(api.sheet()).get("combat_training") or []),
@@ -4288,6 +4293,136 @@ def check_bug26_sorcerous_origin():
        (ss["catalog_problems"], ss["builder_problems"]))
 
 
+def check_bug53_conditional_live():
+    """BUG-53 (2026-09-23): the builder froze a conditional grant at pick time, merging an
+    unarmoured-only bonus into `grants`, so buying Thick-Skinned and THEN equipping armour kept
+    the +1 AD (and buying it while armoured never granted it once the armour came off). The
+    builder now copies `grants_unarmored` onto the entry and the engine resolves it live. Cases
+    are DERIVED from the catalog (every ancestry row with the key), so a new one cannot slip."""
+    print("\n## (43) BUG-53 conditional grants stay live on scratch builds")
+    STAT = {"ad": "AD", "pd": "PD"}
+    anc = yaml.safe_load(open("ancestries.yaml", encoding="utf-8"))["ancestries"]
+    cases = [(a, r) for a, rows in anc.items() for r in (rows or []) if r.get("grants_unarmored")]
+    ok("the catalog declares ancestry rows with grants_unarmored (non-empty case set)",
+       len(cases) >= 6, len(cases))
+    arm = {"name": "Half Plate Armor"}
+
+    def probe(a, r, armoured_at_pick):
+        api = _fresh_at("druid", a)
+        if armoured_at_pick:
+            api.ledger.setdefault("equipment", []).append(dict(arm))
+        if r.get("requires"):
+            _pick_trait(api, r["requires"])
+        base = st(api)
+        _pick_trait(api, r["name"])
+        return api, base
+
+    for a, r in cases:
+        for k, v in r["grants_unarmored"].items():
+            sk = STAT.get(k)
+            if not sk:
+                ok("%s/%s: grants_unarmored key %s has a stat to assert" % (a, r["name"], k), False, k)
+                continue
+            api, base = probe(a, r, False)
+            un = int(_stat(st(api), sk)) - int(_stat(base, sk))
+            api.ledger.setdefault("equipment", []).append(dict(arm))
+            b2 = _fresh_at("druid", a); b2.ledger.setdefault("equipment", []).append(dict(arm))
+            if r.get("requires"):
+                _pick_trait(b2, r["requires"])
+            eq = int(_stat(st(api), sk)) - int(_stat(st(b2), sk))
+            ok("%-9s %-15s %s %+d unarmoured, +0 once armour is equipped AFTER the pick"
+               % (a, r["name"], sk, v), un == v and eq == 0, (un, eq))
+            api, base = probe(a, r, True)
+            api.ledger["equipment"] = [e for e in api.ledger["equipment"] if e != arm]
+            b3 = _fresh_at("druid", a)
+            if r.get("requires"):
+                _pick_trait(b3, r["requires"])
+            off = int(_stat(st(api), sk)) - int(_stat(st(b3), sk))
+            ok("%-9s %-15s %s %+d once armour picked-with is taken OFF" % (a, r["name"], sk, v),
+               off == v, off)
+            t = [x for x in api.ledger["chargen"]["ancestry_traits"]
+                 if str(x.get("name")).startswith(r["name"])][-1]
+            ok("%-9s %-15s entry carries grants_unarmored, grants holds no %s"
+               % (a, r["name"], k), t.get("grants_unarmored") == r["grants_unarmored"]
+               and k not in (t.get("grants") or {}), (t.get("grants"), t.get("grants_unarmored")))
+    # re-picking to a trait with no conditional half must not leave the old one behind
+    api = _fresh_at("druid", "Dwarf")
+    s = json.loads(api.add_trait(1))
+    d = [x for x in s["decisions"] if x["slot"] == "ancestry_trait"][-1]
+    api.set_decision(d["id"], "Thick-Skinned")
+    d = [x for x in st(api)["decisions"] if x["slot"] == "ancestry_trait"][-1]
+    api.set_decision(d["id"], "Stone Blood")
+    t = api.ledger["chargen"]["ancestry_traits"][-1]
+    ok("re-picking Thick-Skinned -> Stone Blood drops the stale grants_unarmored",
+       t.get("name") == "Stone Blood" and "grants_unarmored" not in t, t)
+    # add_level path: no curated L2+ row carries the key today, so inject one and assert the
+    # generated level entry keeps it conditional (the third merge site the note named)
+    api = _fresh_at("barbarian", "Human")
+    cf = api.cat["class_features"]["classes"]["Barbarian"]
+    saved = cf.get(2)
+    cf[2] = [dict(saved[0], grants_unarmored={"pd": 1})] + list(saved[1:])
+    try:
+        api.add_level()
+    finally:
+        cf[2] = saved
+    ents = [e for e in api.ledger["levels"][2] if e.get("slot") == "class_feature"]
+    ok("add_level writes a class feature's unarmoured half as grants_unarmored, not grants",
+       any(e.get("grants_unarmored") == {"pd": 1} and "pd" not in (e.get("grants") or {})
+           for e in ents), ents)
+
+
+def check_bug46_expanded_boon():
+    """BUG-46 second half (2026-09-23): Expanded Boon declares `rider: {slot: pact_boon}` (it said
+    `no_effect` while a name match did the work unasserted). The extra boon's own grants must
+    APPLY, a boon already held must not be offered again (character-creation.md l.611), and a
+    duplicate already on a ledger is reported. Canon Runt (L1 Pact Weapon + L4 Pact Armor via
+    Expanded Boon) must read clean and keep both boons editable."""
+    print("\n## (44) BUG-46 Expanded Boon: rider pact boon, grants apply, no repeat")
+    def boons(s, lvl=None):
+        return [d for d in s["decisions"] if d["slot"] == "pact_boon" and (lvl is None or d["level"] == lvl)]
+    api = _fresh_at("warlock", "Human", levels=1)
+    s = st(api)
+    l1 = boons(s, 1)[0]
+    s = json.loads(api.set_decision(l1["id"], "Pact Armor"))
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d["level"] == 2][0]
+    man0 = int(_stat(s, "Maneuvers known"))
+    s = json.loads(api.set_decision(tal["id"], "Expanded Boon"))
+    l2 = boons(s, 2)
+    opts = [o["name"] for o in (l2[0]["options"] if l2 else [])]
+    ok("Expanded Boon adds one L2 Pact Boon picker, offering every boon except the held Pact Armor",
+       len(l2) == 1 and "Pact Armor" not in opts and "Pact Weapon" in opts and len(opts) == 3, opts)
+    s = json.loads(api.set_decision(l2[0]["id"], "Pact Weapon"))
+    l1o = [o["name"] for o in boons(s, 1)[0]["options"]]
+    ok("the L1 boon picker keeps its own Pact Armor but drops Pact Weapon, now held at L2",
+       "Pact Armor" in l1o and "Pact Weapon" not in l1o, l1o)
+    ok("the rider boon's grants APPLY: Pact Weapon +2 Maneuvers known, 2 maneuver pickers at L2",
+       int(_stat(s, "Maneuvers known")) - man0 == 2
+       and len([d for d in s["decisions"] if d["level"] == 2 and d["slot"] == "maneuver"
+                and str(d.get("id")).startswith("GC#")]) == 2,
+       (_stat(s, "Maneuvers known"), [(d["id"], d["slot"]) for d in s["decisions"] if d["level"] == 2]))
+    e2 = [e for e in api.ledger["levels"][2] if e.get("slot") == "pact_boon"]
+    s = json.loads(api.set_decision(tal["id"], "Pact Bane") if "Pact Bane" in
+                   [o["name"] for o in tal["options"]] else api.state())
+    ok("re-picking the talent away removes the rider boon and its +2 Maneuvers",
+       not [e for e in api.ledger["levels"][2] if e.get("slot") == "pact_boon"]
+       and int(_stat(s, "Maneuvers known")) == man0, (e2, _stat(s, "Maneuvers known")))
+    # a duplicate already on a ledger (hand edit, import) is reported, not silently accepted
+    api.ledger["levels"][2].append({"slot": "pact_boon", "pick": "Pact Armor", "note": "hand edit"})
+    ok("a duplicate Pact Boon on a ledger is a builder problem",
+       any("Pact Armor chosen more than once" in p for p in st(api)["builder_problems"]),
+       st(api)["builder_problems"])
+    # canon Runt: two distinct boons, both pickers editable, nothing flagged
+    r = builder_api.BuilderAPI("runt", CATPATHS)
+    rs = st(r)
+    rb = [(d["level"], d.get("current")) for d in boons(rs)]
+    ok("canon Runt: Pact Weapon (L1) + Pact Armor (L4), no duplicate problem, no builder problems",
+       rb == [(1, "Pact Weapon"), (4, "Pact Armor")] and not rs["builder_problems"]
+       and not rs["catalog_problems"], (rb, rs["builder_problems"], rs["catalog_problems"]))
+    ok("canon Runt: his L4 boon picker offers Pact Armor but not the held Pact Weapon",
+       [o["name"] for o in boons(rs, 4)[0]["options"]] == ["Pact Armor", "Pact Spell", "Pact Familiar"],
+       [o["name"] for o in boons(rs, 4)[0]["options"]])
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4331,7 +4466,8 @@ def main():
                     check_bug34_grant_child_effects, check_fr46_round_trip,
                     check_companion_dmg_roll, check_companion_rest_points,
                     check_l5_class_features, check_expertise, check_fr42_fr48,
-                    check_bug26_sorcerous_origin):
+                    check_bug26_sorcerous_origin, check_bug53_conditional_live,
+                    check_bug46_expanded_boon):
             run(_fn)
     finally:
         os.chdir(old)

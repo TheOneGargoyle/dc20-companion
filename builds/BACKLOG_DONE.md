@@ -94,6 +94,8 @@ Same conventions as the live file: no em-dashes anywhere.
 | FR-48 | A SCRATCH build has no base Combat Training: the class's own training is not catalog data, so the sheet shows only what options granted | feature | catalog+builder | P2 | DONE (2026-09-23, FR-42/FR-48 batch) |
 | BUG-26 | Scratch: Innate Power (MC Sorcerer, L2) not offering the Sorcerous Origin sub-choice / conditional +2 spells | bug | builder+catalog | P2 | DONE (2026-09-23, Sorcerous Origin sub_choice kind; Source pick only under Intuitive; Scaletrix derived unmoved) |
 | FR-56 | Move Skill/Trade Expertise onto the FR-42 `sub_choice` node (picker only; ~28 variants per list today) | feature | builder+catalog | P3 | DONE (2026-09-23, Expertise node derived from the row, answer stays in `expertise:`; variants retired) |
+| BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog+builder | P2 | done (2026-09-24; Meta Magic half 2026-08-21) |
+| BUG-53 | The builder froze a conditional grant at pick time, so armour bought later did not remove it | bug | builder | P2 | done (2026-09-24) |
 
 ---
 
@@ -281,6 +283,12 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Bugs
+
+**2026-09-24: BUG-53 + BUG-46 (Expanded Boon half).** One rebuild, one verification cycle.
+- **BUG-53.** `_set_trait`, `blank_ledger` and `add_level` write `grants_unarmored` onto the entry and never merge it into `grants`; the engine resolves it live (BUG-39). New helper `class_feature_unarmored`; re-pick drops a stale one; the note no longer states a resolution. Probe on the old code: Thick-Skinned then armour AD 15 vs 14, and picked-while-armoured stored nothing, so removing armour never granted it. builder_verify (43) derives its cases from every catalog row with the key (both orders, re-pick, injected `add_level` row); 3 older checks that asserted the merged shape rewritten.
+- **BUG-46.** Expanded Boon declares `rider: {slot: pact_boon}` (was `no_effect` while a name match in `_sync_talent_rider` did the work unasserted). Design call (Darryl, 2026-09-24): keep the sibling-entry rider, NOT a `sub_choice` `then:` or a `pact_boons` grant-child, because that is Runt's canon shape and any other route makes two shapes for one fact. `rider` is a coverage EFFECT_KEY and FR-46 round-trips it. "Can't choose the same option more than once" (character-creation.md l.611): `_hide_held_boons` drops boons held in another pick from every boon picker (reads `eng.held_pact_boons`), and a duplicate on a ledger is a builder problem. (44) asserts grants apply (+2 Maneuvers, 2 pickers), re-pick removes it, both pickers filter, Runt clean.
+- **Canon.** sheet()/replay().derived byte-identical for all six. state() moves only in Runt's two boon pickers' option lists (each drops the other's boon); his picks do not move. Two old checks asserting 4 options there now assert 3.
+- Baselines: catalog_verify PASS 1939 (90/90, unchanged), builder_verify PASS 943 -> 972, smoke PASS.
 
 **2026-09-23 sheet batch: BUG-42, BUG-48, and the sheet's `+-1`.** One rebuild, one verification cycle.
 - **BUG-42.** `builder_verify`'s `FR20_RANK` mirror is gone; `FR20_RANK_OF` reads `builder_api.FR20_CAT`. `ancestry_origin` is rank 2 (Dragonborn/Fiendborn Origin now sits with its ancestry block), `source_choice` rank 1. New (21) census: every top-level slot emitted by the six ledgers plus every class x ancestry scratch build must have an EXPLICIT rank, and the census must include `ancestry_origin`. Removing the new key fails it on Scaletrix.

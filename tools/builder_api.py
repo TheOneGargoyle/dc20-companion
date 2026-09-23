@@ -153,6 +153,22 @@ def class_feature_grants(rows, unarmored=True, ledger=None):
     return agg
 
 
+def class_feature_unarmored(rows):
+    # BUG-53: the conditional half of a level's class features, aggregated for the LEDGER ENTRY's
+    # own `grants_unarmored` dict. The builder never resolves the condition: the engine does, off
+    # the ledger's equipment, every time it builds (CONDITIONAL_GRANT_KEYS).
+    agg = {}
+    for f in rows:
+        if f.get('choice'):
+            continue
+        for k, v in (f.get('grants_unarmored') or {}).items():
+            agg[k] = (agg.get(k, 0) + v) if isinstance(v, (int, float)) else v
+    return agg
+
+
+UNARMORED_NOTE = ' Includes an unarmoured-only bonus (applies while no armour is worn).'
+
+
 # BUG-39 (2026-08-21): the armour heuristic now has ONE definition, in the engine, because the
 # engine reads `grants_unarmored` off a ledger entry itself. This alias keeps the builder's call
 # sites (and their tests) pointing at that single definition instead of a second copy.
@@ -175,11 +191,13 @@ def blank_ledger(cls, ccat, cfcat=None):
     if rows:
         entry = {'slot': 'class_features', 'picks': [f['name'] for f in rows],
                  'note': 'L1 class features (auto from class_features.yaml). ' + BUILDER_NOTE}
-        g = class_feature_grants(rows, unarmored=True)
+        g = class_feature_grants(rows, unarmored=False)
         if g:
             entry['grants'] = g
-            if any(f.get('grants_unarmored') for f in rows):
-                entry['note'] += ' Includes an unarmoured-only bonus; drop it if you wear armour.'
+        gu = class_feature_unarmored(rows)   # BUG-53: left conditional, for the engine
+        if gu:
+            entry['grants_unarmored'] = gu
+            entry['note'] += UNARMORED_NOTE
         cg.setdefault('class_choices', []).append(entry)
     sc = ccat.get('spellcasting') or {}
     if sc.get('model') == 'schools':
@@ -1714,6 +1732,12 @@ class BuilderAPI:
                              % (_have, _res, _bud, _have - _bud))
         if self.scratch and not str(self.ledger.get('ancestry') or '').strip():
             probs.append('builder: ancestry not chosen')
+        # BUG-46: "You can't choose the same option more than once" (character-creation.md l.611).
+        # The pickers already hide held boons; this catches a duplicate already on a ledger.
+        _boons = [b for b in eng.held_pact_boons(self.ledger) if b and b != UNDECIDED]
+        for _b in sorted({b for b in _boons if _boons.count(b) > 1}):
+            probs.append('builder: Pact Boon %s chosen more than once (not allowed, '
+                         'character-creation.md l.611)' % _b)
         return probs
 
     # ---------- the decision model ----------
@@ -1851,7 +1875,23 @@ class BuilderAPI:
                 auto = self._dec(sid, rl, self._res_slot(resource), UNDECIDED, None, False, True)
                 auto['auto'] = True
                 ds.append(auto)
+        self._hide_held_boons(ds)
         return self._reorder_decisions(ds)
+
+    def _hide_held_boons(self, ds):
+        # BUG-46: a Pact Boon picker never offers a boon the ledger already holds in ANOTHER pick
+        # (Expanded Boon: "You can't choose the same option more than once", character-creation.md
+        # l.611). Held names come from the engine's single reader; a picker keeps its own value.
+        held = [b for b in eng.held_pact_boons(self.ledger) if b and b != UNDECIDED]
+        if not held:
+            return
+        for d in ds:
+            if d.get('slot') != 'pact_boon' or not d.get('options'):
+                continue
+            others = list(held)
+            if d.get('current') in others:
+                others.remove(d.get('current'))
+            d['options'] = [o for o in d['options'] if o['name'] not in others]
 
     def _reorder_decisions(self, ds):
         # FR-20: reorder the pickers WITHIN each level to chargen flow -
@@ -2696,6 +2736,7 @@ class BuilderAPI:
         if changed:
             self._drop_expertise_row(t)
             t.pop('expertise', None)
+            t.pop('grants_unarmored', None)   # BUG-53: the new trait brings its own, or none
             t.pop('granted_spells', None)
             t.pop('spell_access', None)
             t.pop('sorcerous_origin', None)
@@ -2724,8 +2765,10 @@ class BuilderAPI:
             # +1 AD / +1 PD "while you aren't wearing Armor", ancestries.md l.365/396; Hard Shell
             # pairs it with an unconditional {speed: -1}). Same documented heuristic as BUG-22: the
             # equipment model carries no armour TYPE, so is_unarmored() name-matches the items, and
-            # the row's note says which way it resolved. Merged INTO grants (not stored separately)
-            # so the engine's sum_grants picks it up with no engine change.
+            # the row's note says so. BUG-53 (2026-09-23): the conditional half is copied onto the
+            # entry AS `grants_unarmored`, never merged into grants. Merging froze the condition at
+            # pick time (buy the trait, then equip armour, and the bonus stayed); the engine has
+            # resolved the key live off a ledger entry since BUG-39.
             if changed:
                 cat_grants = dict(row.get('grants') or {})
                 # CH-5 (2026-07-28): a `targets: attributes` row declares the placeholder
@@ -2740,10 +2783,10 @@ class BuilderAPI:
                     if _tgt in ATTRS:
                         cat_grants['attr_' + _tgt] = cat_grants.pop('attribute')
                 cat_unarm = dict(row.get('grants_unarmored') or {})
-                if cat_unarm and is_unarmored(self.ledger):
-                    for _k, _v in cat_unarm.items():
-                        cat_grants[_k] = ((cat_grants.get(_k, 0) + _v)
-                                          if isinstance(_v, (int, float)) else _v)
+                if cat_unarm:
+                    t['grants_unarmored'] = cat_unarm
+                else:
+                    t.pop('grants_unarmored', None)
                 if cat_grants:
                     t['grants'] = cat_grants
                 else:
@@ -2768,8 +2811,7 @@ class BuilderAPI:
                      % (BUILDER_NOTE if was_added else 'Edited in builder',
                         row['cost'] if row else '?', lst))
         if row and row.get('grants_unarmored'):
-            t['note'] += (' Includes an unarmoured-only bonus.' if is_unarmored(self.ledger)
-                          else ' Unarmoured-only bonus NOT applied (armour worn).')
+            t['note'] += UNARMORED_NOTE
         t.pop('inferred', None)
 
     def _edited(self, e):
@@ -2861,13 +2903,16 @@ class BuilderAPI:
                 ents.append({'slot': 'attribute', 'pick': UNDECIDED,
                              'source': 'talent rider (%s)' % e.get('pick'),
                              'note': BUILDER_NOTE})
-        # Expanded Boon grants an extra Pact Boon - model it as a first-class boon pick
-        # (grants flow from the chosen boon's catalog row), not a conflated talent grant.
-        has_boon = any(x.get('slot') == 'pact_boon' for x in ents)
-        if base_name(e.get('pick')) == 'Expanded Boon' and not has_boon \
+        # A talent row may declare `rider: {slot}`: one extra first-class pick of that slot at this
+        # level (Expanded Boon -> a Pact Boon, whose grants then flow from the chosen boon's catalog
+        # row through the level pact_boon branch). BUG-46 (2026-09-23): read off the catalog row,
+        # which previously said `no_effect` while a name match here did the work unasserted.
+        rider = ((self._choice_row(e) or {}).get('rider') or {})
+        rslot = rider.get('slot')
+        if rslot and not any(x.get('slot') == rslot for x in ents) \
                 and 'in builder' in str(e.get('note', '')):
-            ents.append({'slot': 'pact_boon', 'pick': UNDECIDED,
-                         'source': 'talent rider (Expanded Boon)', 'note': BUILDER_NOTE})
+            ents.append({'slot': rslot, 'pick': UNDECIDED,
+                         'source': 'talent rider (%s)' % base_name(e.get('pick')), 'note': BUILDER_NOTE})
 
     # (The reconcile cluster _granted_at_level / _parse_picks / _total_granted / expand_composite
     # was RETIRED 2026-07-19 with the grants-only unification. Its one-click "expand into per-level
@@ -3018,18 +3063,18 @@ class BuilderAPI:
                 # generic label rather than inventing one.
                 rows = class_feature_rows(self.cat.get('class_features') or {}, self.cls, new)
                 if rows:
-                    unarm = is_unarmored(self.ledger)
                     for fr in rows:
                         d = {'slot': 'class_feature', 'pick': fr['name'],
                              'note': ((fr.get('note') + '. ') if fr.get('note') else '')
                                      + ('flavor feature. ' if fr.get('flavor') else '')
                                      + BUILDER_NOTE}
-                        g = class_feature_grants([fr], unarmored=unarm, ledger=self.ledger)
+                        g = class_feature_grants([fr], unarmored=False, ledger=self.ledger)
                         if g:
                             d['grants'] = g
-                            if fr.get('grants_unarmored'):
-                                d['note'] += (' Includes an unarmoured-only bonus.' if unarm
-                                              else ' Unarmoured-only bonus NOT applied (armour worn).')
+                        gu = class_feature_unarmored([fr])   # BUG-53: left conditional
+                        if gu:
+                            d['grants_unarmored'] = gu
+                            d['note'] += UNARMORED_NOTE
                         add(d)
                 else:
                     add({'slot': 'class_feature', 'pick': f,

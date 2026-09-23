@@ -62,8 +62,7 @@ class_talents:
     - {name: Sling-Blade, requires: "Bound Weapon, Spellstrike, Level 3", no_effect: situational}
     - {name: Adaptive Bond, requires: "Bound Weapon, Level 3", no_effect: situational}
   Warlock:
-    - {name: Expanded Boon, requires: "Pact Boon",
-       note: "grants = the chosen Pact Boon's grants (see warlock.yaml pact_boons)", no_effect: situational}
+    - {name: Expanded Boon, requires: "Pact Boon", rider: {slot: pact_boon}}   # character-creation.md l.609-612 (BUG-46)
     - {name: Pact Bane, requires: "Pact Boon, Level 3", grants: {spells: 1}}
     - {name: Warlock Subcontract, requires: "Warlock Contract, Level 3", no_effect: situational}
   Wizard:
