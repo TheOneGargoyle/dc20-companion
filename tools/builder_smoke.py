@@ -521,9 +521,20 @@ def j_expertise_readout(P):
     P.ancestry("Human")
     txt = lambda sel: P.pg.evaluate("s => (document.querySelector(s)||{}).innerText||''", sel)
     before = txt("#stpts")
-    P.add_trait("Trade Expertise (Alchemy)")
+    P.add_trait("Trade Expertise")   # FR-56: offered bare; the target is picked on its node
+    node = P.decs("#choice#0$")
+    ok("FR-56: Trade Expertise renders ONE node offering Alchemy", len(node) == 1
+       and "Alchemy" in P.options(node[0]), node)
+    lbl = P.pg.evaluate("d => { const s = document.querySelector('[data-dec=\"'+d+'\"]');"
+                        " const r = s && s.closest('div'); const l = r && r.querySelector('.slot');"
+                        " return l ? l.innerText : ''; }", node[0]) if node else ""
+    ok("FR-56/BUG-26: the node row is labelled 'trade expertise', not SUB_CHOICE",
+       lbl.strip().lower() == "trade expertise", lbl)
+    if node:
+        P.choose(node[0], "Alchemy")
+        P.pg.wait_for_timeout(350)
     alloc = txt("#alloc")
-    ok("Trade Expertise (Alchemy) adds an Alchemy row with an Expertise cap marker",
+    ok("Trade Expertise -> Alchemy adds an Alchemy row with an Expertise cap marker",
        "Alchemy" in alloc and "Expertise" in alloc, alloc[:200])
     after, lg = txt("#stpts"), txt("#lgpts")
     ok("skills/trades readout renders 'x of y spent' for both",

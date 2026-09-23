@@ -296,6 +296,13 @@ def maneuver_picks(led):
     return [n for n in names if not any(mk in n for mk in PLACEHOLDER_MARKERS)]
 
 
+def origin_opt(e, row):
+    # BUG-26: the option a ledger entry chose on its catalog row's sub_choice node (by `choice.pick`).
+    decl = (row or {}).get("sub_choice") or {}
+    pick = (e.get("choice") or {}).get("pick")
+    return next((o for o in decl.get("options") or [] if o["name"] == pick), None)
+
+
 def talent_picks(led):
     for lvl, entries in (led.get("levels") or {}).items():
         for e in entries or []:
@@ -459,9 +466,12 @@ def check_ledger(fname, led):
         if via:
             b = base_name(norm(e["pick"]).split(":")[-1] if str(e["pick"]).startswith("MC") else str(e["pick"]).split(":")[0])
             known = MC_FEATURES.get(b) or next((t for t in talents_cat["general"] if t["name"] == b), None)
-            if known and known.get("grants") and "Innate Power" not in b:   # CH-13: unconditional
-                expect(e.get("grants") == known["grants"],
-                       f"{who}: talent {b} grants {e.get('grants')} vs catalog {known['grants']}")
+            if known and known.get("grants"):   # BUG-26: + the chosen sub_choice option's grants (was a CH-13 exemption)
+                want = dict(known["grants"])
+                for k, v in (origin_opt(e, known) or {}).get("grants", {}).items():
+                    want[k] = want.get(k, 0) + v
+                expect(e.get("grants") == want,
+                       f"{who}: talent {b} grants {e.get('grants')} vs catalog {want}")
             print(f"    talent L{lvl} {str(e['pick'])[:44]:46} -> {via}")
         # FR-8 slice 4: a metamagic-granting talent (Meta Magic) records its picks in granted_metamagic;
         # each must be a real catalog metamagic option, and the count must match the grant.
@@ -521,8 +531,9 @@ def check_ledger(fname, led):
         # MC'd Sorcerer = Arcane, so his 2 path ranks are 2 more Arcane slots). FR-13a.
         grant_slots = 0
         for _, e in talent_picks(led):
-            if "Innate Power" in str(e["pick"]) and "Intuitive" in str(e["pick"]):
-                grant_slots += 2
+            if str(e["pick"]).startswith("MC"):   # BUG-26: the Sorcerous Origin answer, not the pick name
+                _b = base_name(norm(e["pick"]).split(":")[-1])
+                grant_slots += int(((origin_opt(e, MC_FEATURES.get(_b)) or {}).get("grants") or {}).get("spells", 0))
         for t in iter_traits(led):
             if base_name(t["name"]) in ("Fiendish Magic", "Arcane Spell"):
                 grant_slots += 1
@@ -1308,6 +1319,25 @@ for _t in talents_cat["general"] + [r for rows in (talents_cat.get("class_talent
         expect(bool(_src) != bool(_th), f"{_t['name']} option {_o['name']}: needs exactly one of adds.source / then")
     expect(len(_c.get("options") or []) == 4, f"{_t['name']}: Spellcasting Expansion offers 3 Sources + Schools")
 expect(_nc >= 1, "no choice node declared (FR-42)")
+# BUG-26: Innate Power's Sorcerous Origin node matches the rules block (classes.md l.2541-2560): the three
+# named origins, and only Intuitive Magic grants spells (2) and opens the Sorcerer Source pick.
+_ip = MC_FEATURES.get("Innate Power") or {}
+_so = _ip.get("sub_choice") or {}
+_cls_md = read("rules/classes.md")
+_m = re.search(r"Choose a Sorcerous Origin that grants you a benefit:\s+(.+?)\.", _cls_md, re.S)
+expect(_so.get("kind") == "sorcerous_origin", f"Innate Power: sub_choice kind {_so.get('kind')!r}")
+if _m:
+    _names = [w.strip() for w in re.split(r",|\bor\b", " ".join(_m.group(1).split())) if w.strip()]
+    expect([o["name"] for o in _so.get("options") or []] == _names, f"Sorcerous Origins {_so.get('options')} vs rules {_names}")
+else:
+    expect(False, "classes.md: Innate Power 'Choose a Sorcerous Origin' line not found")
+_ms = re.search(r"Intuitive Magic: You learn (\d+) Spells", _cls_md)
+for _o in _so.get("options") or []:
+    _sp = int((_o.get("grants") or {}).get("spells", 0))
+    if _o["name"] == "Intuitive Magic":
+        expect(_ms and _sp == int(_ms.group(1)) and _o.get("source_pick"), f"Intuitive Magic {_o} vs rules")
+    else:
+        expect(not _o.get("grants") and not _o.get("source_pick") and _o.get("no_effect"), f"{_o['name']} must be no_effect")
 expect(len(_schools) == 8, f"spell_schools.yaml has {len(_schools)} schools")
 print(f"  {_nt} talent training riders match their rules bullet; {_nc} choice node(s) well-formed")
 

@@ -825,7 +825,8 @@ function render(s){
     }
     const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced'||t.slot==='spell_any') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
                     : (t.slot==='source_choice') ? 'sorcerer source'                 // FR-13a slice 2: Sorcerous Origin node
-                    : (t.slot==='ancestry_origin') ? (t.slotlabel||'origin') : t.slot;  // BUG-24: per-ancestry Origin picker
+                    : (t.slot==='ancestry_origin') ? (t.slotlabel||'origin')          // BUG-24: per-ancestry Origin picker
+                    : (t.slot==='sub_choice') ? (t.slotlabel||'choice') : t.slot;  // FR-42/BUG-26: the node's catalog label
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;

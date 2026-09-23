@@ -236,11 +236,11 @@ def check_trips():
     api = builder_api.BuilderAPI("tanrielle", CATPATHS)
     s = st(api)
     d = find_dec(s, lambda d: d["slot"] == "ancestry_trait"
-                 and str(d.get("current")) == "Trade Expertise (Herbalism)")
+                 and str(d.get("pick")) == "Trade Expertise (Herbalism)")
     ok("Trade Expertise picker carries current_group == Human (ledger source)",
        d.get("current_group") == "Human", d.get("current_group"))
-    ok("Trade Expertise picker's current value is one of its options (BUG-20 variant)",
-       any(o["name"] == d["current"] for o in d["options"]), d["current"])
+    ok("Trade Expertise picker's current value is one of its options (FR-56: the bare row)",
+       d["current"] == "Trade Expertise" and any(o["name"] == d["current"] for o in d["options"]), d["current"])
     # allocator over-spend trip (tanrielle)
     api = builder_api.BuilderAPI("tanrielle", CATPATHS)
     s2 = json.loads(api.set_mastery("skills:Athletics", "Adept"))
@@ -290,6 +290,12 @@ def drive_fresh(cls):
             idx = int(d["id"].split(":")[-1])
             pick = d["options"][idx % len(d["options"])]["name"]
             api.set_decision(d["id"], pick)
+    # FR-56: an Expertise trait's target is chosen on its node; take one the background below won't add
+    s = st(api)
+    bg = {"Awareness", "Athletics", "Stealth", "Medicine", "Survival", "Brewing", "Cooking", "Gaming"}
+    for d in s["decisions"]:
+        if d["slot"] == "sub_choice" and d.get("choice_kind") == "expertise":
+            api.set_decision(d["id"], next(o["name"] for o in d["options"] if o["name"] not in bg))
     # spells and maneuvers: first legal option per slot
     s = st(api)
     for d in s["decisions"]:
@@ -895,16 +901,33 @@ def check_expertise():
     ok("without the trait's expertise data, Adept Herbalism at L4 is over the limit",
        any("Herbalism" in p and "limit" in p for p in probs), probs)
     # --- scratch: Dwarf restriction, re-target, removal
+    def xnode(api):
+        return [d for d in json.loads(api.state())["decisions"]
+                if d["slot"] == "sub_choice" and d.get("choice_kind") == "expertise"]
+
     dw = _fresh_at("druid", "Dwarf")
     _s, did, offered = _rt_open_trait(dw)
-    tgts = sorted(o[len("Trade Expertise ("):-1] for o in offered if o.startswith("Trade Expertise ("))
+    ok("FR-56: the trait picker offers Trade Expertise ONCE, bare (no per-target variants)",
+       "Trade Expertise" in offered and not any(o.startswith("Trade Expertise (") for o in offered), offered)
+    dw.set_decision(did, "Trade Expertise")
+    tgts = sorted(o["name"] for o in (xnode(dw) or [{}])[0].get("options", []))
     stc = yaml.safe_load(open(CATPATHS["skills_trades"], encoding="utf-8"))
     want = sorted(stc["trade_categories"]["Crafting"] + stc["trade_categories"]["Services"])
     ok("Dwarf Trade Expertise offers only Crafting or Services trades", tgts == want and len(want) > 0, tgts)
     hu = _fresh_at("druid", "Human")
     _s, did, offered = _rt_open_trait(hu)
-    hu.set_decision(did, "Trade Expertise (Alchemy)")
-    s1 = json.loads(hu.set_decision(did, "Trade Expertise (Cooking)"))
+    s0 = json.loads(hu.set_decision(did, "Trade Expertise"))
+    ok("FR-56: an Expertise trait with no target yet is a builder (undecided) problem, not a catalog one",
+       any("trade expertise undecided" in p for p in s0["builder_problems"]) and not s0["catalog_problems"],
+       (s0["builder_problems"], s0["catalog_problems"]))
+    xn = xnode(hu)
+    ok("FR-56: ONE labelled trade expertise node under the trait", len(xn) == 1
+       and xn[0].get("slotlabel") == "trade expertise" and len(xn[0]["options"]) > 0, xn)
+    hu.set_decision(xn[0]["id"], "Alchemy")
+    ok("FR-56: the node names the trait after its target (the rename-guard form)",
+       hu.ledger["chargen"]["ancestry_traits"][-1]["name"] == "Trade Expertise (Alchemy)",
+       hu.ledger["chargen"]["ancestry_traits"][-1])
+    s1 = json.loads(hu.set_decision(xn[0]["id"], "Cooking"))
     names = {a["name"]: a for a in s1["alloc"] if a["kind"] == "trades"}
     ok("re-targeting Expertise moves the free row (Alchemy gone, Cooking Novice)",
        "Alchemy" not in names and names.get("Cooking", {}).get("expertise"), sorted(names))
@@ -913,7 +936,14 @@ def check_expertise():
        "Cooking" not in {a["name"] for a in s2["alloc"]}, [a["name"] for a in s2["alloc"]])
     hu2 = _fresh_at("druid", "Human")
     _s, did2, _o = _rt_open_trait(hu2)
-    hu2.set_decision(did2, "Trade Expertise (Alchemy)")
+    hu2.set_decision(did2, "Trade Expertise")
+    hu2.set_decision(xnode(hu2)[0]["id"], "Alchemy")
+    s2b = json.loads(hu2.set_decision(did2, "Trade Expertise"))
+    ok("FR-56: re-selecting the bare trait keeps its target (the node owns it)",
+       hu2.ledger["chargen"]["ancestry_traits"][-1].get("expertise", {}).get("target") == "Alchemy"
+       and [d["current"] for d in xnode(hu2)] == ["Alchemy"], hu2.ledger["chargen"]["ancestry_traits"][-1])
+    ok("FR-56: the sheet shows the trait line, not a duplicate node line",
+       "Trade Expertise (Alchemy)" in hu2.sheet() and '"pick": "Alchemy"' not in hu2.sheet())
     hu2.set_mastery("trades:Alchemy", "Adept")
     s3 = json.loads(hu2.remove_decision(did2))
     a3 = next((a for a in s3["alloc"] if a["name"] == "Alchemy"), None)
@@ -3424,7 +3454,7 @@ def _rt_variant_pick(row, name, grants):
     key to attr_<target> on pick. The round-trip therefore has to drive the variant and expect
     the resolved key, both derived from the catalog row rather than listed by name here."""
     if row.get("expertise") in RT_EXPERTISE_TARGET:
-        return "%s (%s)" % (name, RT_EXPERTISE_TARGET[row["expertise"]]), grants
+        return name, grants   # FR-56: offered bare; the target is set on its node (_rt_expertise_node)
     if row.get("targets") != "attributes" or "attribute" not in (grants or {}):
         return name, grants
     resolved = dict(grants)
@@ -3527,7 +3557,7 @@ def _rt_fleet():
     _anccat = yaml.safe_load(open(CATPATHS["ancestries"], encoding="utf-8"))["ancestries"]
     _targeted = {r["name"] for rows in _anccat.values() if isinstance(rows, list)
                  for r in rows if isinstance(r, dict)
-                 and (r.get("targets") == "attributes" or r.get("expertise"))}
+                 and r.get("targets") == "attributes"}   # FR-56: Expertise is offered bare now
     ancestries = sorted(_anccat)
     for anc in ancestries:
         api = _rt_probe_ancestry(anc)
@@ -3811,6 +3841,8 @@ def _rt_check_option(o, index):
             _rt_ok(name, "%-64s is offered on %s" % (label, anc), False, sorted(offered))
             return
         api.set_decision(did, pick)
+        if row.get("expertise") in RT_EXPERTISE_TARGET:   # FR-56: choose the target on the node
+            _rt_expertise_node(api, name, label, RT_EXPERTISE_TARGET[row["expertise"]])
     elif o.filename == "talents.yaml":
         cls = _rt_class_offering(name, index)
         if not cls:
@@ -3891,6 +3923,16 @@ def _rt_check_option(o, index):
         _rt_ok(name, "%-64s brings its combat training to the sheet" % label,
                set(row["training"]) <= set(json.loads(api.sheet()).get("combat_training") or []),
                json.loads(api.sheet()).get("combat_training"))
+
+
+def _rt_expertise_node(api, name, label, target):
+    s = json.loads(api.state())
+    n = [d for d in s["decisions"] if d["slot"] == "sub_choice" and d.get("choice_kind") == "expertise"
+         and d.get("current") == builder_api.UNDECIDED]
+    _rt_ok(name, "%-64s spawns its Expertise node" % label,
+           len(n) == 1 and target in [o["name"] for o in n[0]["options"]], [d["id"] for d in n])
+    if n:
+        api.set_decision(n[0]["id"], target)
 
 
 def _rt_assert_expertise(name, label, api, before, after, kind):
@@ -4184,6 +4226,68 @@ def check_fr42_fr48():
     ok("FR-48 druid + Martial Expansion gains Weapons, Heavy Armors, All Shields",
        {"Weapons", "Heavy Armors", "All Shields"} <= set(ct()), ct())
 
+def check_bug26_sorcerous_origin():
+    """BUG-26: Innate Power's Sorcerous Origin is a 3-option sub_choice node. Only Intuitive Magic adds
+    {spells: 2} and opens the (FR-13a) Sorcerer Source pick; Resilient/Unstable drop both. Asserted on
+    the decision surface, the stats row and the sheet, on a scratch build and on canon Scaletrix."""
+    print("\n## (42) BUG-26 Sorcerous Origin node (Innate Power)")
+    META = json.load(open("spells_meta.json", encoding="utf-8"))
+
+    def dec(s, slot, lvl=2):
+        return [d for d in s["decisions"] if d["slot"] == slot and d["level"] == lvl]
+
+    def stat(s, name):
+        v = next((r[1] for r in s["stats"] if r[0] == name), None)
+        return int(v) if str(v).lstrip("-").isdigit() else v
+
+    api = _fresh_at("druid", "Human", levels=1)
+    s = st(api)
+    t = dec(s, "talent")
+    ok("scratch: Innate Power is offered on the L2 talent picker",
+       t and "Innate Power" in [o["name"] for o in t[0]["options"]])
+    s0 = json.loads(api.set_decision(t[0]["id"], "Innate Power"))
+    node = dec(s0, "sub_choice")
+    ok("scratch: ONE sorcerous origin node, the 3 rules origins, labelled",
+       len(node) == 1 and [o["name"] for o in node[0]["options"]] ==
+       ["Intuitive Magic", "Resilient Magic", "Unstable Magic"] and node[0].get("slotlabel") == "sorcerous origin", node)
+    ok("scratch: no Source pick and no spell children before an origin is chosen",
+       not dec(s0, "source_choice") and not dec(s0, "spell_sourced"))
+    sp0 = stat(s0, "Spells known")
+    s1 = json.loads(api.set_decision(node[0]["id"], "Intuitive Magic"))
+    ok("Intuitive Magic: opens the Sorcerer Source pick, +2 Spells known",
+       len(dec(s1, "source_choice")) == 1 and stat(s1, "Spells known") == sp0 + 2, (stat(s1, "Spells known"), sp0))
+    s2 = json.loads(api.set_decision(dec(s1, "source_choice")[0]["id"], "Arcane"))
+    kids = dec(s2, "spell_sourced")
+    ok("Intuitive + Arcane: 2 spell children, every option Arcane", len(kids) == 2 and kids[0]["options"]
+       and all("Arcane" in (META.get(o["name"], {}).get("sources") or []) for o in kids[0]["options"]), len(kids))
+    s2 = json.loads(api.set_decision(kids[0]["id"], kids[0]["options"][0]["name"]))
+    s3 = json.loads(api.set_decision(node[0]["id"], "Resilient Magic"))
+    ok("Resilient Magic: Source pick and spells gone, Spells known back, MP kept",
+       not dec(s3, "source_choice") and not dec(s3, "spell_sourced") and stat(s3, "Spells known") == sp0
+       and stat(s3, "MP") == stat(s1, "MP"), (stat(s3, "Spells known"), stat(s3, "MP")))
+    ok("Resilient Magic: the sheet shows the origin", "Resilient Magic" in api.sheet())
+    s4 = json.loads(api.set_decision(node[0]["id"], "Intuitive Magic"))
+    ok("back to Intuitive: Source and both spells reset to undecided",
+       [d.get("current") for d in dec(s4, "source_choice")] == [builder_api.UNDECIDED] and not dec(s4, "spell_sourced"))
+    s5 = json.loads(api.set_decision(dec(s4, "talent")[0]["id"], "Spellcasting Expansion"))
+    ok("re-picking the talent drops the origin's Source (no Source pick under Expansion)",
+       not dec(s5, "source_choice") and [o["name"] for o in dec(s5, "sub_choice")[0]["options"]][0] == "Arcane Source")
+
+    page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("builder.html labels a sub_choice row by its catalog slotlabel (not SUB_CHOICE)",
+       "(t.slot==='sub_choice') ? (t.slotlabel||'choice')" in page)
+    sca = builder_api.BuilderAPI("scaletrix", CATPATHS)
+    ss = st(sca)
+    n = dec(ss, "sub_choice")
+    ok("canon Scaletrix: origin node reads Intuitive Magic, Source Arcane, 2 spell children kept",
+       [d.get("current") for d in n] == ["Intuitive Magic"]
+       and [d.get("current") for d in dec(ss, "source_choice")] == ["Arcane"]
+       and [d.get("current") for d in dec(ss, "spell_sourced")] == ["Disintegrating Beam", "Gravity Well"],
+       ([d.get("current") for d in n], [d.get("current") for d in dec(ss, "spell_sourced")]))
+    ok("canon Scaletrix: no catalog or builder problems", not ss["catalog_problems"] and not ss["builder_problems"],
+       (ss["catalog_problems"], ss["builder_problems"]))
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4226,7 +4330,8 @@ def main():
                     check_ch5_burndown, check_bug33_class_talents, check_bug35_paragon,
                     check_bug34_grant_child_effects, check_fr46_round_trip,
                     check_companion_dmg_roll, check_companion_rest_points,
-                    check_l5_class_features, check_expertise, check_fr42_fr48):
+                    check_l5_class_features, check_expertise, check_fr42_fr48,
+                    check_bug26_sorcerous_origin):
             run(_fn)
     finally:
         os.chdir(old)

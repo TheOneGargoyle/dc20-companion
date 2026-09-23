@@ -534,7 +534,7 @@ class BuilderAPI:
         for lst in self._anc_lists():
             for row in self.cat['ancestries']['ancestries'][lst]:
                 tg = self._row_targets(row)
-                if tg is not None:
+                if tg is not None and not row.get('expertise'):   # FR-56: Expertise targets are on the node
                     # emit per-target variants; a target-less pick is meaningless to
                     # the engine (and used to crash its '(target)' parse). CH-5 (2026-07-28):
                     # driven by the catalog row's `targets`, not by matching the name
@@ -840,11 +840,53 @@ class BuilderAPI:
     # `kind` (today: `spell_list`, Spellcasting Expansion). Generic on purpose: BUG-26's Sorcerous
     # Origin and the Expertise picker are meant to move onto it.
     def _choice_decl(self, entry):
+        if self._is_trait_entry(entry):
+            # FR-56: a Skill / Trade Expertise trait's node is DERIVED from its row's `expertise:` kind
+            # (+ `trade_categories`), never declared a second time in the catalog (trap 2). The
+            # answer lives in the entry's existing `expertise: {kind, target}`, which the engine reads.
+            row = self._trait_row(entry)
+            if not row or not row.get('expertise'):
+                return None
+            return {'kind': 'expertise', 'label': row['name'].lower(),
+                    'options': [{'name': x} for x in self._row_targets(row) or []]}
         if entry.get('slot') != 'talent':
             return None
+        return (self._choice_row(entry) or {}).get('sub_choice')   # FR-42 (class_features' `choice: <slot>` is unrelated)
+
+    @staticmethod
+    def _is_trait_entry(entry):
+        # a level `ancestry_trait` entry, or a chargen ancestry trait (keyed by `name`, no slot)
+        return entry.get('slot') == 'ancestry_trait' or ('slot' not in entry and 'name' in entry)
+
+    def _trait_row(self, entry):
+        # the catalog row of an ancestry-trait entry, preferring the list its `source` names
+        nm = base_name(str(entry.get('pick') or entry.get('name') or ''))
+        lists = self._anc_lists()
+        src = entry.get('source')
+        for lst in ([src] if src in lists else []) + list(lists):
+            for row in self.cat['ancestries']['ancestries'][lst]:
+                if row['name'] == nm or nm in (row.get('aliases') or []):
+                    return row
+        return None
+
+    def _choice_pick(self, entry, decl):
+        if decl.get('kind') == 'expertise':   # FR-56: read the existing structured answer
+            return (entry.get('expertise') or {}).get('target') or UNDECIDED
+        return (entry.get('choice') or {}).get('pick', UNDECIDED)
+
+    def _choice_row(self, entry):
         name = base_name(str(entry.get('pick') or ''))
-        row = next((t for t in self._talent_rows() if t['name'] == name), None)
-        return (row or {}).get('sub_choice')   # FR-42 (class_features' `choice: <slot>` is unrelated)
+        if name.startswith('MC ') and ':' in name:   # BUG-26: ledgers write "MC <Class>: <Feature>"
+            name = name.split(':', 1)[1].strip()
+        return next((t for t in self._talent_rows() if t['name'] == name), None)
+
+    def _sorcerous_origin(self, entry):
+        # BUG-26: the ONE reader of a Sorcerous Origin answer (Innate Power's sub_choice node). Returns
+        # the chosen option row, or None. Replaces the old parse of 'Intuitive' out of the pick name.
+        decl = self._choice_decl(entry)
+        if not decl or decl.get('kind') != 'sorcerous_origin':
+            return None
+        return self._choice_option(decl, (entry.get('choice') or {}).get('pick'))
 
     def _choice_option(self, decl, pick):
         return next((o for o in decl.get('options') or [] if o['name'] == pick), None)
@@ -855,11 +897,14 @@ class BuilderAPI:
             return []
         cur = self.ledger['current_level']
         ch = parent.get('choice') or {}
-        pick = ch.get('pick', UNDECIDED)
+        pick = self._choice_pick(parent, decl)
         d = self._dec('GC#%s#choice#0' % parentref, level, 'sub_choice', pick, None, False, editable,
                       plan=level > cur, plan_editable=editable and level > cur)
         d['options'] = [{'name': o['name'], 'group': '', 'label': o['name']} for o in decl['options']]
+        if pick != UNDECIDED and not any(o['name'] == pick for o in d['options']):
+            d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
         d['slotlabel'] = decl.get('label') or 'choice'
+        d['choice_kind'] = decl.get('kind')
         out = [d]
         opt = self._choice_option(decl, pick)
         then = (opt or {}).get('then')
@@ -878,14 +923,20 @@ class BuilderAPI:
 
     def _set_choice(self, entry, resource, k, value):
         decl = self._choice_decl(entry) or {}
+        if decl.get('kind') == 'expertise':
+            self._set_expertise_target(entry, value)
+            return self.state()
         ch = entry.setdefault('choice', {})
         if resource == 'choice':
             if str(ch.get('pick')) != str(value):
                 ch.clear()
                 ch['pick'] = value
-                then = (self._choice_option(decl, value) or {}).get('then')
+                opt = self._choice_option(decl, value) or {}
+                then = opt.get('then')
                 if then:
                     ch['picks'] = [UNDECIDED] * int(then.get('n', 0))
+                if decl.get('kind') == 'sorcerous_origin':
+                    self._apply_origin(entry, opt)
                 # the widening changed, so the talent's +N spells may now be off-list: they stay as
                 # picks and catalog_problems reports any that became illegal (never silently dropped)
         else:
@@ -894,6 +945,50 @@ class BuilderAPI:
             picks[k] = value
             ch['picks'] = picks
         return self.state()
+
+    def _set_expertise_target(self, entry, target):
+        # FR-56: the Expertise node's setter, the ONE place a target is (re)chosen. Undo the old
+        # target's free Novice row (only while it is still exactly what the pick made, BUG-20), write
+        # the structured answer, give the new target its free step, and name the trait after it
+        # ("Trade Expertise (Alchemy)", the form Tanrielle's ledger uses and catalog_verify's rename
+        # guard asserts). Re-choosing the same target is a no-op (BUG-55's lesson, by construction).
+        row = self._trait_row(entry)
+        old = (entry.get('expertise') or {}).get('target')
+        if not row or str(old) == str(target):
+            return
+        self._drop_expertise_row(entry)
+        entry.pop('expertise', None)
+        key = 'pick' if entry.get('slot') == 'ancestry_trait' else 'name'
+        if str(target) == UNDECIDED or target not in (self._row_targets(row) or []):
+            entry[key] = row['name']   # off-list is never applied; catalog_problems names an unresolved pick
+            return
+        entry['expertise'] = {'kind': row['expertise'], 'target': target}
+        ms = self.ledger.setdefault(row['expertise'], {}).setdefault('masteries', {})
+        if target not in ms:
+            ms[target] = {'mastery': 'Novice', 'note': EXPERTISE_ROW_NOTE}
+        entry[key] = '%s (%s)' % (row['name'], target)
+
+    def _apply_origin(self, entry, opt):
+        # BUG-26: a changed Sorcerous Origin. grants = the talent row's own + the option's `grants:`
+        # (Intuitive Magic {spells: 2}); an option with source_pick keeps/opens the source_choice child
+        # (sorcerous_origin.chosen_source, FR-13a slice 2, unchanged) and resets the spells, any other
+        # option drops the Source, the spell access and the spells. Only runs on a real change, so a
+        # walked ledger (Scaletrix) is never rewritten by merely rendering.
+        g = dict((self._choice_row(entry) or {}).get('grants') or {})
+        for k, v in (opt.get('grants') or {}).items():
+            g[k] = g.get(k, 0) + v
+        if g:
+            entry['grants'] = g
+        else:
+            entry.pop('grants', None)
+        n = int(g.get('spells', 0) or 0)
+        if opt.get('source_pick'):
+            entry['sorcerous_origin'] = {'chosen_source': UNDECIDED}
+            entry.pop('spell_access', None)
+            entry['granted_spells'] = [UNDECIDED] * n
+        else:
+            for k in ('sorcerous_origin', 'spell_access', 'granted_spells'):
+                entry.pop(k, None)
 
     def _list_widening(self):
         # FR-42: Spellcasting Expansion "add 1 Spell Source or 3 Spell Schools of your choice to your
@@ -1370,6 +1465,8 @@ class BuilderAPI:
             _lst, _row = self._anc_find(_t.get(_key, ''))
             if _row is None or not _row.get('expertise') or str(_t.get(_key)) == UNDECIDED:
                 continue
+            if not _t.get('expertise') and self._pick_target(_t.get(_key)) is None:
+                continue   # FR-56: target not yet chosen on the node, a builder (undecided) problem
             _ex = _t.get('expertise') or {}
             if _ex.get('target') not in (self._row_targets(_row) or []):
                 probs.append('catalog: %s has no legal %s target (%s allows %s)'
@@ -1418,9 +1515,9 @@ class BuilderAPI:
             slots = 0
             for lvl in sorted(self.ledger.get('levels') or {}):
                 for e in self.ledger['levels'][lvl] or []:
-                    if e.get('slot') == 'talent' and 'Innate Power' in str(e.get('pick')) \
-                            and 'Intuitive' in str(e.get('pick')):
-                        slots += 2
+                    if e.get('slot') == 'talent':   # BUG-26: the origin's grant, not the name
+                        so = self._sorcerous_origin(e)
+                        slots += int(((so or {}).get('grants') or {}).get('spells', 0) or 0)
             for t in self._traits():
                 if base_name(t['name']) in ('Fiendish Magic', 'Arcane Spell'):
                     slots += 1
@@ -1506,6 +1603,31 @@ class BuilderAPI:
         return probs
 
     # ---------- builder-level completeness (undecided slots) ----------
+    def _choice_undecided(self, e, lvl):
+        # FR-42/BUG-26/FR-56: an open choice node, its `then:` pickers, and the Sorcerous Origin's
+        # Source + source-filtered spells. Derived from the same declaration the node renders from.
+        decl = self._choice_decl(e)
+        if not decl:
+            return []
+        out = []
+        label = decl.get('label') or 'choice'
+        if self._choice_pick(e, decl) == UNDECIDED:
+            return ['builder: L%d %s undecided' % (lvl, label)]
+        n = sum(1 for x in (e.get('choice') or {}).get('picks') or [] if str(x) == UNDECIDED)
+        if n:
+            out.append('builder: L%d %d %s pick(s) undecided' % (lvl, n, label))
+        so = e.get('sorcerous_origin')
+        if isinstance(so, dict):
+            if str(so.get('chosen_source', UNDECIDED)) == UNDECIDED:
+                out.append('builder: L%d sorcerer source undecided' % lvl)
+            else:
+                k = int((e.get('grants') or {}).get('spells', 0) or 0)
+                lst = e.get('granted_spells') or []
+                m = sum(1 for j in range(k) if j >= len(lst) or str(lst[j]) == UNDECIDED)
+                if m:
+                    out.append('builder: L%d %d source spell pick(s) undecided' % (lvl, m))
+        return out
+
     def builder_problems(self):
         probs = []
         cg = self.ledger['chargen']
@@ -1530,6 +1652,7 @@ class BuilderAPI:
         for t in cg.get('ancestry_traits') or []:
             if str(t.get('name')) == UNDECIDED:
                 probs.append('builder: L1 ancestry trait undecided')
+            probs.extend(self._choice_undecided(t, 1))
         cur = self.ledger['current_level']
         for lvl in sorted(self.ledger.get('levels') or {}):
             if lvl > cur:
@@ -1537,6 +1660,7 @@ class BuilderAPI:
             for e in self.ledger['levels'][lvl] or []:
                 if str(e.get('pick')) == UNDECIDED:
                     probs.append('builder: L%d %s undecided' % (lvl, e.get('slot')))
+                probs.extend(self._choice_undecided(e, lvl))
                 for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
                     if _res in PLAN_POINTBUY:   # FR-17: skill/trade carriers are points-based, handled below
                         continue
@@ -1822,11 +1946,10 @@ class BuilderAPI:
                     d['current'] = '%s (%s)' % (row['name'],
                                                 m.group(1).strip().lower() if m else ATTRS[0])
                 elif row is not None and row.get('expertise'):
-                    # BUG-20: the <select> value is the decorated variant. Display only: the effect
-                    # is read off the entry's `expertise` data, and catalog_verify asserts the
-                    # name's target and the data's target agree (the rename guard).
-                    tgt = self._pick_target(pick)
-                    d['current'] = '%s (%s)' % (row['name'], tgt) if tgt else row['name']
+                    # FR-56: the <select> value is the bare row (the picker no longer offers per-target
+                    # variants); the target is picked on the Expertise node below and lives in the
+                    # entry's `expertise` data. The ledger name keeps "(target)" for the sheet.
+                    d['current'] = row['name']
                 elif row is not None:
                     d['current'] = row['name']   # resolve ledger aliases (e.g. Arcane Spell)
             if slot == 'talent':
@@ -2009,6 +2132,10 @@ class BuilderAPI:
             entry.pop('granted_maneuvers', None)
             entry.pop('granted_spells', None)
             entry.pop('choice', None)   # FR-42: the old option's sub-choice no longer applies
+            # BUG-26: nor does the old option's Sorcerous Origin Source (or its spell access), which
+            # would otherwise render a Source picker and source-filter the NEW option's {spells:N}.
+            entry.pop('sorcerous_origin', None)
+            entry.pop('spell_access', None)
         for resource in GRANT_CHILD_SLOTS:
             gkey = 'granted_%s' % resource
             n = int(grants.get(resource, 0) or 0)
@@ -2350,6 +2477,8 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
+            if d.get('choice_kind') == 'expertise':
+                continue   # FR-56: "Trade Expertise (Herbalism)" on the Ancestry line already says it
             slot = SHEET_SLOT_ALIAS.get(d.get('slot'), d.get('slot'))   # BUG-32
             lst = groups.setdefault(slot, [])
             if not any(x['pick'] == pick for x in lst):
@@ -2558,8 +2687,12 @@ class BuilderAPI:
         # BUG-55 (2026-09-23): for a TARGETED row the target is the parenthetical, which base_name
         # strips, so re-targeting 'Attribute Increase (might)' to '(agility)' read as unchanged and
         # the entry kept attr_might. Compare the whole pick (case-insensitive) for those rows.
-        if not changed and row is not None and self._row_targets(row) is not None:
+        if not changed and row is not None and self._row_targets(row) is not None \
+                and not (row.get('expertise') and self._pick_target(value) is None):
+            # FR-56: a bare Expertise re-pick is the SAME trait (its target lives on the node now)
             changed = str(t.get(key)).strip().lower() != str(value).strip().lower()
+        if not changed and row is not None and row.get('expertise') and self._pick_target(value) is None:
+            value = t.get(key)   # keep "Trade Expertise (Herbalism)"; the node owns the target
         if changed:
             self._drop_expertise_row(t)
             t.pop('expertise', None)

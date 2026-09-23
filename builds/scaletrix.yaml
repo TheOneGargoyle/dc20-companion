@@ -51,6 +51,7 @@ levels:
       granted_spells: [Disintegrating Beam, Gravity Well]
       spell_access: {source: Arcane}
       sorcerous_origin: {chosen_source: Arcane}
+      choice: {pick: Intuitive Magic}   # BUG-26: the Sorcerous Origin sub_choice node's answer
       note: "+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51). FR-13a: Innate Power requires a Sorcerous Origin; Intuitive Magic draws its 2 spells from the chosen Sorcerer Source = Arcane (per the sheet's Arcane list). Slice 2 (2026-07-19) models the source choice as an EXPLICIT node: the sorcerous_origin.chosen_source below renders as its own 'Sorcerer Source' picker childed under this talent, and it DRIVES the source filter of the 2 spell children (Disintegrating Beam = Nullification, Gravity Well = Astromancy; both Arcane). The 2 spells consume the {spells:2} grant. The flavour Sorcerous Origin sub-type is not on the sheet (low-stakes; ASK DAMO only if it matters)."
     - slot: path
       pick: Spellcaster

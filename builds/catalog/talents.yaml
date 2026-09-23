@@ -85,7 +85,14 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      note: "Jack of All Trades 2 SP + Magical Secrets 2 spells from ANY Spell List + Expression"}
   - {name: Innate Power, class: Sorcerer, feature_level: 1, via: Novice Multiclass,
      grants: {mp: 1},
-     note: "+1 MP + 1pt Focus Property; Intuitive Magic origin adds 2 spells from the Sorcerer's chosen-Source list"}
+     # BUG-26: "Choose a Sorcerous Origin" (classes.md l.2541-2560). Only Intuitive Magic grants spells
+     # (2 from the chosen Sorcerer Source, picked on the existing source_choice child, which renders
+     # only while this option is picked). Option `grants:` merge onto the talent's; `adds:` is spell_list's.
+     sub_choice: {kind: sorcerous_origin, label: sorcerous origin, options: [
+       {name: Intuitive Magic, grants: {spells: 2}, source_pick: true},
+       {name: Resilient Magic, no_effect: situational, note: "Dazed Resistance"},
+       {name: Unstable Magic, no_effect: situational, note: "Wild Magic Table on a Spell crit success/fail"}]},
+     note: "+1 MP + 1pt Focus Property; Sorcerous Origin sub-choice (Intuitive Magic = 2 spells from the chosen Sorcerer Source)"}
   - {name: Spell School Initiate, class: Wizard, feature_level: 1, via: Novice Multiclass,
      grants: {spells: 2},
      note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}

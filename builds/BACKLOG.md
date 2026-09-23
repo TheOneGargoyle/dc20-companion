@@ -33,7 +33,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | FR-38 | Rules popup: show only the clicked line's snippet, not the whole section | feature | builder | P2 | ready (intake 2026-07-19; refines FR-6) |
 | FR-40 | Companion collapsible-section consistency pass (naming, stale notes, unlinked spells/maneuvers, missing sections) | feature | companion | P2 | PARTIAL 2026-08-15, all four filed leftovers closed; the unlinked-spells/missing-sections sweep is not started |
 | FR-41 | Per-PC "signature plays" cheat sheet on the Companion, from the optimisation workshops (08/10-16) | feature | companion | **P2** | DONE 2026-08-14, all 5 PCs shipped the evening Kristian asked; prompts written back into `10`/`12`/`13` too (note below) |
-| BUG-26 | Scratch: Innate Power (MC Sorcerer, L2) not offering the Sorcerous Origin sub-choice / conditional +2 spells | bug | builder+catalog | P2 | ready (DEFERRED 2026-07-25 by Darryl, needs a design call, see note) |
 | CH-5 | Burn down the option-coverage todo list (18 distinct options with a real unmodelled effect) | chore | catalog+engine+builder | P2 | IN PROGRESS (16 of 18 closed; Expertise pair closed by BUG-20 2026-09-23; Fiendish Aura parked to 0.11, Natural Armor left) |
 | CH-6 | CI Verify takes ~3m; cache the Playwright browser download and add a `paths` filter to the `pull_request` trigger | chore | repo | P3 | ready (2026-07-28, not urgent, see note) |
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
@@ -72,7 +71,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-54 | Five ledgers carry no class-feature rows for 8 curated levels, so those features never reach the sheet | bug | data | P3 | ready (filed 2026-08-21, surfaced by the new reconcile; display gap only, no numeric grant involved) |
 | FR-54 | `requires` warns after the pick instead of gating the picker | feature | builder | P3 | needs-clarification (filed 2026-08-21; design call, see note) |
 | FR-55 | Companion: track Rest Points (max = HP max), spend for HP, refill on Long Rest | feature | companion | P2 | DONE 2026-09-23, tracker + Spend + Half/Complete Long Rest; hooks catalog-driven (note below) |
-| FR-56 | Move Skill/Trade Expertise onto the FR-42 `sub_choice` node (picker only; ~28 variants per list today) | feature | builder+catalog | P3 | ready (split out of FR-42 2026-09-23, see note) |
 
 **Push status (confirmed 2026-07-28 from the Actions run list).** All previously "awaiting push" items are on origin and CI-green on both workflows: **FR-45** (`5f2006d`, `6a3b2bb`), **BUG-35** (`a52a707`), **BUG-34** (`b9e2071`, `1e15009`), **FR-46** (`e044d41`), and the FR-46 mutation suite plus CH-6 (`d3a9444`). Their notes are in `BACKLOG_DONE.md`. Since then **CH-8** and **CH-9** (`a842471`) and the **CH-11 filing** (`2e4019c`) are also pushed and CI-green on both workflows. **Origin is `2e4019c`** (the earlier `2e419c` in this file and in the starter was a mistyped short sha, corrected 2026-08-14). CH-8 and CH-9 have been removed from the To Do table above; their notes stay below until they are folded into `BACKLOG_DONE.md`.
 
@@ -179,7 +177,7 @@ Barbarian): it is a display gap, not a stat error, and fixing it edits five cano
 
 - **The FR-12 / FR-13 epic** (full class + ancestry coverage, then live legality). GO, planned as a phased epic 2026-07-19, architecture in `FR12_PLAN.md`. Phase 0 (= FR-12.0) is done: `class_spines.yaml` is the authored source of truth and `CLASS_TABLES` is retired, so classes are data, not code. Remaining staircase: Phase 2 (full spell/maneuver legality data) -> Phase 3 (FR-12 class coverage) -> Phase 4 (subclass/ancestry breadth) -> Phase 5 (mobile picker UX).
 - **Rules-browser structure pass, one coherent job:** FR-32, FR-33, FR-34, FR-35. Three of the four carry a design call.
-- **Sub-choice and coverage leftovers from the scratch-mode wave:** BUG-20, BUG-26, FR-42, FR-47, FR-48, CH-4, CH-5 (BUG-36 closed 2026-07-28). BUG-26, FR-42 and CH-5's attribute pickers are all the same sub-choice shape, so they want one slice.
+- **Sub-choice and coverage leftovers from the scratch-mode wave:** BUG-20, BUG-26 (closed 2026-09-23), FR-42, FR-47, FR-48, CH-4, CH-5 (BUG-36 closed 2026-07-28). BUG-26, FR-42 and CH-5's attribute pickers are all the same sub-choice shape, so they want one slice.
 - **Independent polish:** FR-38, FR-39 (builder), FR-40, FR-41 (Companion), CH-6 (CI), FR-4 (scope call), FR-11 and FR-26 (parked).
 
 ---
@@ -187,12 +185,6 @@ Barbarian): it is a display gap, not a stat error, and fixing it edits five cano
 ## Bugs
 
 **BUG-20. DONE 2026-09-23** with FR-39, BUG-49 and BUG-55, see the 2026-09-23 Expertise batch note and `BACKLOG_DONE.md`.
-
-**BUG-26. Innate Power / Sorcerous Origin. Needs a design call before building** (deferred 2026-07-25, Darryl's call). The reported L2 "Innate Sorcery" bug is really the **MC Sorcerer Innate Power** talent. Per `classes.md` l.2541 it gives +1 MP unconditionally, then a **Sorcerous Origin sub-choice** among Intuitive Magic / Resilient Magic / Unstable Magic, and **only Intuitive Magic grants the +2 spells** (Resilient = Dazed Resistance, Unstable = Wild Magic). The existing FR-13a slice-2 machinery DELIBERATELY conflates this: it models the sub-choice as the spell SOURCE (Arcane/Divine/Primal) and hard-authors Scaletrix's +2 Intuitive spells onto his ledger. Wiring it into scratch mode touches the most delicate builder code, with real regression risk to canon Scaletrix. Two shapes were captured: **(a)** minimal, "assume Intuitive" and reuse the source node, or **(b)** model the 3-way sub-choice and its conditional grant properly.
-
-**BUG-26 update 2026-09-23:** shape (b) now has a home. FR-42 shipped a generic catalog-declared `sub_choice` node (options may `adds:` a value or `then:` open N typed pickers). Sorcerous Origin is a 3-option `sub_choice` whose Intuitive Magic option carries the +2 spells; add a new `kind` and its consumer.
-
-**Asked and answered 2026-08-14 (Darryl): if we do NOT do it here, what work fixes it?** Nothing fixes it incidentally. Checked against `FR12_PLAN.md` rather than assumed: **FR-12 Phase 3** (class coverage) says in as many words that it prioritises by multiclass-reach first and names *"Scaletrix's MC Sorcerer/Innate Power"* as one of the two drivers, and **Phase 4** is subclass breadth, which is the same shape again. So Sorcerous Origin is forced open by Phase 3 whatever we do. The sequence that costs least: **FR-42 builds the sub-choice node** on greenfield ground (Spellcasting Expansion), **BUG-26 applies it** to Innate Power, and Phase 3 then inherits a working pattern. Deferring past FR-42 does not save the work, it just moves it inside a much larger epic and next to the delicate FR-13a code that hard-authors Scaletrix's spells. **Recommendation: do it at BUG-26, shape (b), straight after FR-42.**
 
 ---
 
@@ -346,8 +338,6 @@ Design note: the first two are **modifiers applied to an existing roll**, not ne
 **Sources, none of them repo-tracked** (they are OneDrive-only campaign docs, so a fresh clone cannot see them): `11_minimus_build.md`, `10_runt_build.md`, `12_bonan_build.md`, `13_scaletrix_build.md`, `14_xanwyn_build.md`, and `16_party_optimisation.md` for the cross-party material. `08_tanrielle_build_DARRYL.md` is the shape to copy.
 
 
-
-**FR-56 (was the FR-42 carry, Darryl 2026-09-23).** The `sub_choice` node now exists (FR-42, catalog key `sub_choice: {kind, options}` in `talents.yaml`, `_choice_children` in `builder_api`). Move Skill/Trade Expertise onto it. Today (BUG-20, design A) they are offered as per-target picker variants, about 28 per Trade Expertise list. Only the PICKER changes: the choice is already structured data (`expertise: {kind, target}` on the ledger entry), which the engine, allocator and harnesses read.
 
 **FR-47. Extend the coverage walker to bare-string option lists.** Split out of BUG-35 2026-07-27, which is the blind spot that found it. Subclasses are stored as a bare list of strings (`subclasses: [Paladin, Rune Knight, Paragon]`), not as option dicts, so `coverage.py` never walks them and none of them was ever asked to declare an effect: the ledger reports 231 pickable options and Paragon is not one of them. So FR-44's **"0 bare" guarantee only holds for option lists shaped as dicts**, and an entire pickable surface sat outside it. Fix: extend the walker to bare-string option lists, either by requiring them to become dicts or by treating a bare string as an undeclared option, then re-run the count, which will rise. FR-46 is the independent answer to the same problem, since a round-trip that PICKS each option would have flagged Paragon regardless of how it is stored.
 
