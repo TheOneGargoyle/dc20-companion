@@ -22,6 +22,7 @@ on:
       - "builds/**"
       - "tools/**"
       - "rules/**"
+      - "companion-src/**"   # BUG-50: a template-only push ran deploy but not verify, then published
       - ".github/workflows/verify.yml"
   pull_request:
   workflow_dispatch:
@@ -44,6 +45,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install markdown pyyaml pypdf playwright
+
+      # CH-15: cheapest signal first. MAP.md staleness had only ever been caught by a human.
+      - name: Tool map is current (make_map --check)
+        run: python3 tools/make_map.py --check
 
       - name: Catalog verify (engine oracle, 90/90)
         run: python3 tools/catalog_verify.py
