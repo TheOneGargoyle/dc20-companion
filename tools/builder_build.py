@@ -488,7 +488,7 @@ function shBuild(d){
     return `<li><b>${shEsc(s.name)}</b>${s.school?` <span class="cat">${shEsc(s.school)}</span>`:''}${tags?' '+tags:''}</li>`;
   }).join(''):'<li class="sh-note">None</li>';
   const eqHtml=(d.equipment||[]).length?d.equipment.map(it=>{
-    const bonus=[]; if(it.pd)bonus.push(`${shSgn(it.pd)} PD`); if(it.ad)bonus.push(`${shSgn(it.ad)} AD`);
+    const bonus=(it.bonus||[]).map(([k,v])=>`${shSgn(v)} ${shEsc(k)}`);   // FR-49: engine EQUIP_EFFECT_KEYS
     const b=bonus.length?` <span class="sh-tag">${bonus.join(' ')}</span>`:'';
     const mods=it.mods?`<div class="sh-note">${shEsc(it.mods)}</div>`:'';
     return `<li><b>${shEsc(it.name)}</b>${b}${mods}</li>`;

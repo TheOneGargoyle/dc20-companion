@@ -102,11 +102,11 @@ equipment:
 - name: Light Weight Short Sword
   pd: 1
   mods: Impact, Guard (+1 PD while wielding = the off-by-one Darryl caught 2026-07-04), Toss 5/10
-- {name: Amulet of Health, mods: +2 HP (worn)}
+- {name: Amulet of Health, hp: 2, mods: +2 HP (worn)}
 - {name: Fire Resist trinket, mods: Resist 1 (worn)}
 - {name: 'Lockpicks, tinker tools, alchemical tools'}
 expected:
-  hp: 11
+  hp: 13
   sp: 3
   mp: 6
   spells: 5
@@ -122,7 +122,7 @@ expected:
   jump: 3
 
   spend_limit: 2
-# hp 11 = base; sheet shows 11+2 with the Amulet of Health (equipment overlay).
+# hp 13 = class 12 + Might -1 + Amulet of Health 2 (FR-49: the amulet's hp: 2 is engine-modelled).
 
 notes:
 - 'Spell attribution: 2 L1 + 1 Magus + 2 Spell School Initiate = 5. The ''01 Sculpting-vs-Engineering'' nit remains in 09 fact-checks.'

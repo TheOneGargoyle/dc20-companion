@@ -216,6 +216,20 @@ def sum_grants(ledger, level, key):
 # (CH-5, 2026-07-28), which is how an ancestry trait like Might Attribute Decrease moves a
 # stat without the engine name-matching the option. ATTR_FLOOR is the rules floor a decrease
 # may not push an Attribute below: "to a minimum of -2" (ancestries.md l.352, 383, 415, 451).
+# FR-49 (2026-09-24): the numeric effects an `equipment:` item may carry, each summed flat onto the
+# derived row of the same name (`saves` onto every Attribute Save). ONE list, read by the replay below
+# and by builder_api's sheet (the per-item effect chips), so a new key cannot reach one surface and
+# miss the other (trap 2). hp/sp/mp retired the Companion's hand-kept DISPLAY_DELTAS (Xanwyn's Amulet
+# of Health). Structured Damage Reduction (pdr/edr/mdr) is not flat and stays separate.
+EQUIP_EFFECT_KEYS = ("hp", "sp", "mp", "pd", "ad", "saves")
+
+
+def item_bonus(ledger, key):
+    """Sum of the numeric `key` effect across the ledger's equipment (non-numeric values ignored)."""
+    return sum(it.get(key) for it in (ledger.get("equipment") or [])
+               if isinstance(it.get(key), (int, float)) and not isinstance(it.get(key), bool))
+
+
 ATTRIBUTES = ("might", "agility", "charisma", "intelligence")
 ATTR_FLOOR = -2
 ATTR_GRANT_PREFIX = "attr_"
@@ -437,15 +451,16 @@ def replay(ledger, level, class_tables=None):
         rep.problem("No subclass entry at L3+")
 
     # --- resources ---------------------------------------------------------
-    hp = cumulative(table, level, "hp") + might + sum_grants(ledger, level, "hp")
-    sp = cumulative(table, level, "sp") + martial + sum_grants(ledger, level, "sp")
-    mp = cumulative(table, level, "mp") + 3 * caster + sum_grants(ledger, level, "mp")
+    hp = cumulative(table, level, "hp") + might + sum_grants(ledger, level, "hp") + item_bonus(ledger, "hp")
+    sp = cumulative(table, level, "sp") + martial + sum_grants(ledger, level, "sp") + item_bonus(ledger, "sp")
+    mp = (cumulative(table, level, "mp") + 3 * caster + sum_grants(ledger, level, "mp")
+          + item_bonus(ledger, "mp"))
     spells = (cumulative(table, level, "spells") + caster
               + sum_grants(ledger, level, "spells"))
     maneuvers = (cumulative(table, level, "man") + martial
                  + sum_grants(ledger, level, "maneuvers"))
-    pd_items = sum(e.get("pd", 0) for e in (ledger.get("equipment") or []))
-    ad_items = sum(e.get("ad", 0) for e in (ledger.get("equipment") or []))
+    pd_items = item_bonus(ledger, "pd")
+    ad_items = item_bonus(ledger, "ad")
     pd = (8 + cm(level) + agi + attrs.get("intelligence", 0)
           + pd_items + sum_grants(ledger, level, "pd"))
     ad = 8 + cm(level) + might + cha + ad_items + sum_grants(ledger, level, "ad")
@@ -456,9 +471,7 @@ def replay(ledger, level, class_tables=None):
     # Amulet of General Resilience +1) and any numeric `saves` grant - modelled the
     # same way as the PD/AD item bonuses. Per-attribute item bonuses aren't modelled
     # yet (no ledger needs them).
-    save_bonus = (sum(it.get("saves", 0) for it in (ledger.get("equipment") or [])
-                      if isinstance(it.get("saves"), (int, float)))
-                  + sum_grants(ledger, level, "saves"))
+    save_bonus = item_bonus(ledger, "saves") + sum_grants(ledger, level, "saves")
     saves = {a.title(): attrs.get(a, 0) + cm(level) + save_bonus for a in ATTRIBUTES}
     # Move Speed: base 5 Spaces (ancestries.md l.154) plus every numeric `speed` grant.
     # CH-5 (2026-07-28): Speed Increase (+1) and Short-Legged (-1) were name-matched here

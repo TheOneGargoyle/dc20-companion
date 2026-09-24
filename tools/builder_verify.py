@@ -4487,6 +4487,91 @@ def check_fr50_export_fixed_point():
        and yaml.safe_load(y) == yaml.safe_load(txt), y)
 
 
+# ---------------------------------------------------------------- (46) FR-49
+# equipment-effect key -> the engine derived row(s) it must move by the item's value
+FR49_STAT = {"hp": ("HP",), "sp": ("SP",), "mp": ("MP",), "pd": ("PD",), "ad": ("AD",),
+             "saves": tuple("saves." + a.title() for a in ("might", "agility", "charisma", "intelligence"))}
+
+
+def check_fr49_equipment_effects():
+    """FR-49 (2026-09-24): hp/sp/mp are equipment-effect keys like pd/ad/saves, so an item such as
+    Xanwyn's Amulet of Health is modelled in the engine and every surface agrees. Before this the
+    Companion added +2 HP through a hand-kept DISPLAY_DELTAS table and the builder sheet, which
+    had no such table, showed Xanwyn at HP 11 (Bloodied 6, Rest Points 11). Assert every surface."""
+    print("\n## (46) FR-49 equipment effects hp/sp/mp in the engine; DISPLAY_DELTAS retired")
+    import build_engine as be
+    keys = tuple(getattr(be, "EQUIP_EFFECT_KEYS", ()))
+    ok("FR-49 engine declares EQUIP_EFFECT_KEYS including hp, sp, mp",
+       {"hp", "sp", "mp", "pd", "ad", "saves"} <= set(keys), keys)
+    ok("FR-49 every equipment-effect key has a probe (no unprobed key)",
+       bool(keys) and set(keys) <= set(FR49_STAT), set(keys) - set(FR49_STAT))
+
+    def row(d, name):
+        return d["saves"][name[6:]] if name.startswith("saves.") else d[name]
+    chars = list(builder_build.CHARS)
+    ok("FR-49 the ledger set is not empty (trap 4)", len(chars) == 6, chars)
+    for c in chars:
+        led = yaml.safe_load(open(c + ".yaml", encoding="utf-8"))
+        base = be.replay(led, led["current_level"]).derived
+        bad = []
+        for k in keys:
+            probe = copy.deepcopy(led)
+            probe.setdefault("equipment", []).append({"name": "FR-49 probe", k: 3})
+            d = be.replay(probe, probe["current_level"]).derived
+            bad += [(k, n, row(base, n), row(d, n)) for n in FR49_STAT[k] if row(d, n) != row(base, n) + 3]
+        ok("FR-49 %-10s an item carrying each effect key moves its derived row(s) by the value" % c,
+           not bad, bad)
+
+    # Xanwyn: the amulet is data now, and the engine, the builder sheet and the Companion agree.
+    led = yaml.safe_load(open("xanwyn.yaml", encoding="utf-8"))
+    amu = [e for e in led.get("equipment") or [] if e.get("name") == "Amulet of Health"]
+    ok("FR-49 xanwyn's Amulet of Health carries hp: 2 as data", len(amu) == 1 and amu[0].get("hp") == 2, amu)
+    d = be.replay(led, led["current_level"]).derived
+    ok("FR-49 xanwyn engine HP 13 (class 12 + Might -1 + Amulet of Health 2)", d["HP"] == 13, d["HP"])
+    sh = json.loads(builder_api.BuilderAPI("xanwyn", CATPATHS).sheet())
+    ok("FR-49 xanwyn builder sheet HP 13, Bloodied 7, Rest Points 13",
+       sh["core"]["HP"] in (13, "13") and sh["derived"]["bloodied"] == 7 and sh["derived"]["rest_points"] == 13,
+       (sh["core"]["HP"], sh["derived"]["bloodied"], sh["derived"]["rest_points"]))
+    row_amu = [e for e in sh["equipment"] if e["name"] == "Amulet of Health"]
+    ok("FR-49 the sheet's Amulet of Health row carries its +2 HP effect",
+       len(row_amu) == 1 and ["HP", 2] in [list(b) for b in row_amu[0].get("bonus") or []], row_amu)
+    # the renderer reads the derived effect list, not a hand-kept pd/ad pair (trap 2). Read the
+    # shipped page: section (1) already proves builds/builder.html is current with its sources.
+    page = open(os.path.join(REPO, "builds", "builder.html"), encoding="utf-8").read()
+    ok("FR-49 builder.html draws item effects from it.bonus, not a hardcoded pd/ad pair",
+       "(it.bonus||[])" in page and "if(it.pd)bonus.push" not in page, None)
+
+    # Companion: no display-side delta table, and the baked numbers ARE the engine's (trap 3).
+    src = open(os.path.join(REPO, "companion-src", "build.py"), encoding="utf-8").read()
+    ok("FR-49 companion-src/build.py no longer defines or applies DISPLAY_DELTAS",
+       not re.search(r"DISPLAY_DELTAS\s*=|DISPLAY_DELTAS\.|DISPLAY_DELTAS\[", src), None)
+    outdir = tempfile.mkdtemp(prefix="dc20-companion-fr49-")
+    out = os.path.join(outdir, "companion.html")
+    try:
+        r = subprocess.run([sys.executable, os.path.join(REPO, "companion-src", "build.py"), out],
+                           capture_output=True, text=True)
+        ok("FR-49 Companion builds", r.returncode == 0, (r.stderr or "")[-400:])
+        if r.returncode != 0:
+            return
+        art = open(out, encoding="utf-8").read()
+        i = art.index("PARTY_DERIVED=") + len("PARTY_DERIVED=")
+        baked, _ = json.JSONDecoder().raw_decode(art[i:])
+        handle = {"tan": "tanrielle", "min": "minimus", "runt": "runt", "scale": "scaletrix",
+                  "bonan": "bonan", "xan": "xanwyn"}
+        ok("FR-49 PARTY_DERIVED carries all six", set(baked) == set(handle), sorted(baked))
+        bad = {}
+        for h, c in handle.items():
+            lc = yaml.safe_load(open(c + ".yaml", encoding="utf-8"))
+            dc = be.replay(lc, lc["current_level"]).derived
+            for f, n in (("hp", "HP"), ("sp", "SP"), ("mp", "MP"), ("pd", "PD"), ("ad", "AD")):
+                if h in baked and baked[h][f] != dc[n]:
+                    bad[(h, f)] = (baked[h][f], dc[n])
+        ok("FR-49 every baked hp/sp/mp/pd/ad equals the engine's (no display-side delta)", not bad, bad)
+        ok("FR-49 the Companion shows xanwyn HP 13", baked.get("xan", {}).get("hp") == 13, baked.get("xan", {}).get("hp"))
+    finally:
+        shutil.rmtree(outdir, ignore_errors=True)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4531,7 +4616,8 @@ def main():
                     check_companion_dmg_roll, check_companion_rest_points,
                     check_l5_class_features, check_expertise, check_fr42_fr48,
                     check_bug26_sorcerous_origin, check_bug53_conditional_live,
-                    check_bug46_expanded_boon, check_fr50_export_fixed_point):
+                    check_bug46_expanded_boon, check_fr50_export_fixed_point,
+                    check_fr49_equipment_effects):
             run(_fn)
     finally:
         os.chdir(old)

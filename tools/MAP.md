@@ -20,7 +20,7 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L1117-1136 `    .walk`
 - L1137-1199 `def main`
 
-## `tools/builder_api.py`  (183KB, 3224 lines)
+## `tools/builder_api.py`  (184KB, 3228 lines)
 
 - L105-119 `def _fmt_grants`
 - L120-123 `def base_name`
@@ -138,33 +138,33 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L2444-2459 `    ._level_grant`
 - L2460-2467 `    .next_level_info`
 - L2468-2517 `    .state`
-- L2518-2612 `    .sheet`
-- L2613-2762 `    .set_decision`
-- L2763-2860 `    ._set_trait`
-- L2861-2866 `    ._edited`
-- L2867-2881 `    ._sync_path_rider`
-- L2882-2934 `    ._sync_subclass_rider`
-- L2935-2966 `    ._sync_talent_rider`
-- L2967-2970 `    .set_attr`
-- L2971-2976 `    .set_mastery`
-- L2977-2991 `    .set_limit_raise`
-- L2992-2999 `    .add_mastery`
-- L3000-3004 `    .remove_mastery`
-- L3005-3012 `    .add_language`
-- L3013-3020 `    .set_language`
-- L3021-3026 `    .remove_language`
-- L3027-3036 `    .add_trait`
-- L3037-3047 `    .remove_decision`
-- L3048-3061 `    .dismiss_note`
-- L3062-3066 `    .set_meta`
-- L3067-3075 `    .set_ancestry`
-- L3076-3149 `    ._gen_level_slots`
-- L3150-3175 `    .add_level`
-- L3176-3195 `    .add_planned_level`
-- L3196-3212 `    .undo_add_level`
-- L3213-3224 `    .export_yaml`
+- L2518-2616 `    .sheet`
+- L2617-2766 `    .set_decision`
+- L2767-2864 `    ._set_trait`
+- L2865-2870 `    ._edited`
+- L2871-2885 `    ._sync_path_rider`
+- L2886-2938 `    ._sync_subclass_rider`
+- L2939-2970 `    ._sync_talent_rider`
+- L2971-2974 `    .set_attr`
+- L2975-2980 `    .set_mastery`
+- L2981-2995 `    .set_limit_raise`
+- L2996-3003 `    .add_mastery`
+- L3004-3008 `    .remove_mastery`
+- L3009-3016 `    .add_language`
+- L3017-3024 `    .set_language`
+- L3025-3030 `    .remove_language`
+- L3031-3040 `    .add_trait`
+- L3041-3051 `    .remove_decision`
+- L3052-3065 `    .dismiss_note`
+- L3066-3070 `    .set_meta`
+- L3071-3079 `    .set_ancestry`
+- L3080-3153 `    ._gen_level_slots`
+- L3154-3179 `    .add_level`
+- L3180-3199 `    .add_planned_level`
+- L3200-3216 `    .undo_add_level`
+- L3217-3228 `    .export_yaml`
 
-## `tools/builder_verify.py`  (276KB, 4586 lines)
+## `tools/builder_verify.py`  (282KB, 4672 lines)
 
 - L75-85 `def ok`
 - L86-89 `def sha`
@@ -316,10 +316,13 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L4394-4438 `    .boons`
 - L4439-4448 `def check_fr50_export_fixed_point`
 - L4449-4489 `    .changed`
-- L4490-4501 `def main`
-- L4502-4504 `    .want`
-- L4505-4556 `    .run`
-- L4557-4586 `def _print_pass_summary`
+- L4490-4495 `### (46) FR-49`
+- L4496-4508 `def check_fr49_equipment_effects`
+- L4509-4574 `    .row`
+- L4575-4586 `def main`
+- L4587-4589 `    .want`
+- L4590-4642 `    .run`
+- L4643-4672 `def _print_pass_summary`
 
 ## `tools/catalog_verify.py`  (79KB, 1359 lines)
 
@@ -362,7 +365,7 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L1287-1343 `### FR-42 / FR-48: talent training riders and the choice node, against the`
 - L1344-1359 `### verdict --------------------------------------------------------------`
 
-## `tools/build_engine.py`  (37KB, 789 lines)
+## `tools/build_engine.py`  (38KB, 802 lines)
 
 - L25-31 `### rules data`
 - L32-42 `def _spine_candidates`
@@ -385,21 +388,22 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L176-188 `def class_feature_rider_grants`
 - L189-196 `def _entry_grants`
 - L197-206 `def _grant_bearers`
-- L207-223 `def sum_grants`
-- L224-234 `def attribute_deltas`
-- L235-264 `def unresolved_attribute_grants`
-- L265-282 `def expertise_raises`
-- L283-300 `def ancestry_grant_levels`
-- L301-315 `def ancestry_budget`
-- L316-324 `def grant_flag`
-- L325-349 `def combat_training`
-- L350-656 `def replay`
-- L657-673 `def stamina_regen`
-- L674-701 `    .add`
-- L702-718 `def held_names`
-- L719-732 `def rest_point_hooks`
-- L733-763 `def damage_addons`
-- L764-789 `def main`
+- L207-226 `def sum_grants`
+- L227-237 `def item_bonus`
+- L238-248 `def attribute_deltas`
+- L249-278 `def unresolved_attribute_grants`
+- L279-296 `def expertise_raises`
+- L297-314 `def ancestry_grant_levels`
+- L315-329 `def ancestry_budget`
+- L330-338 `def grant_flag`
+- L339-363 `def combat_training`
+- L364-669 `def replay`
+- L670-686 `def stamina_regen`
+- L687-714 `    .add`
+- L715-731 `def held_names`
+- L732-745 `def rest_point_hooks`
+- L746-776 `def damage_addons`
+- L777-802 `def main`
 
 ## `tools/builder_smoke.py`  (35KB, 743 lines)
 

@@ -2581,7 +2581,11 @@ class BuilderAPI:
         # ALPHABETICALLY by name for findability, not by the internal slot-kind harvest order
         # (flat -> tagged -> sourced), which would otherwise leak grant provenance into the sheet.
         spells.sort(key=lambda s: str(s['name']).lower())
-        equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods')}
+        # FR-49: each item's numeric effects as [LABEL, value] pairs, in the engine's
+        # EQUIP_EFFECT_KEYS order, so the sheet chips cannot drift from what the engine sums.
+        equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods'),
+                      'bonus': [[('Saves' if k == 'saves' else k.upper()), it[k]] for k in eng.EQUIP_EFFECT_KEYS
+                                if eng.item_bonus({'equipment': [it]}, k)]}
                      for it in (self.ledger.get('equipment') or [])]
         return json.dumps({
             'character': s['character'], 'player': s['player'], 'klass': s['klass'],

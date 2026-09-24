@@ -57,14 +57,9 @@ PARTY_LEDGERS = {  # CHARS key -> ledger file (the curated include set, by id �
     "tan": "tanrielle.yaml", "min": "minimus.yaml", "runt": "runt.yaml",
     "scale": "scaletrix.yaml", "bonan": "bonan.yaml", "xan": "xanwyn.yaml",
 }
-# Companion-display deltas ON TOP of engine-derived values — each documented in the
-# ledger itself. These preserve the table-facing numbers the party plays with:
-#  - xan hp +2: Amulet of Health (worn item; the ledger's expected block deliberately
-#    excludes it as an "equipment overlay" — xanwyn.yaml).
-#  - (runt pd +2 delta RETIRED 2026-07-16: BUG-7 closed. The armour is Deflecting Heavy
-#    (+2 PD) and Pact Armor's +1 is AD not PD, so the engine now derives PD 16 / AD 13
-#    directly = Phil's confirmed reading. The Primal Hide +2 toggle brings PD to 18 in play.)
-DISPLAY_DELTAS = {("xan", "hp"): 2}
+# FR-49 (2026-09-24): DISPLAY_DELTAS is RETIRED. It was the last display-side delta on top of the
+# engine (xan hp +2, Amulet of Health). Items now carry hp/sp/mp like pd/ad (build_engine
+# EQUIP_EFFECT_KEYS), so every number baked below is the engine's, and builder_verify (46) asserts it.
 
 
 # BUG-40 + FR-26: the condition pills, DERIVED from the ruleset instead of hand-listed.
@@ -123,9 +118,6 @@ for _k, _fn in PARTY_LEDGERS.items():
         "damage_addons": _be.damage_addons(_k, _DMG_CAT),  # FR-25
         "rest_hooks": _be.rest_point_hooks(_led, _RP_CAT),  # FR-55
     }
-    for (_dk, _f), _delta in DISPLAY_DELTAS.items():
-        if _dk == _k:
-            party_derived[_k][_f] += _delta
     for _p in _rep.problems:
         print(f"  ledger flag ({_fn}): {_p}")  # known audit items surface here; the oracle is catalog_verify.py
 print("party derived: " + ", ".join(

@@ -113,7 +113,7 @@ equipment:
   - {name: Fortified Light Armour, mods: "+2 AD"}
 ```
 
-Not validated against progression; listed so the engine can explain sheet-vs-derived deltas (e.g. Xanwyn's +2 HP amulet).
+Not validated against progression. An item's numeric effects are summed flat into the derived stats: `hp`, `sp`, `mp`, `pd`, `ad`, and `saves` (onto every Attribute Save), the list being `EQUIP_EFFECT_KEYS` in `tools/build_engine.py` (FR-49; e.g. `{name: Amulet of Health, hp: 2}` on Xanwyn). Structured Damage Reduction uses `pdr`/`edr`/`mdr`. `mods:` is prose for the sheet only.
 
 ## `expected:` (validation targets)
 

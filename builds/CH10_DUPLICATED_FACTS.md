@@ -226,7 +226,7 @@ numeric grants only, and resolves catalog rows by bare name while ignoring the e
 |---|---|---|---|---|---|
 | C1 | Bonan's L1 class-feature grants | `bonan.yaml:27` | `class_features.yaml:42-47` | U **LIVE** (BUG-39) | derive |
 | C2 | Companion `audit`/`skills`/`stats`/`rolls` prose | `builds/*.yaml` resolved state | `template.html:474,498` | U, **already drifted** | derive / delete |
-| C3 | Xanwyn's Amulet of Health +2 HP | `xanwyn.yaml:84` prose | `companion-src/build.py:67` `DISPLAY_DELTAS` | U, engine has no `hp` channel | add the channel |
+| C3 | Xanwyn's Amulet of Health +2 HP | `xanwyn.yaml:84` prose | `companion-src/build.py:67` `DISPLAY_DELTAS` | **CLOSED** FR-49 2026-09-24, builder_verify (46) | add the channel |
 | C4 | Trade Expertise applied exactly once | `tanrielle.yaml:94` | `ancestries.yaml:53` todo | A **with a dedup hole** (BUG-49) | key on (list, name) |
 | C5 | Tanrielle's Paladin subclass grants | `tanrielle.yaml:48` (omitted) | `spellblade.yaml:130-134` | **Conditional**, so omission is silent | drop the conditional |
 | C6 | Class-talent grants | `bonan.yaml:47`, `scaletrix.yaml:50` | `talents.yaml:39` | U entirely | extend the lookup |
@@ -262,7 +262,7 @@ Every U below means "will reach players' phones silently".
 | D5 | Accordion spell / maneuver / item names, 9 mismatches | `template.html:975,987,996,1010,1014,1024,1040,983` | 6 ledgers | U **LIVE** (BUG-41) | derive |
 | D6 | Character display names | `template.html:441,500` | `tanrielle.yaml:8`, `xanwyn.yaml` | U **LIVE** (inverted for Tanrielle) | derive |
 | D7 | Tan's accordion hardcodes 6 derived numbers | `build.py:122-152` | `PARTY_DERIVED`, `tanrielle.yaml` expected | U; all agree today, **all break at L5** | derive |
-| D8 | `DISPLAY_DELTAS` hardcodes one item | `build.py:67` | `xanwyn.yaml` equipment | U | model it |
+| D8 | `DISPLAY_DELTAS` hardcodes one item | `build.py:67` | `xanwyn.yaml` equipment | **CLOSED** FR-49 2026-09-24 | model it |
 | D9 | Static help text quotes `+5` and `SP regen (2)` | `template.html:234,450,509` | derived attack and sp | U; **breaks at L5** | derive |
 | D10 | `builder_verify.ORACLE` claims to be the Companion's values | `builder_verify.py:660-668` | `template.html:444-446` | A **against a hand-copy**, costume 3 | parse the real file |
 | D11 | The FR-6 linkify engine, 19 declarations | `template.html:403-411,435-439,892-898` | `builder_build.py:355-375` | U; byte-identical today | hoist to `rules_corpus` |
