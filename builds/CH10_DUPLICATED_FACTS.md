@@ -161,16 +161,16 @@ compares them), **U** unguarded. A row marked **LIVE** is already wrong.
 
 | # | Fact that must agree | A | B | Guard | Fix |
 |---|---|---|---|---|---|
-| A1 | Derived-stat LABELS are a wire protocol between engine and API | `build_engine.py:481-507` | `builder_api.py:2189`, `builder_build.py:464-488` | U | derive |
+| A1 | Derived-stat LABELS are a wire protocol between engine and API | `build_engine.py:481-507` | `builder_api.py:2189`, `builder_build.py:464-488` | **CLOSED** CH-14 2026-09-24, builder_verify (47) | derive |
 | A2 | Skill governing-attribute keys vs engine attribute names | `skills_trades.yaml` skills keys | `builder_api.py:2134` abbrev map | U **LIVE-risk** | derive + assert |
 | A3 | Point-buy budget 12 and L1 attribute cap 3 | `build_engine.py:62,73` | `builder_api.py:1459-1460`, `builder_build.py:737` | U | derive |
-| A4 | Path slot levels `[2,4,6,8]` vs the class spine | `build_engine.py:68` | `class_spines.yaml` features | U | derive |
+| A4 | Path slot levels `[2,4,6,8]` vs the class spine | `build_engine.py:68` | `class_spines.yaml` features | **CLOSED** CH-14 2026-09-24, builder_verify (47) | derive |
 | A5 | FR20 slot to category-rank map | `builder_api.py:66-79` | `builder_verify.py:1709-1717` | U **LIVE** (BUG-42) | derive + assert |
 | A6 | The `attr_` grant-key prefix | `build_engine.py:166` | `builder_api.py:2409`, `catalog_verify.py:903` | A (by accident, via FR-46) | derive |
 | A7 | FR-36 category accent colours | `builder_build.py:149-152` CSS | `builder_build.py:794` `CATCOL` | U (A for the CSS pair only) | derive |
 | A8 | Rank to category-NAME vocabulary | `builder_api.py:66-80` comments | `builder_build.py:793` `CATLBL` | U | derive |
 | A9 | The `spells.md` metadata parser | `builder_build.py:65-77` | `catalog_verify.py:131-139` (retyped) | U | derive (import it) |
-| A10 | Grant-key to derived-stat-label map | `builder_verify.py:2957` `RT_STAT` | `builder_smoke.py:55` `GRANT_STAT` | U, **already drifted** (`sp` missing) | derive |
+| A10 | Grant-key to derived-stat-label map | `builder_verify.py:2957` `RT_STAT` | `builder_smoke.py:55` `GRANT_STAT` | **CLOSED** CH-14 2026-09-24, builder_verify (47) | derive |
 | A11 | `PLACEHOLDER_MARKERS` sentinels | `builder_api.py:81` | `catalog_verify.py:47` | U | derive |
 | A12 | `base_name` / `norm` normalisation rule | `builder_api.py:115` | `catalog_verify.py:67-73`, `builder_build.py:356` (deliberately different) | U | derive A/B, document C |
 | A13 | The multiclass long-form grammar | `builder_api.py:1656` regex | `catalog_verify.py:250` regex | U | derive |
@@ -178,10 +178,10 @@ compares them), **U** unguarded. A row marked **LIVE** is already wrong.
 | A15 | The Mastery ladder and its level thresholds | `build_engine.py:70,77` | `builder_api.py:82,1042`; `MB` in `builder_api.py:2139` vs `builder_verify.py:616` | U for A/B, A for the `MB` pair | derive |
 | A16 | The L10 builder ceiling | `builder_api.py:2064,2098,2715,2750` | `class_spines.yaml` max level | U | derive |
 | A17 | The `(undecided)` sentinel | `builder_api.py:83` | `builder_build.py:667,734`; 7 re-declarations in `builder_verify.py` | U | derive |
-| A18 | Engine-stat mismatch whitelist labels | `builder_verify.py:154` | `catalog_verify.py:99` | U | derive |
+| A18 | Engine-stat mismatch whitelist labels | `builder_verify.py:154` | `catalog_verify.py:99` | **CLOSED** CH-14 2026-09-24, builder_verify (47) | derive |
 | A19 | `ATTR_BASE_SUM = -8` vs the four live copies of `-2` | `build_engine.py:63` (zero readers) | `build_engine.py:286`, `builder_api.py:158,1459`, `builder_build.py:737` | U, costume 1 | derive or delete |
 | A20 | The two Path names and which resource each riders | `catalog_build.py:275` | `build_engine.py:346,564` (`startswith` vs `==`), `builder_api.py:2446` | U | derive |
-| A21 | The `"2 Ancestry Points"` spine-feature string | `build_engine.py:212,230` | `builder_api.py:2661` (and `Talent`/`Path`/`Subclass` alongside) | U | derive |
+| A21 | The `"2 Ancestry Points"` spine-feature string | `build_engine.py:212,230` | `builder_api.py:2661` (and `Talent`/`Path`/`Subclass` alongside) | **CLOSED** CH-14 2026-09-24, builder_verify (47) | derive |
 | A22 | Background point budgets (5 skill + Int, 3 trade, 2 lang) | `build_engine.py:65-67` | `builder_verify.py:254-256` fixture | U, and **fails open** (under-spend is legal) | derive + assert balanced |
 | A23 | Language fluency vocabulary and cost | `builder_api.py:85` | `builder_build.py:321,894` | U | derive |
 | A24 | The canon ledger set | `builder_build.py:55` `CHARS` | `builds/*.yaml` (globbed by `catalog_verify.py:88`) | U | derive |

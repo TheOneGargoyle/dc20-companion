@@ -66,9 +66,62 @@ ANCESTRY_POINTS_L1 = 5         # +2 at L4 and L8 via class tables ("2 Ancestry P
 BACKGROUND_SKILL = 5           # + Intelligence
 BACKGROUND_TRADE = 3
 BACKGROUND_LANG = 2            # Common is free
-PATH_LEVELS = [2, 4, 6, 8]
+# A4 (CH-14): the Path slot levels are no longer a list here; path_levels() reads them off the
+# class spine's "Path" features, so a spine edit cannot leave a parallel [2, 4, 6, 8] behind.
 
 MASTERY_STEPS = {None: 0, "Novice": 1, "Adept": 2, "Expert": 3, "Master": 4, "Grandmaster": 5}
+
+# ---------------------------------------------------------------- named labels (CH-14)
+# The derived-stat LABELS replay() writes into Report.derived and the check table are a wire
+# protocol: builder_api (state/sheet), the sheet JS, companion-src/build.py and every harness read
+# them by name, and a misspelt read does not raise, it resolves to nothing and a surface goes blank
+# (CH-10 rows A1, A10, A18). They are named ONCE, here. Consumers import these; builder_verify (47)
+# asserts replay() emits exactly DERIVED_LABELS and that every literal read elsewhere is one of them.
+LBL_LEVEL = "Level"
+LBL_CM = "Combat Mastery"
+LBL_PRIME = "Prime"
+LBL_ATTRIBUTES = "Attributes"
+LBL_ATTACK = "Attack/Spell Check"
+LBL_SAVE_DC = "Save DC"
+LBL_INITIATIVE = "Initiative"
+LBL_GRIT = "Grit"
+LBL_HP = "HP"
+LBL_SP = "SP"
+LBL_MP = "MP"
+LBL_SPELLS = "Spells known"
+LBL_MANEUVERS = "Maneuvers known"
+LBL_PD = "PD"
+LBL_AD = "AD"
+LBL_SAVES = "Saves"
+LBL_MOVE = "Move Speed"
+LBL_JUMP = "Jump Distance"
+LBL_SPEND_LIMIT = "Spend Limit (MSL/SSL)"
+LBL_DR = "Damage Reduction"
+# check-table order, which is the order replay() emits them
+DERIVED_LABELS = (LBL_LEVEL, LBL_CM, LBL_PRIME, LBL_ATTRIBUTES, LBL_ATTACK, LBL_SAVE_DC,
+                  LBL_INITIATIVE, LBL_GRIT, LBL_HP, LBL_SP, LBL_MP, LBL_SPELLS, LBL_MANEUVERS,
+                  LBL_PD, LBL_AD, LBL_SAVES, LBL_MOVE, LBL_JUMP, LBL_SPEND_LIMIT, LBL_DR)
+# the structured (machine-readable) keys replay() adds to Report.derived beside the labels
+DERIVED_KEYS = ("points", "saves", "move", "jump", "spend_limit", "death_threshold", "dr")
+# A10: numeric grant key -> the derived-stat label it moves by the granted amount. ONE map, read by
+# builder_verify (RT_STAT, FR49_STAT) and builder_smoke (GRANT_STAT); `sp` was the known drift.
+GRANT_STAT_LABEL = {"hp": LBL_HP, "sp": LBL_SP, "mp": LBL_MP, "pd": LBL_PD, "ad": LBL_AD,
+                    "speed": LBL_MOVE, "jump": LBL_JUMP}
+# A18: the labels whose sheet mismatch was historically a documented overlay (Saves/Move/Jump/AD).
+# builder_verify's MISMATCH_LABELS and catalog_verify's oracle filter are this set.
+OVERLAY_MISMATCH_LABELS = frozenset({LBL_SAVES, LBL_MOVE, LBL_JUMP, LBL_AD})
+# A21: the class-spine feature strings the engine and builder_api match on. builder_verify (47)
+# asserts each appears in every class spine, so a re-extracted spine cannot silently drop a slot.
+FEAT_TALENT = "Talent"
+FEAT_PATH = "Path"
+FEAT_SUBCLASS = "Subclass"
+FEAT_ANCESTRY_POINTS = "2 Ancestry Points"
+FEAT_CLASS_FEATURES = "Class Features"
+
+
+def path_levels(table):
+    """The levels at which this class spine grants a Path slot (its "Path" features), ascending."""
+    return sorted(l for l, row in table.items() if FEAT_PATH in (row.get("features") or []))
 
 
 def attribute_limit(level: int) -> int:
@@ -222,6 +275,8 @@ def sum_grants(ledger, level, key):
 # miss the other (trap 2). hp/sp/mp retired the Companion's hand-kept DISPLAY_DELTAS (Xanwyn's Amulet
 # of Health). Structured Damage Reduction (pdr/edr/mdr) is not flat and stays separate.
 EQUIP_EFFECT_KEYS = ("hp", "sp", "mp", "pd", "ad", "saves")
+# the derived label each equipment effect lands on (the sheet's per-item chip text)
+EQUIP_EFFECT_LABEL = {k: (LBL_SAVES if k == "saves" else GRANT_STAT_LABEL[k]) for k in EQUIP_EFFECT_KEYS}
 
 
 def item_bonus(ledger, key):
@@ -305,7 +360,7 @@ def ancestry_grant_levels(ledger, level, table):
     """
     lvls = {1}
     lvls |= {l for l in range(2, level + 1)
-             if "2 Ancestry Points" in (table.get(l, {}).get("features") or [])}
+             if FEAT_ANCESTRY_POINTS in (table.get(l, {}).get("features") or [])}
     for l, e in all_entries(ledger, level):
         if _entry_grants(e, "ancestry_points", lambda a, b: a + b, 0):
             lvls.add(l)
@@ -323,7 +378,7 @@ def ancestry_budget(ledger, level, table):
     """
     return (ANCESTRY_POINTS_L1
             + 2 * sum(1 for l in range(2, level + 1)
-                      if "2 Ancestry Points" in (table.get(l, {}).get("features") or []))
+                      if FEAT_ANCESTRY_POINTS in (table.get(l, {}).get("features") or []))
             + sum_grants(ledger, level, "ancestry_points"))
 
 
@@ -437,14 +492,15 @@ def replay(ledger, level, class_tables=None):
 
     # --- paths / talents / subclass ---------------------------------------
     paths = [e.get("pick") for _, e in all_entries(ledger, level) if e.get("slot") == "path"]
-    path_slots = sum(1 for l in PATH_LEVELS if l <= level)
+    plv = path_levels(table)
+    path_slots = sum(1 for l in plv if l <= level)
     if len(paths) != path_slots:
-        rep.problem(f"Paths chosen {len(paths)} vs {path_slots} slots (L2/4/6/8)")
+        rep.problem(f"Paths chosen {len(paths)} vs {path_slots} slots (L{'/'.join(str(l) for l in plv)})")
     martial = sum(1 for p in paths if str(p).startswith("Martial"))
     caster = sum(1 for p in paths if str(p).startswith("Spellcaster"))
     talents = sum(1 for _, e in all_entries(ledger, level) if e.get("slot") == "talent")
     talent_slots = sum(1 for l in range(2, level + 1)
-                       if "Talent" in table.get(l, {}).get("features", []))
+                       if FEAT_TALENT in table.get(l, {}).get("features", []))
     if talents != talent_slots:
         rep.problem(f"Talents chosen {talents} vs {talent_slots} slots")
     if level >= 3 and not any(e.get("slot") == "subclass" for _, e in all_entries(ledger, level)):
@@ -606,31 +662,31 @@ def replay(ledger, level, class_tables=None):
     rep.add()
     rep.add("| Stat | Derived | Sheet | Check |")
     rep.add("|---|---|---|---|")
-    rep.check("Level", level)
-    rep.check("Combat Mastery", cm(level))
-    rep.check("Prime", prime)
-    rep.check("Attributes", " / ".join(f"{k[:3].title()} {v}" for k, v in attrs.items()))
-    rep.check("Attack/Spell Check", cm(level) + prime, exp.get("attack"))
-    rep.check("Save DC", 10 + cm(level) + prime, exp.get("save_dc"))
-    rep.check("Initiative", cm(level) + agi, exp.get("initiative"))
-    rep.check("Grit", cha + 2, exp.get("grit"))
-    rep.check("HP", hp, exp.get("hp"))
-    rep.check("SP", sp, exp.get("sp"))
-    rep.check("MP", mp, exp.get("mp"))
-    rep.check("Spells known", spells, exp.get("spells"))
-    rep.check("Maneuvers known", maneuvers, exp.get("maneuvers"))
-    rep.check("PD", pd, exp.get("pd"))
-    rep.check("AD", ad, exp.get("ad"))
+    rep.check(LBL_LEVEL, level)
+    rep.check(LBL_CM, cm(level))
+    rep.check(LBL_PRIME, prime)
+    rep.check(LBL_ATTRIBUTES, " / ".join(f"{k[:3].title()} {v}" for k, v in attrs.items()))
+    rep.check(LBL_ATTACK, cm(level) + prime, exp.get("attack"))
+    rep.check(LBL_SAVE_DC, 10 + cm(level) + prime, exp.get("save_dc"))
+    rep.check(LBL_INITIATIVE, cm(level) + agi, exp.get("initiative"))
+    rep.check(LBL_GRIT, cha + 2, exp.get("grit"))
+    rep.check(LBL_HP, hp, exp.get("hp"))
+    rep.check(LBL_SP, sp, exp.get("sp"))
+    rep.check(LBL_MP, mp, exp.get("mp"))
+    rep.check(LBL_SPELLS, spells, exp.get("spells"))
+    rep.check(LBL_MANEUVERS, maneuvers, exp.get("maneuvers"))
+    rep.check(LBL_PD, pd, exp.get("pd"))
+    rep.check(LBL_AD, ad, exp.get("ad"))
     sgn = lambda v: ("+" if v >= 0 else "") + str(v)
     fmt_saves = lambda m: " / ".join(f"{k[:3]} {sgn(m[k.lower()] if k.lower() in m else m.get(k))}"
                                      for k in saves)
     exp_saves = exp.get("saves")
-    rep.check("Saves", " / ".join(f"{k[:3]} {sgn(v)}" for k, v in saves.items()),
+    rep.check(LBL_SAVES, " / ".join(f"{k[:3]} {sgn(v)}" for k, v in saves.items()),
               fmt_saves(exp_saves) if exp_saves else None)
-    rep.check("Move Speed", speed, exp.get("move"))
-    rep.check("Jump Distance", jump, exp.get("jump"))
-    rep.check("Spend Limit (MSL/SSL)", spend_limit, exp.get("spend_limit"))
-    rep.check("Damage Reduction",
+    rep.check(LBL_MOVE, speed, exp.get("move"))
+    rep.check(LBL_JUMP, jump, exp.get("jump"))
+    rep.check(LBL_SPEND_LIMIT, spend_limit, exp.get("spend_limit"))
+    rep.check(LBL_DR,
               "; ".join(f"{k} {', '.join(str(x) for x in v)}" for k, v in dr.items())
               or "none")
     # structured mirrors for consumers (the character sheet reads these)

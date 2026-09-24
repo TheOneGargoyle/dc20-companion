@@ -36,6 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from build_engine import replay, load_class_tables, class_feature_rider_grants  # noqa: E402
+from build_engine import OVERLAY_MISMATCH_LABELS  # noqa: E402  (CH-14 A18)
 import coverage  # noqa: E402  (the option-coverage ledger: one walker, no mirrored lists)
 
 # FR-12.0: the class spines are authored data now, read by the engine AND catalog_build.
@@ -108,7 +109,7 @@ for path in sorted(glob.glob(os.path.join(LEDGER_DIR, "*.yaml"))):
     total_mismatch += mm
     # Historical overlay slots (Saves/Move/Jump/AD): all currently modelled, none tripping.
     # BUG-7 (runt AD) closed 2026-07-16, so there are no documented deltas left.
-    _MM = ("Saves", "Move Speed", "Jump Distance", "AD")
+    _MM = OVERLAY_MISMATCH_LABELS
     unexpected = [p for p in rep.problems
                   if p not in KNOWN_OPEN and p.split(":")[0] not in _MM]
     tag = "OK" if not unexpected else f"UNEXPECTED: {unexpected}"

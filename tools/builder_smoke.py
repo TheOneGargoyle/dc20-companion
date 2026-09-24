@@ -52,17 +52,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 PAGE = os.path.join(REPO, "builds", "builder.html")
 
-# numeric grant key -> the label the page prints in the derived-stats table
-GRANT_STAT = {"hp": "HP", "sp": "SP", "mp": "MP", "ad": "AD", "pd": "PD",
-              "speed": "Move Speed", "jump": "Jump Distance"}
-
 # CH-5 (2026-07-28) per-attribute grants land on ONE rendered row, "Attributes", whose cell is
 # "Mig 3 / Agi 1 / Cha 0 / Int 0" rather than a bare number, so they need their own reader. The
-# key set is DERIVED from the engine's own tuple rather than listed here: GRANT_STAT is already a
-# hand-kept mirror of builder_verify's RT_STAT and this file does not need a second one (trap 2).
-ATTR_ROW = "Attributes"
+# key set is DERIVED from the engine's own tuple rather than listed here (trap 2).
 sys.path.insert(0, HERE)
 import build_engine as _eng                                        # noqa: E402
+ATTR_ROW = _eng.LBL_ATTRIBUTES
+# numeric grant key -> the label the page prints in the derived-stats table. CH-14 A10: this is the
+# engine's own map now, the same object builder_verify's RT_STAT copies, so the two cannot drift.
+GRANT_STAT = _eng.GRANT_STAT_LABEL
 GRANT_ATTR = {_eng.ATTR_GRANT_PREFIX + a: a for a in _eng.ATTRIBUTES}
 ATTRS = _eng.ATTRIBUTES
 

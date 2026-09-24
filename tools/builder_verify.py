@@ -58,6 +58,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import builder_build  # noqa: E402  (API_PY, extract_spell_meta, CHARS, CATALOG)
+import build_engine as _eng  # noqa: E402  (CH-14: the named derived-stat labels)
 
 FAILS = []
 
@@ -151,7 +152,7 @@ KNOWN = {}  # runt trade over-spend retired 2026-07-16 (BUG-2: Deep Speech is a 
 # confirmed with Phil the armour is Deflecting Heavy (+2 PD / +0 AD) and Pact Armor's +1 is
 # AD not PD, so RAW AD = 13 = the sheet (see runt.yaml).
 KNOWN_MISMATCH = {}
-MISMATCH_LABELS = {"Saves", "Move Speed", "Jump Distance", "AD"}
+MISMATCH_LABELS = set(_eng.OVERLAY_MISMATCH_LABELS)   # CH-14 A18: the engine names the set
 CATPATHS = None
 builder_api = None
 
@@ -3365,8 +3366,8 @@ def check_bug34_grant_child_effects():
 # flag assertion explicitly requires the baseline NOT to carry the flag already.
 
 # grant key -> the derived-stat row it must move by the granted amount
-RT_STAT = {"hp": "HP", "mp": "MP", "pd": "PD", "ad": "AD",
-           "speed": "Move Speed", "jump": "Jump Distance"}
+# CH-14 A10: the engine's one map (it added `sp`, the drift this copy had against builder_smoke)
+RT_STAT = dict(_eng.GRANT_STAT_LABEL)
 # grant key -> the state() budget field it must raise by the granted amount
 RT_BUDGET = {"spells": "spell_budget", "maneuvers": "man_budget"}
 # grant key -> the state()['budgets'] point readout whose "earned" must rise
@@ -3376,7 +3377,7 @@ RT_ATTR_SLOTS = {"attribute_points"}
 # grant key -> it must raise the ancestry-point budget
 RT_ANC_POINTS = {"ancestry_points"}
 # NON-numeric flag grants: key -> the derived stat that must re-key when the flag lands
-RT_FLAG = {"jump_from": "Jump Distance"}
+RT_FLAG = {"jump_from": _eng.LBL_JUMP}
 # grant key -> the api.sheet()['derived'] field it must move by the granted amount (BUG-48)
 RT_SHEET = {"death_threshold": "death_threshold"}
 
@@ -4313,7 +4314,7 @@ def check_bug53_conditional_live():
     builder now copies `grants_unarmored` onto the entry and the engine resolves it live. Cases
     are DERIVED from the catalog (every ancestry row with the key), so a new one cannot slip."""
     print("\n## (43) BUG-53 conditional grants stay live on scratch builds")
-    STAT = {"ad": "AD", "pd": "PD"}
+    STAT = {k: _eng.GRANT_STAT_LABEL[k] for k in ("ad", "pd")}
     anc = yaml.safe_load(open("ancestries.yaml", encoding="utf-8"))["ancestries"]
     cases = [(a, r) for a, rows in anc.items() for r in (rows or []) if r.get("grants_unarmored")]
     ok("the catalog declares ancestry rows with grants_unarmored (non-empty case set)",
@@ -4489,8 +4490,9 @@ def check_fr50_export_fixed_point():
 
 # ---------------------------------------------------------------- (46) FR-49
 # equipment-effect key -> the engine derived row(s) it must move by the item's value
-FR49_STAT = {"hp": ("HP",), "sp": ("SP",), "mp": ("MP",), "pd": ("PD",), "ad": ("AD",),
-             "saves": tuple("saves." + a.title() for a in ("might", "agility", "charisma", "intelligence"))}
+# CH-14: the flat keys come from the engine's grant map; `saves` fans out to every Attribute Save
+FR49_STAT = dict({k: (_eng.GRANT_STAT_LABEL[k],) for k in _eng.EQUIP_EFFECT_KEYS if k != "saves"},
+                 saves=tuple("saves." + a.title() for a in _eng.ATTRIBUTES))
 
 
 def check_fr49_equipment_effects():
@@ -4563,13 +4565,143 @@ def check_fr49_equipment_effects():
         for h, c in handle.items():
             lc = yaml.safe_load(open(c + ".yaml", encoding="utf-8"))
             dc = be.replay(lc, lc["current_level"]).derived
-            for f, n in (("hp", "HP"), ("sp", "SP"), ("mp", "MP"), ("pd", "PD"), ("ad", "AD")):
+            for f, n in ((f, _eng.GRANT_STAT_LABEL[f]) for f in ("hp", "sp", "mp", "pd", "ad")):
                 if h in baked and baked[h][f] != dc[n]:
                     bad[(h, f)] = (baked[h][f], dc[n])
         ok("FR-49 every baked hp/sp/mp/pd/ad equals the engine's (no display-side delta)", not bad, bad)
         ok("FR-49 the Companion shows xanwyn HP 13", baked.get("xan", {}).get("hp") == 13, baked.get("xan", {}).get("hp"))
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------- (47) CH-14
+# The derived-stat labels replay() writes are a wire protocol: builder_api (state/sheet), the sheet
+# JS, companion-src/build.py and these harnesses all read them BY NAME. A misspelt read does not
+# raise, it resolves to None/absent and the surface goes quietly blank (CH-10 rows A1, A10, A18).
+# The engine now names them once (build_engine.DERIVED_LABELS and friends). This section asserts:
+#   a. the engine emits exactly its declared labels, and every consumer-facing map is inside them;
+#   b. every LITERAL label read in consumer source is a real label, and the production consumers
+#      (builder_api.py, companion-src/build.py) hold no literal label reads at all;
+#   c. the scanner itself goes red on a misspelt label (trap 5: a probe must be seen to fail);
+#   d. the spine-feature strings the engine and API match on exist in every class spine (A21), and
+#      the Path slot levels are derived from the spine, not a parallel list (A4).
+# Each read-site pattern captures the label a consumer reads. Keep this list in step with any new
+# reader helper; an unmatched read shape is the one thing this cannot see.
+CH14_READ_SITES = {
+    # file (repo-relative) -> [(pattern, allowed-set name)]
+    "tools/builder_api.py": [(r"\bst\.get\(\s*['\"]([^'\"]+)['\"]", "labels"),
+                             (r"\.derived\.get\(\s*['\"]([^'\"]+)['\"]", "keys"),
+                             (r"\.derived\[\s*['\"]([^'\"]+)['\"]\s*\]", "keys")],
+    "companion-src/build.py": [(r"\b_d\[\s*['\"]([^'\"]+)['\"]\s*\]", "keys"),
+                               (r"\b_d\.get\(\s*['\"]([^'\"]+)['\"]", "keys")],
+    "tools/builder_build.py": [(r"\bc\['([^']+)'\]", "core")],
+    "tools/builder_verify.py": [(r"\b_?stat\(\s*[^,()]+,\s*\"([^\"]+)\"", "labels"),
+                                (r"\[\"core\"\]\[\"([^\"]+)\"\]", "core"),
+                                (r"_rt_stats\([^()]*\)\[\s*\"([^\"]+)\"\s*\]", "labels")],
+    "tools/builder_smoke.py": [(r"\bP\.stat\(\s*\"([^\"]+)\"", "labels")],
+}
+# Production consumers must read through the engine constants, never a literal (the whole fix).
+CH14_NO_LITERALS = {"tools/builder_api.py", "companion-src/build.py"}
+
+
+def ch14_scan(sources, labels, keys, core):
+    """Return (reads, bad): every literal label read found, and the ones outside their allowed set.
+    `sources` maps a repo-relative path to its text, so the mutation probe can feed a doctored copy."""
+    allowed = {"labels": set(labels), "keys": set(labels) | set(keys), "core": set(core)}
+    reads, bad = [], []
+    for path, sites in CH14_READ_SITES.items():
+        txt = sources.get(path, "")
+        for pat, kind in sites:
+            for m in re.finditer(pat, txt):
+                lbl = m.group(1)
+                line = txt.count("\n", 0, m.start()) + 1
+                reads.append((path, line, lbl))
+                if lbl not in allowed[kind]:
+                    bad.append((path, line, lbl, "not a %s" % kind))
+                elif path in CH14_NO_LITERALS and lbl in set(labels):
+                    bad.append((path, line, lbl, "literal label, import the engine constant"))
+    return reads, bad
+
+
+def check_ch14_engine_labels():
+    print("\n## (47) CH-14 consumers read only the engine's named labels and spine features")
+    import build_engine as be
+    labels = tuple(getattr(be, "DERIVED_LABELS", ()))
+    keys = tuple(getattr(be, "DERIVED_KEYS", ()))
+    grant = dict(getattr(be, "GRANT_STAT_LABEL", {}))
+    equip = dict(getattr(be, "EQUIP_EFFECT_LABEL", {}))
+    overlay = set(getattr(be, "OVERLAY_MISMATCH_LABELS", ()))
+    core = tuple(getattr(builder_api, "SHEET_CORE", ()))
+    feats = [getattr(be, n, None) for n in ("FEAT_TALENT", "FEAT_PATH", "FEAT_SUBCLASS",
+                                             "FEAT_ANCESTRY_POINTS", "FEAT_CLASS_FEATURES")]
+
+    # a. the engine's declared vocabulary is what replay() emits, and every map lives inside it
+    ok("CH-14 engine declares DERIVED_LABELS (non-empty, unique) and DERIVED_KEYS",
+       bool(labels) and len(set(labels)) == len(labels) and bool(keys), (labels, keys))
+    emitted, extra = set(), set()
+    for c in builder_build.CHARS:
+        led = yaml.safe_load(open(c + ".yaml", encoding="utf-8"))
+        rep = be.replay(led, led["current_level"])
+        rows = [ln.split("|")[1].strip() for ln in rep.lines
+                if ln.startswith("| ") and not ln.startswith("| Stat ")
+                and ln.split("|")[1].strip() in set(rep.derived)]
+        ok("CH-14 %-10s check-table rows == DERIVED_LABELS, in order" % c, tuple(rows) == labels,
+           (rows, labels))
+        emitted |= set(rep.derived)
+        extra |= set(rep.derived) - set(labels) - set(keys)
+    ok("CH-14 replay().derived carries only declared labels and keys", emitted and not extra, extra)
+    ok("CH-14 every structured DERIVED_KEY is emitted (no dead key)", set(keys) <= emitted,
+       set(keys) - emitted)
+    ok("CH-14 GRANT_STAT_LABEL non-empty, values are engine labels",
+       bool(grant) and set(grant.values()) <= set(labels), grant)
+    ok("CH-14 EQUIP_EFFECT_LABEL covers EQUIP_EFFECT_KEYS with engine labels",
+       set(equip) == set(be.EQUIP_EFFECT_KEYS) and set(equip.values()) <= set(labels), equip)
+    ok("CH-14 OVERLAY_MISMATCH_LABELS non-empty and inside DERIVED_LABELS",
+       bool(overlay) and overlay <= set(labels), overlay)
+    ok("CH-14 harness mismatch whitelists ARE the engine's set (A18)",
+       MISMATCH_LABELS == overlay, (MISMATCH_LABELS, overlay))
+    ok("CH-14 RT_STAT is the engine grant map, sp included (A10 drift closed)",
+       RT_STAT == grant and "sp" in RT_STAT, RT_STAT)
+    ok("CH-14 builder_api.SHEET_CORE non-empty and inside DERIVED_LABELS",
+       bool(core) and set(core) <= set(labels), core)
+    sh = json.loads(builder_api.BuilderAPI(builder_build.CHARS[0], CATPATHS).sheet())
+    ok("CH-14 sheet()['core'] keys == SHEET_CORE, every value present",
+       tuple(sh["core"]) == core and all(v is not None for v in sh["core"].values()), sh["core"])
+
+    # b. literal reads in consumer source
+    srcs = {p: open(os.path.join(REPO, p), encoding="utf-8").read() for p in CH14_READ_SITES}
+    reads, bad = ch14_scan(srcs, labels, keys, core)
+    per = {p: sum(1 for r in reads if r[0] == p) for p in CH14_READ_SITES}
+    ok("CH-14 scanner finds literal reads to police (not an empty pass, trap 4)",
+       per["tools/builder_build.py"] > 0 and per["tools/builder_verify.py"] > 0
+       and per["tools/builder_smoke.py"] > 0, per)
+    ok("CH-14 every literal label a consumer reads is an engine label; production reads none",
+       labels and not bad, bad)
+
+    # c. the scanner must go red on a misspelt label, and on a literal slipped back into production
+    js = srcs["tools/builder_build.py"]
+    mut = dict(srcs, **{"tools/builder_build.py": js.replace("c['Save DC']", "c['Save Dc']", 1)})
+    _, bad_js = ch14_scan(mut, labels, keys, core)
+    ok("CH-14 probe: a misspelt sheet label (c['Save Dc']) is caught",
+       "c['Save DC']" in js and any(b[2] == "Save Dc" for b in bad_js), bad_js)
+    mut = dict(srcs, **{"companion-src/build.py": srcs["companion-src/build.py"] + '\nx = _d["HP"]\n'})
+    _, bad_lit = ch14_scan(mut, labels, keys, core)
+    ok("CH-14 probe: a correctly spelt LITERAL in the Companion is still caught",
+       any(b[0] == "companion-src/build.py" and b[2] == "HP" for b in bad_lit), bad_lit)
+
+    # d. spine features (A21) and Path levels (A4)
+    ok("CH-14 engine names the spine-feature strings it matches on", all(feats), feats)
+    spines = be.load_class_tables()
+    ok("CH-14 class spines loaded (not an empty pass)", bool(spines), list(spines or {}))
+    for cls, table in (spines or {}).items():
+        have = {f for row in table.values() for f in (row.get("features") or [])}
+        miss = [f for f in feats if f and f not in have]
+        ok("CH-14 %-10s spine carries every engine-matched feature string" % cls, not miss, miss)
+        pl = be.path_levels(table) if hasattr(be, "path_levels") else []
+        ok("CH-14 %-10s Path slot levels derive from the spine (non-empty)" % cls,
+           bool(pl) and pl == sorted(l for l, r in table.items()
+                                     if feats[1] in (r.get("features") or [])), pl)
+    ok("CH-14 the hand-kept PATH_LEVELS list is retired", not hasattr(be, "PATH_LEVELS"))
 
 
 def main():
@@ -4617,7 +4749,7 @@ def main():
                     check_l5_class_features, check_expertise, check_fr42_fr48,
                     check_bug26_sorcerous_origin, check_bug53_conditional_live,
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
-                    check_fr49_equipment_effects):
+                    check_fr49_equipment_effects, check_ch14_engine_labels):
             run(_fn)
     finally:
         os.chdir(old)

@@ -20,432 +20,437 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L1117-1136 `    .walk`
 - L1137-1199 `def main`
 
-## `tools/builder_api.py`  (184KB, 3228 lines)
+## `tools/builder_api.py`  (184KB, 3231 lines)
 
-- L105-119 `def _fmt_grants`
-- L120-123 `def base_name`
-- L124-129 `def is_composite`
-- L130-136 `def class_feature_rows`
-- L137-155 `def class_feature_grants`
-- L156-177 `def class_feature_unarmored`
-- L178-223 `def blank_ledger`
-- L224-231 `### comment-preserving YAML export ----------`
-- L232-236 `def _is_short_scalar`
-- L237-240 `class _LedgerDumper`
-- L241-246 `def _flow_ok`
-- L247-251 `def _rep_list`
-- L252-260 `def _rep_dict`
-- L261-265 `def dump_ledger`
-- L266-275 `def _line_paths`
-- L276-294 `    .walk`
-- L295-308 `def _split_comment`
-- L309-322 `def _extract_comments`
-- L323-359 `    .is_free`
-- L360-365 `def merge_comments`
-- L366-418 `    .resolve`
-- L419-421 `class BuilderAPI`
-- L422-451 `    .__init__`
-- L452-463 `    ._declared_lists`
-- L464-484 `    ._allowed_lists`
-- L485-513 `    ._anc_lists`
-- L514-521 `    ._anc_row`
-- L522-529 `    ._anc_find`
-- L530-537 `    ._anc_find_any`
-- L538-551 `    ._trait_problem`
-- L552-577 `    ._row_targets`
-- L578-581 `    ._pick_target`
-- L582-593 `    ._drop_expertise_row`
-- L594-615 `    ._anc_options`
-- L616-635 `    ._anc_budget`
-- L636-645 `    ._anc_has_undecided`
-- L646-653 `    ._anc_grant_levels`
-- L654-660 `    ._anc_ready_level`
-- L661-665 `    ._anc_minor_count`
-- L666-680 `    ._anc_minor_room`
-- L681-683 `    ._res_slot`
-- L684-692 `    ._res_budget`
-- L693-715 `    ._res_have`
-- L716-738 `    ._res_has_undecided_at`
-- L739-743 `    ._res_has_undecided`
-- L744-764 `    ._res_have_at`
-- L765-778 `    ._res_gained_at`
-- L779-803 `    ._prune_level_overflow`
-- L804-834 `    ._res_ready_level`
-- L835-844 `    ._traits`
-- L845-852 `    ._ssi_schools`
-- L853-863 `    ._grant_tags`
-- L864-876 `    ._spell_grant_tag`
-- L877-903 `    ._spell_grant_source`
-- L904-918 `    ._choice_decl`
-- L919-922 `    ._is_trait_entry`
-- L923-933 `    ._trait_row`
-- L934-938 `    ._choice_pick`
-- L939-944 `    ._choice_row`
-- L945-952 `    ._sorcerous_origin`
-- L953-955 `    ._choice_option`
-- L956-985 `    ._choice_children`
-- L986-1010 `    ._set_choice`
-- L1011-1032 `    ._set_expertise_target`
-- L1033-1054 `    ._apply_origin`
-- L1055-1074 `    ._list_widening`
-- L1075-1087 `    ._talent_rows`
-- L1088-1094 `    ._any_list_defs`
-- L1095-1107 `    ._spell_grant_any`
-- L1108-1122 `    ._any_list_slots`
-- L1123-1178 `    ._spell_access`
-- L1179-1184 `    ._spell_options`
-- L1185-1193 `    ._spell_any_options`
-- L1194-1207 `    ._spell_tagged_options`
-- L1208-1218 `    ._all_sources`
-- L1219-1233 `    ._spell_sourced_options`
-- L1234-1237 `    ._maneuver_options`
-- L1238-1258 `    ._talent_options`
-- L1259-1315 `    ._chosen_names`
-- L1316-1325 `    ._parse_skill_pick`
-- L1326-1340 `    ._parse_plan_pick`
-- L1341-1344 `    ._plan_pick_cost`
-- L1345-1349 `    ._plan_decided`
-- L1350-1359 `    ._mastery_cap_idx`
-- L1360-1366 `    ._plan_catalog_names`
-- L1367-1387 `    ._plan_running_state`
-- L1388-1411 `    ._plan_running_caps`
-- L1412-1414 `    ._skill_running_state`
-- L1415-1440 `    ._plan_options`
-- L1441-1443 `    ._skill_plan_options`
-- L1444-1460 `    ._child_pool`
-- L1461-1517 `    ._options_for`
-- L1518-1667 `    .catalog_problems`
-- L1668-1692 `    ._choice_undecided`
-- L1693-1787 `    .builder_problems`
-- L1788-1815 `    ._origin_decisions`
-- L1816-1924 `    ._decisions`
-- L1925-1939 `    ._hide_held_boons`
-- L1940-1969 `    ._reorder_decisions`
-- L1970-2051 `    ._dec`
-- L2052-2203 `    ._grant_children`
-- L2204-2254 `    ._apply_grants`
-- L2255-2293 `    ._sync_granted_effects`
-- L2294-2305 `    ._sync_training`
-- L2306-2319 `    ._resync_all_granted_effects`
-- L2320-2349 `    ._set_grant_child`
-- L2350-2357 `    ._grant_child_entry`
-- L2358-2381 `    .set_plan_capraise`
-- L2382-2401 `    ._alloc`
-- L2402-2414 `    ._skill_trade_options`
-- L2415-2420 `    ._language_options`
-- L2421-2427 `    ._langs`
-- L2428-2443 `    ._sections`
-- L2444-2459 `    ._level_grant`
-- L2460-2467 `    .next_level_info`
-- L2468-2517 `    .state`
-- L2518-2616 `    .sheet`
-- L2617-2766 `    .set_decision`
-- L2767-2864 `    ._set_trait`
-- L2865-2870 `    ._edited`
-- L2871-2885 `    ._sync_path_rider`
-- L2886-2938 `    ._sync_subclass_rider`
-- L2939-2970 `    ._sync_talent_rider`
-- L2971-2974 `    .set_attr`
-- L2975-2980 `    .set_mastery`
-- L2981-2995 `    .set_limit_raise`
-- L2996-3003 `    .add_mastery`
-- L3004-3008 `    .remove_mastery`
-- L3009-3016 `    .add_language`
-- L3017-3024 `    .set_language`
-- L3025-3030 `    .remove_language`
-- L3031-3040 `    .add_trait`
-- L3041-3051 `    .remove_decision`
-- L3052-3065 `    .dismiss_note`
-- L3066-3070 `    .set_meta`
-- L3071-3079 `    .set_ancestry`
-- L3080-3153 `    ._gen_level_slots`
-- L3154-3179 `    .add_level`
-- L3180-3199 `    .add_planned_level`
-- L3200-3216 `    .undo_add_level`
-- L3217-3228 `    .export_yaml`
+- L109-123 `def _fmt_grants`
+- L124-127 `def base_name`
+- L128-133 `def is_composite`
+- L134-140 `def class_feature_rows`
+- L141-159 `def class_feature_grants`
+- L160-181 `def class_feature_unarmored`
+- L182-227 `def blank_ledger`
+- L228-235 `### comment-preserving YAML export ----------`
+- L236-240 `def _is_short_scalar`
+- L241-244 `class _LedgerDumper`
+- L245-250 `def _flow_ok`
+- L251-255 `def _rep_list`
+- L256-264 `def _rep_dict`
+- L265-269 `def dump_ledger`
+- L270-279 `def _line_paths`
+- L280-298 `    .walk`
+- L299-312 `def _split_comment`
+- L313-326 `def _extract_comments`
+- L327-363 `    .is_free`
+- L364-369 `def merge_comments`
+- L370-422 `    .resolve`
+- L423-425 `class BuilderAPI`
+- L426-455 `    .__init__`
+- L456-467 `    ._declared_lists`
+- L468-488 `    ._allowed_lists`
+- L489-517 `    ._anc_lists`
+- L518-525 `    ._anc_row`
+- L526-533 `    ._anc_find`
+- L534-541 `    ._anc_find_any`
+- L542-555 `    ._trait_problem`
+- L556-581 `    ._row_targets`
+- L582-585 `    ._pick_target`
+- L586-597 `    ._drop_expertise_row`
+- L598-619 `    ._anc_options`
+- L620-639 `    ._anc_budget`
+- L640-649 `    ._anc_has_undecided`
+- L650-657 `    ._anc_grant_levels`
+- L658-664 `    ._anc_ready_level`
+- L665-669 `    ._anc_minor_count`
+- L670-684 `    ._anc_minor_room`
+- L685-687 `    ._res_slot`
+- L688-696 `    ._res_budget`
+- L697-719 `    ._res_have`
+- L720-742 `    ._res_has_undecided_at`
+- L743-747 `    ._res_has_undecided`
+- L748-768 `    ._res_have_at`
+- L769-782 `    ._res_gained_at`
+- L783-807 `    ._prune_level_overflow`
+- L808-838 `    ._res_ready_level`
+- L839-848 `    ._traits`
+- L849-856 `    ._ssi_schools`
+- L857-867 `    ._grant_tags`
+- L868-880 `    ._spell_grant_tag`
+- L881-907 `    ._spell_grant_source`
+- L908-922 `    ._choice_decl`
+- L923-926 `    ._is_trait_entry`
+- L927-937 `    ._trait_row`
+- L938-942 `    ._choice_pick`
+- L943-948 `    ._choice_row`
+- L949-956 `    ._sorcerous_origin`
+- L957-959 `    ._choice_option`
+- L960-989 `    ._choice_children`
+- L990-1014 `    ._set_choice`
+- L1015-1036 `    ._set_expertise_target`
+- L1037-1058 `    ._apply_origin`
+- L1059-1078 `    ._list_widening`
+- L1079-1091 `    ._talent_rows`
+- L1092-1098 `    ._any_list_defs`
+- L1099-1111 `    ._spell_grant_any`
+- L1112-1126 `    ._any_list_slots`
+- L1127-1182 `    ._spell_access`
+- L1183-1188 `    ._spell_options`
+- L1189-1197 `    ._spell_any_options`
+- L1198-1211 `    ._spell_tagged_options`
+- L1212-1222 `    ._all_sources`
+- L1223-1237 `    ._spell_sourced_options`
+- L1238-1241 `    ._maneuver_options`
+- L1242-1262 `    ._talent_options`
+- L1263-1319 `    ._chosen_names`
+- L1320-1329 `    ._parse_skill_pick`
+- L1330-1344 `    ._parse_plan_pick`
+- L1345-1348 `    ._plan_pick_cost`
+- L1349-1353 `    ._plan_decided`
+- L1354-1363 `    ._mastery_cap_idx`
+- L1364-1370 `    ._plan_catalog_names`
+- L1371-1391 `    ._plan_running_state`
+- L1392-1415 `    ._plan_running_caps`
+- L1416-1418 `    ._skill_running_state`
+- L1419-1444 `    ._plan_options`
+- L1445-1447 `    ._skill_plan_options`
+- L1448-1464 `    ._child_pool`
+- L1465-1521 `    ._options_for`
+- L1522-1671 `    .catalog_problems`
+- L1672-1696 `    ._choice_undecided`
+- L1697-1791 `    .builder_problems`
+- L1792-1819 `    ._origin_decisions`
+- L1820-1928 `    ._decisions`
+- L1929-1943 `    ._hide_held_boons`
+- L1944-1973 `    ._reorder_decisions`
+- L1974-2055 `    ._dec`
+- L2056-2207 `    ._grant_children`
+- L2208-2258 `    ._apply_grants`
+- L2259-2297 `    ._sync_granted_effects`
+- L2298-2309 `    ._sync_training`
+- L2310-2323 `    ._resync_all_granted_effects`
+- L2324-2353 `    ._set_grant_child`
+- L2354-2361 `    ._grant_child_entry`
+- L2362-2385 `    .set_plan_capraise`
+- L2386-2405 `    ._alloc`
+- L2406-2418 `    ._skill_trade_options`
+- L2419-2424 `    ._language_options`
+- L2425-2431 `    ._langs`
+- L2432-2447 `    ._sections`
+- L2448-2463 `    ._level_grant`
+- L2464-2471 `    .next_level_info`
+- L2472-2521 `    .state`
+- L2522-2619 `    .sheet`
+- L2620-2769 `    .set_decision`
+- L2770-2867 `    ._set_trait`
+- L2868-2873 `    ._edited`
+- L2874-2888 `    ._sync_path_rider`
+- L2889-2941 `    ._sync_subclass_rider`
+- L2942-2973 `    ._sync_talent_rider`
+- L2974-2977 `    .set_attr`
+- L2978-2983 `    .set_mastery`
+- L2984-2998 `    .set_limit_raise`
+- L2999-3006 `    .add_mastery`
+- L3007-3011 `    .remove_mastery`
+- L3012-3019 `    .add_language`
+- L3020-3027 `    .set_language`
+- L3028-3033 `    .remove_language`
+- L3034-3043 `    .add_trait`
+- L3044-3054 `    .remove_decision`
+- L3055-3068 `    .dismiss_note`
+- L3069-3073 `    .set_meta`
+- L3074-3082 `    .set_ancestry`
+- L3083-3156 `    ._gen_level_slots`
+- L3157-3182 `    .add_level`
+- L3183-3202 `    .add_planned_level`
+- L3203-3219 `    .undo_add_level`
+- L3220-3231 `    .export_yaml`
 
-## `tools/builder_verify.py`  (282KB, 4672 lines)
+## `tools/builder_verify.py`  (290KB, 4804 lines)
 
-- L75-85 `def ok`
-- L86-89 `def sha`
-- L90-90 `### (1) page blobs`
-- L91-98 `def check_page`
-- L99-132 `    .blob`
-- L133-133 `### FS staging`
-- L134-158 `def stage`
-- L159-162 `def st`
-- L163-166 `def probs`
-- L167-171 `def clean`
-- L172-172 `### (2) baseline`
-- L173-191 `def check_baseline`
-- L192-192 `### (3) widget trips`
-- L193-196 `def find_dec`
-- L197-252 `def check_trips`
-- L253-253 `### (4) new-from-scratch`
-- L254-316 `def drive_fresh`
-- L317-365 `def check_scratch`
-- L366-366 `### (5) add-a-level`
-- L367-472 `def check_addlevel`
-- L473-473 `### (6) received-file safety`
-- L474-494 `def check_received`
-- L495-495 `### (7) comments`
-- L496-555 `def check_comments`
-- L556-556 `### (8) round-2 bug fixes`
-- L557-619 `def check_new_features`
-- L620-620 `### (9) character sheet`
-- L621-692 `def check_sheet`
-- L693-710 `### (10) new derived stats`
-- L711-771 `def check_newstats`
-- L772-772 `### (39) Rest Points + L5 class features`
-- L773-812 `def check_companion_rest_points`
-- L813-857 `def check_l5_class_features`
-- L858-903 `def check_expertise`
-- L904-965 `    .xnode`
-- L966-966 `### (38) Companion damage/roll surface`
-- L967-1074 `def check_companion_dmg_roll`
-- L1075-1075 `### (11) composite re-pick escape hatch`
-- L1076-1079 `def check_replace_hatch`
-- L1080-1081 `    .find`
-- L1082-1168 `    .precon`
-- L1169-1169 `### (12) Wave 2 UX`
-- L1170-1309 `def check_wave2`
-- L1310-1310 `### (13) FR-8 slice 2 backbone`
-- L1311-1404 `def check_slice2`
-- L1405-1405 `### (14) FR-8 slice 3 Rune Knight`
-- L1406-1465 `def check_slice3`
-- L1466-1466 `### (15) FR-8 slice 4 Meta Magic talent`
-- L1467-1528 `def check_slice4`
-- L1529-1529 `### (16) FR-8 slice 5 Eldritch Psychic spell`
-- L1530-1626 `def check_slice5`
-- L1627-1688 `    ._offlist`
-- L1689-1716 `def check_fr3`
-- L1717-1784 `    .only_pointbuy`
-- L1785-1788 `def check_fr3_slice2`
-- L1789-1791 `    .skl`
-- L1792-1906 `    .onames`
-- L1907-1909 `def check_fr17`
-- L1910-1981 `    .dsl`
-- L1982-2022 `def check_fr6`
-- L2023-2098 `    ._link`
-- L2099-2099 `### (21) FR-20 picker order`
-- L2100-2106 `def FR20_RANK_OF`
-- L2107-2111 `def check_fr20`
-- L2112-2166 `    .rank`
-- L2167-2184 `    .slot_seq`
-- L2185-2185 `### (22) FR-9 ancestry slots/budget`
-- L2186-2250 `def check_fr9`
-- L2251-2251 `### (23) BUG-16 maneuver/spell edit-only`
-- L2252-2275 `def check_bug16`
-- L2276-2276 `### (24) FR-36 category left accent`
-- L2277-2321 `def check_fr36`
-- L2322-2322 `### (25) FR-21 category sub-headers`
-- L2323-2350 `def check_fr21`
-- L2351-2351 `### (26) FR-4 display-name rename`
-- L2352-2374 `def check_fr4`
-- L2375-2375 `### (27) FR-23 Stamina Regen`
-- L2376-2397 `def check_fr23`
-- L2398-2500 `def check_grants_only`
-- L2501-2501 `### option-effects (scratch-mode grants)`
-- L2502-2510 `def check_option_effects`
-- L2511-2514 `    .stat`
-- L2515-2517 `    .last_trait_slot`
-- L2518-2549 `    .fresh`
-- L2550-2579 `    .origins`
-- L2580-2786 `    .gchild`
-- L2787-2787 `### class features (BUG-19 / BUG-21 / BUG-22)`
-- L2788-2795 `def check_class_features`
-- L2796-2799 `    .stat`
-- L2800-2803 `    .cf_rows`
-- L2804-2900 `    .val`
-- L2901-2901 `### sheet ability groups + build stamp (BUG-32 / FR-43)`
-- L2902-2942 `def check_sheet_groups`
-- L2943-2954 `def _fresh_at`
-- L2955-2961 `def _pick_trait`
-- L2962-2966 `def _stat`
-- L2967-3092 `def check_ch5_burndown`
-- L3093-3132 `def check_bug33_class_talents`
-- L3133-3140 `def _earned_tp`
-- L3141-3146 `def _sub_pick`
-- L3147-3230 `def check_bug35_paragon`
-- L3231-3243 `def check_bug34_grant_child_effects`
-- L3244-3338 `    .snap`
-- L3339-3434 `### (RT) FR-46 exhaustive option round-trip`
-- L3435-3443 `def _rt_attr_keys`
-- L3444-3456 `def _rt_attrs`
-- L3457-3460 `def _rt_attr_val`
-- L3461-3480 `def _rt_variant_pick`
-- L3481-3486 `def _rt_ok`
-- L3487-3490 `def _rt_stats`
-- L3491-3499 `def _rt_num`
-- L3500-3509 `def _rt_earned`
-- L3510-3524 `def _rt_snap`
-- L3525-3533 `def _rt_new_decs`
-- L3534-3538 `def _rt_probe_ancestry`
-- L3539-3545 `def _rt_open_trait`
-- L3546-3553 `def _rt_probe_talent`
-- L3554-3565 `def _rt_fleet`
-- L3566-3624 `    .note`
-- L3625-3702 `def check_fr46_round_trip`
-- L3703-3731 `def _rt_catalog_row`
-- L3732-3790 `def _rt_assert_grants`
-- L3791-3832 `def _rt_check_fixed_at`
-- L3833-3945 `def _rt_check_option`
-- L3946-3955 `def _rt_expertise_node`
-- L3956-3979 `def _rt_assert_expertise`
-- L3980-4000 `def _rt_any_movement`
-- L4001-4007 `def _rt_class_offering`
-- L4008-4020 `def _rt_subclass_child`
-- L4021-4027 `def _rt_chargen_slot`
-- L4028-4046 `def _rt_assert_spell_access`
-- L4047-4054 `def _rt_assert_choice`
-- L4055-4063 `def _rt_assert_opens`
-- L4064-4104 `def _rt_check_fixed`
-- L4105-4135 `def _rt_check_todos`
-- L4136-4144 `def _all_grant_bearers`
-- L4145-4145 `### (41) FR-42 + FR-48`
-- L4146-4153 `def check_fr42_fr48`
-- L4154-4156 `    .dec`
-- L4157-4161 `    .spell_opts`
-- L4162-4246 `    .take_talent`
-- L4247-4253 `def check_bug26_sorcerous_origin`
-- L4254-4256 `    .dec`
-- L4257-4308 `    .stat`
-- L4309-4322 `def check_bug53_conditional_live`
-- L4323-4386 `    .probe`
-- L4387-4393 `def check_bug46_expanded_boon`
-- L4394-4438 `    .boons`
-- L4439-4448 `def check_fr50_export_fixed_point`
-- L4449-4489 `    .changed`
-- L4490-4495 `### (46) FR-49`
-- L4496-4508 `def check_fr49_equipment_effects`
-- L4509-4574 `    .row`
-- L4575-4586 `def main`
-- L4587-4589 `    .want`
-- L4590-4642 `    .run`
-- L4643-4672 `def _print_pass_summary`
+- L76-86 `def ok`
+- L87-90 `def sha`
+- L91-91 `### (1) page blobs`
+- L92-99 `def check_page`
+- L100-133 `    .blob`
+- L134-134 `### FS staging`
+- L135-159 `def stage`
+- L160-163 `def st`
+- L164-167 `def probs`
+- L168-172 `def clean`
+- L173-173 `### (2) baseline`
+- L174-192 `def check_baseline`
+- L193-193 `### (3) widget trips`
+- L194-197 `def find_dec`
+- L198-253 `def check_trips`
+- L254-254 `### (4) new-from-scratch`
+- L255-317 `def drive_fresh`
+- L318-366 `def check_scratch`
+- L367-367 `### (5) add-a-level`
+- L368-473 `def check_addlevel`
+- L474-474 `### (6) received-file safety`
+- L475-495 `def check_received`
+- L496-496 `### (7) comments`
+- L497-556 `def check_comments`
+- L557-557 `### (8) round-2 bug fixes`
+- L558-620 `def check_new_features`
+- L621-621 `### (9) character sheet`
+- L622-693 `def check_sheet`
+- L694-711 `### (10) new derived stats`
+- L712-772 `def check_newstats`
+- L773-773 `### (39) Rest Points + L5 class features`
+- L774-813 `def check_companion_rest_points`
+- L814-858 `def check_l5_class_features`
+- L859-904 `def check_expertise`
+- L905-966 `    .xnode`
+- L967-967 `### (38) Companion damage/roll surface`
+- L968-1075 `def check_companion_dmg_roll`
+- L1076-1076 `### (11) composite re-pick escape hatch`
+- L1077-1080 `def check_replace_hatch`
+- L1081-1082 `    .find`
+- L1083-1169 `    .precon`
+- L1170-1170 `### (12) Wave 2 UX`
+- L1171-1310 `def check_wave2`
+- L1311-1311 `### (13) FR-8 slice 2 backbone`
+- L1312-1405 `def check_slice2`
+- L1406-1406 `### (14) FR-8 slice 3 Rune Knight`
+- L1407-1466 `def check_slice3`
+- L1467-1467 `### (15) FR-8 slice 4 Meta Magic talent`
+- L1468-1529 `def check_slice4`
+- L1530-1530 `### (16) FR-8 slice 5 Eldritch Psychic spell`
+- L1531-1627 `def check_slice5`
+- L1628-1689 `    ._offlist`
+- L1690-1717 `def check_fr3`
+- L1718-1785 `    .only_pointbuy`
+- L1786-1789 `def check_fr3_slice2`
+- L1790-1792 `    .skl`
+- L1793-1907 `    .onames`
+- L1908-1910 `def check_fr17`
+- L1911-1982 `    .dsl`
+- L1983-2023 `def check_fr6`
+- L2024-2099 `    ._link`
+- L2100-2100 `### (21) FR-20 picker order`
+- L2101-2107 `def FR20_RANK_OF`
+- L2108-2112 `def check_fr20`
+- L2113-2167 `    .rank`
+- L2168-2185 `    .slot_seq`
+- L2186-2186 `### (22) FR-9 ancestry slots/budget`
+- L2187-2251 `def check_fr9`
+- L2252-2252 `### (23) BUG-16 maneuver/spell edit-only`
+- L2253-2276 `def check_bug16`
+- L2277-2277 `### (24) FR-36 category left accent`
+- L2278-2322 `def check_fr36`
+- L2323-2323 `### (25) FR-21 category sub-headers`
+- L2324-2351 `def check_fr21`
+- L2352-2352 `### (26) FR-4 display-name rename`
+- L2353-2375 `def check_fr4`
+- L2376-2376 `### (27) FR-23 Stamina Regen`
+- L2377-2398 `def check_fr23`
+- L2399-2501 `def check_grants_only`
+- L2502-2502 `### option-effects (scratch-mode grants)`
+- L2503-2511 `def check_option_effects`
+- L2512-2515 `    .stat`
+- L2516-2518 `    .last_trait_slot`
+- L2519-2550 `    .fresh`
+- L2551-2580 `    .origins`
+- L2581-2787 `    .gchild`
+- L2788-2788 `### class features (BUG-19 / BUG-21 / BUG-22)`
+- L2789-2796 `def check_class_features`
+- L2797-2800 `    .stat`
+- L2801-2804 `    .cf_rows`
+- L2805-2901 `    .val`
+- L2902-2902 `### sheet ability groups + build stamp (BUG-32 / FR-43)`
+- L2903-2943 `def check_sheet_groups`
+- L2944-2955 `def _fresh_at`
+- L2956-2962 `def _pick_trait`
+- L2963-2967 `def _stat`
+- L2968-3093 `def check_ch5_burndown`
+- L3094-3133 `def check_bug33_class_talents`
+- L3134-3141 `def _earned_tp`
+- L3142-3147 `def _sub_pick`
+- L3148-3231 `def check_bug35_paragon`
+- L3232-3244 `def check_bug34_grant_child_effects`
+- L3245-3339 `    .snap`
+- L3340-3435 `### (RT) FR-46 exhaustive option round-trip`
+- L3436-3444 `def _rt_attr_keys`
+- L3445-3457 `def _rt_attrs`
+- L3458-3461 `def _rt_attr_val`
+- L3462-3481 `def _rt_variant_pick`
+- L3482-3487 `def _rt_ok`
+- L3488-3491 `def _rt_stats`
+- L3492-3500 `def _rt_num`
+- L3501-3510 `def _rt_earned`
+- L3511-3525 `def _rt_snap`
+- L3526-3534 `def _rt_new_decs`
+- L3535-3539 `def _rt_probe_ancestry`
+- L3540-3546 `def _rt_open_trait`
+- L3547-3554 `def _rt_probe_talent`
+- L3555-3566 `def _rt_fleet`
+- L3567-3625 `    .note`
+- L3626-3703 `def check_fr46_round_trip`
+- L3704-3732 `def _rt_catalog_row`
+- L3733-3791 `def _rt_assert_grants`
+- L3792-3833 `def _rt_check_fixed_at`
+- L3834-3946 `def _rt_check_option`
+- L3947-3956 `def _rt_expertise_node`
+- L3957-3980 `def _rt_assert_expertise`
+- L3981-4001 `def _rt_any_movement`
+- L4002-4008 `def _rt_class_offering`
+- L4009-4021 `def _rt_subclass_child`
+- L4022-4028 `def _rt_chargen_slot`
+- L4029-4047 `def _rt_assert_spell_access`
+- L4048-4055 `def _rt_assert_choice`
+- L4056-4064 `def _rt_assert_opens`
+- L4065-4105 `def _rt_check_fixed`
+- L4106-4136 `def _rt_check_todos`
+- L4137-4145 `def _all_grant_bearers`
+- L4146-4146 `### (41) FR-42 + FR-48`
+- L4147-4154 `def check_fr42_fr48`
+- L4155-4157 `    .dec`
+- L4158-4162 `    .spell_opts`
+- L4163-4247 `    .take_talent`
+- L4248-4254 `def check_bug26_sorcerous_origin`
+- L4255-4257 `    .dec`
+- L4258-4309 `    .stat`
+- L4310-4323 `def check_bug53_conditional_live`
+- L4324-4387 `    .probe`
+- L4388-4394 `def check_bug46_expanded_boon`
+- L4395-4439 `    .boons`
+- L4440-4449 `def check_fr50_export_fixed_point`
+- L4450-4490 `    .changed`
+- L4491-4497 `### (46) FR-49`
+- L4498-4510 `def check_fr49_equipment_effects`
+- L4511-4576 `    .row`
+- L4577-4606 `### (47) CH-14`
+- L4607-4625 `def ch14_scan`
+- L4626-4706 `def check_ch14_engine_labels`
+- L4707-4718 `def main`
+- L4719-4721 `    .want`
+- L4722-4774 `    .run`
+- L4775-4804 `def _print_pass_summary`
 
-## `tools/catalog_verify.py`  (79KB, 1359 lines)
+## `tools/catalog_verify.py`  (79KB, 1360 lines)
 
-- L58-62 `def load`
-- L63-67 `def read`
-- L68-78 `def expect`
-- L79-82 `def norm`
-- L83-87 `def base_name`
-- L88-95 `def split_names`
-- L96-121 `### (1) the 66/66 oracle -------------------------------------------------`
-- L122-139 `### load the catalog -----------------------------------------------------`
-- L140-154 `### spells.md metadata (name -> source/school/tags) ----------------------`
-- L155-237 `### (2) catalog vs the six ledgers ---------------------------------------`
-- L238-252 `def anc_lookup`
-- L253-261 `def iter_traits`
-- L262-281 `def spell_picks`
-- L282-298 `def maneuver_picks`
-- L299-305 `def origin_opt`
-- L306-312 `def talent_picks`
-- L313-331 `def resolve_talent`
-- L332-335 `def school_of`
-- L336-574 `def check_ledger`
-- L575-643 `### (2b) ledger class-feature rows vs class_features.yaml ----------------`
-- L644-650 `### (3) curated files vs rules source ------------------------------------`
-- L651-671 `def ancestry_region`
-- L672-714 `def parse_ancestry`
-- L715-771 `def parse_origin_types`
-- L772-871 `def school_list`
-- L872-914 `### (4) Stamina Regen catalog (FR-23) ------------------------------------`
-- L915-992 `### (5) Damage add-ons catalog (FR-25) -----------------------------------`
-- L993-1010 `### BUG-52: the Impact weapon property -----------------------------------`
-- L1011-1049 `def _weapon_props`
-- L1050-1058 `### FR-52: the three roll-section modifiers, all cited -------------------`
-- L1059-1083 `### (5b) Rest Point hooks catalog (FR-55) --------------------------------`
-- L1084-1158 `### (4) option-coverage ledger -------------------------------------------`
-- L1159-1173 `### Skill / Trade Expertise (BUG-20, 2026-09-23) -------------------------`
-- L1174-1188 `def _section_of`
-- L1189-1235 `def _ex_targets`
-- L1236-1286 `### ledger entry grants must agree with the catalog row they name (CH-5, 2`
-- L1287-1343 `### FR-42 / FR-48: talent training riders and the choice node, against the`
-- L1344-1359 `### verdict --------------------------------------------------------------`
+- L59-63 `def load`
+- L64-68 `def read`
+- L69-79 `def expect`
+- L80-83 `def norm`
+- L84-88 `def base_name`
+- L89-96 `def split_names`
+- L97-122 `### (1) the 66/66 oracle -------------------------------------------------`
+- L123-140 `### load the catalog -----------------------------------------------------`
+- L141-155 `### spells.md metadata (name -> source/school/tags) ----------------------`
+- L156-238 `### (2) catalog vs the six ledgers ---------------------------------------`
+- L239-253 `def anc_lookup`
+- L254-262 `def iter_traits`
+- L263-282 `def spell_picks`
+- L283-299 `def maneuver_picks`
+- L300-306 `def origin_opt`
+- L307-313 `def talent_picks`
+- L314-332 `def resolve_talent`
+- L333-336 `def school_of`
+- L337-575 `def check_ledger`
+- L576-644 `### (2b) ledger class-feature rows vs class_features.yaml ----------------`
+- L645-651 `### (3) curated files vs rules source ------------------------------------`
+- L652-672 `def ancestry_region`
+- L673-715 `def parse_ancestry`
+- L716-772 `def parse_origin_types`
+- L773-872 `def school_list`
+- L873-915 `### (4) Stamina Regen catalog (FR-23) ------------------------------------`
+- L916-993 `### (5) Damage add-ons catalog (FR-25) -----------------------------------`
+- L994-1011 `### BUG-52: the Impact weapon property -----------------------------------`
+- L1012-1050 `def _weapon_props`
+- L1051-1059 `### FR-52: the three roll-section modifiers, all cited -------------------`
+- L1060-1084 `### (5b) Rest Point hooks catalog (FR-55) --------------------------------`
+- L1085-1159 `### (4) option-coverage ledger -------------------------------------------`
+- L1160-1174 `### Skill / Trade Expertise (BUG-20, 2026-09-23) -------------------------`
+- L1175-1189 `def _section_of`
+- L1190-1236 `def _ex_targets`
+- L1237-1287 `### ledger entry grants must agree with the catalog row they name (CH-5, 2`
+- L1288-1344 `### FR-42 / FR-48: talent training riders and the choice node, against the`
+- L1345-1360 `### verdict --------------------------------------------------------------`
 
-## `tools/build_engine.py`  (38KB, 802 lines)
+## `tools/build_engine.py`  (41KB, 858 lines)
 
 - L25-31 `### rules data`
 - L32-42 `def _spine_candidates`
 - L43-73 `def load_class_tables`
-- L74-77 `def attribute_limit`
-- L78-85 `def mastery_limit`
-- L86-89 `def cm`
-- L90-90 `### replay`
-- L91-91 `class Report`
-- L92-95 `    .__init__`
-- L96-98 `    .add`
-- L99-109 `    .check`
-- L110-113 `    .problem`
-- L114-117 `def cumulative`
-- L118-121 `def entries_for`
-- L122-149 `def all_entries`
-- L150-158 `def is_unarmored`
-- L159-164 `def active_grant_keys`
-- L165-175 `def held_pact_boons`
-- L176-188 `def class_feature_rider_grants`
-- L189-196 `def _entry_grants`
-- L197-206 `def _grant_bearers`
-- L207-226 `def sum_grants`
-- L227-237 `def item_bonus`
-- L238-248 `def attribute_deltas`
-- L249-278 `def unresolved_attribute_grants`
-- L279-296 `def expertise_raises`
-- L297-314 `def ancestry_grant_levels`
-- L315-329 `def ancestry_budget`
-- L330-338 `def grant_flag`
-- L339-363 `def combat_training`
-- L364-669 `def replay`
-- L670-686 `def stamina_regen`
-- L687-714 `    .add`
-- L715-731 `def held_names`
-- L732-745 `def rest_point_hooks`
-- L746-776 `def damage_addons`
-- L777-802 `def main`
+- L74-121 `### named labels (CH-14)`
+- L122-126 `def path_levels`
+- L127-130 `def attribute_limit`
+- L131-138 `def mastery_limit`
+- L139-142 `def cm`
+- L143-143 `### replay`
+- L144-144 `class Report`
+- L145-148 `    .__init__`
+- L149-151 `    .add`
+- L152-162 `    .check`
+- L163-166 `    .problem`
+- L167-170 `def cumulative`
+- L171-174 `def entries_for`
+- L175-202 `def all_entries`
+- L203-211 `def is_unarmored`
+- L212-217 `def active_grant_keys`
+- L218-228 `def held_pact_boons`
+- L229-241 `def class_feature_rider_grants`
+- L242-249 `def _entry_grants`
+- L250-259 `def _grant_bearers`
+- L260-281 `def sum_grants`
+- L282-292 `def item_bonus`
+- L293-303 `def attribute_deltas`
+- L304-333 `def unresolved_attribute_grants`
+- L334-351 `def expertise_raises`
+- L352-369 `def ancestry_grant_levels`
+- L370-384 `def ancestry_budget`
+- L385-393 `def grant_flag`
+- L394-418 `def combat_training`
+- L419-725 `def replay`
+- L726-742 `def stamina_regen`
+- L743-770 `    .add`
+- L771-787 `def held_names`
+- L788-801 `def rest_point_hooks`
+- L802-832 `def damage_addons`
+- L833-858 `def main`
 
-## `tools/builder_smoke.py`  (35KB, 743 lines)
+## `tools/builder_smoke.py`  (35KB, 741 lines)
 
-- L70-121 `def attr_cell`
-- L122-137 `def ok`
-- L138-142 `def load`
-- L143-159 `def flat_stat_grants`
-- L160-174 `def resolve_target`
-- L175-182 `def _force_close`
-- L183-184 `class _QuietHandler`
-- L185-188 `    .log_message`
-- L189-196 `def serve`
-- L197-216 `### CH-12: offline Pyodide`
-- L217-224 `def pyo_cache_enabled`
-- L225-241 `def _pyo_fetch`
-- L242-242 `def install_pyodide_cache`
-- L243-258 `    .handler`
-- L259-259 `### page driver`
-- L260-268 `class Page`
-- L269-279 `    .__init__`
-- L280-300 `    .recycle`
-- L301-305 `    .stats`
-- L306-308 `    .stat`
-- L309-314 `    .rows`
-- L315-321 `    .decs`
-- L322-325 `    .options`
-- L326-329 `    .choose`
-- L330-342 `    .start`
-- L343-348 `    .point_buy`
-- L349-352 `    .ancestry`
-- L353-359 `    .add_trait`
-- L360-364 `    .add_level`
-- L365-365 `### journeys`
-- L366-387 `def j_boot_and_class_features`
-- L388-438 `def j_trait_effects`
-- L439-489 `def j_class_talents`
-- L490-514 `def j_sheet`
-- L515-547 `def j_expertise_readout`
-- L548-580 `def j_spell_list_widening`
-- L581-614 `def j_rule_panel`
-- L615-615 `### main`
-- L616-743 `def main`
+- L68-119 `def attr_cell`
+- L120-135 `def ok`
+- L136-140 `def load`
+- L141-157 `def flat_stat_grants`
+- L158-172 `def resolve_target`
+- L173-180 `def _force_close`
+- L181-182 `class _QuietHandler`
+- L183-186 `    .log_message`
+- L187-194 `def serve`
+- L195-214 `### CH-12: offline Pyodide`
+- L215-222 `def pyo_cache_enabled`
+- L223-239 `def _pyo_fetch`
+- L240-240 `def install_pyodide_cache`
+- L241-256 `    .handler`
+- L257-257 `### page driver`
+- L258-266 `class Page`
+- L267-277 `    .__init__`
+- L278-298 `    .recycle`
+- L299-303 `    .stats`
+- L304-306 `    .stat`
+- L307-312 `    .rows`
+- L313-319 `    .decs`
+- L320-323 `    .options`
+- L324-327 `    .choose`
+- L328-340 `    .start`
+- L341-346 `    .point_buy`
+- L347-350 `    .ancestry`
+- L351-357 `    .add_trait`
+- L358-362 `    .add_level`
+- L363-363 `### journeys`
+- L364-385 `def j_boot_and_class_features`
+- L386-436 `def j_trait_effects`
+- L437-487 `def j_class_talents`
+- L488-512 `def j_sheet`
+- L513-545 `def j_expertise_readout`
+- L546-578 `def j_spell_list_widening`
+- L579-612 `def j_rule_panel`
+- L613-613 `### main`
+- L614-741 `def main`
 
 ## `tools/coverage.py`  (8KB, 201 lines)
 

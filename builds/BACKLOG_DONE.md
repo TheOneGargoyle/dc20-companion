@@ -12,6 +12,7 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | DONE (2026-09-24, `build_engine.LBL_*`/`FEAT_*`, `path_levels()`; guard builder_verify (47); pure refactor) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | DONE (2026-09-24, `EQUIP_EFFECT_KEYS` + `item_bonus`; builder sheet Xanwyn HP 11 -> 13) |
 | FR-50 | The builder's ledger export reformats the whole file | feature | builder | P2 | DONE (2026-09-24, option (b): export is the house format, six ledgers reformatted once, fixed point asserted) |
 | BUG-1 | Xanwyn Elven fluency wrong (Fluent should be Limited) | bug | data | P2 | done (2026-07-16) |
@@ -279,6 +280,12 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**CH-14 (2026-09-24), the engine names its labels and spine strings.** Pure refactor, CH-10 fix 2.
+- `build_engine`: `LBL_*` + `DERIVED_LABELS` (check-table order), `DERIVED_KEYS`, `GRANT_STAT_LABEL` (A10, one map, `sp` in), `EQUIP_EFFECT_LABEL`, `OVERLAY_MISMATCH_LABELS` (A18), `FEAT_*` (A21), `path_levels(table)` replaces `PATH_LEVELS` (A4). `rep.check` uses the constants.
+- Readers: `builder_api` (`SHEET_CORE` beside `GRANT_CHILD_SLOTS`, known-count labels, sheet reads, equipment chip labels, `_gen_level_slots`), `companion-src/build.py` PARTY_DERIVED, `builder_verify` `RT_STAT`/`FR49_STAT`/`MISMATCH_LABELS`, `catalog_verify` oracle filter, `builder_smoke` `GRANT_STAT`/`ATTR_ROW`.
+- Guard first, builder_verify (47), 33 checks: replay emits exactly `DERIVED_LABELS` on all six; every map inside it; a regex scan of consumer read sites (sheet JS `c['..']`, harness `stat()`/`P.stat()`) must hit only real labels, and `builder_api`/Companion must hold no literal label read at all; in-suite probes feed a misspelt `c['Save Dc']` and a literal `_d["HP"]` and must go red; every `FEAT_*` is in every spine. Red 23 before the refactor; red again on a real misspelt sheet label, a smoke `P.stat("Jump Distnace")`, and an engine rename `LBL_GRIT = "Grt"`.
+- Byte-identity: state/sheet/export + replay per level for all six, scratch L1-L10 per class plus a plan, and the Companion (build stamp masked) identical before and after. Harness literals in test assertions stay literal but are now scanned. The sheet JS display text (chip captions) is prose, not a read.
 
 **CH-15 + BUG-50 (2026-09-24), one CI edit.** `make_map.py --check` renders in memory and diffs; exit 1 on stale or missing, CRLF-only is PASS (universal-newline read); the write now forces LF. Mutation-tested: a new def, a shifted line, a deleted MAP.md all FAIL; it also caught this very commit's `builder_verify.py` edit before regeneration. BUG-50 reproduced first: builder_verify (38) already BUILDS the Companion in CI, so "never builds" was stale. Actually open were (a) no `companion-src/**` in verify.yml's push paths, so a template-only push published unverified, and (b) the ORC attribution card was read by nothing; (38) now asserts it in the built artifact (+7 checks, 979), mutation-tested by breaking the ORC link and the attribution. `catalog_build.py --check` is NOT a staleness check (it only prints), so it was not the pattern after all. verify.yml is hand-placed (bridge refuses `.github/workflows/**`).
 

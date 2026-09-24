@@ -38,7 +38,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
 | BUG-51 | `sync-commit-push.bat` copies 5 subfolders and NO root files, so a root-level change cannot ship | bug | repo | P2 | ready (found 2026-08-14 when `.gitignore` could not reach the clone; see note) |
 | CH-16 | `builder_build.py` still hand-lists the old 12 conditions; derive it like the Companion now does | chore | builder+tools | P3 | ready (the duplicate BUG-40 left behind, see note) |
-| CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
 | FR-47 | Extend the FR-44 coverage walker to BARE-STRING option lists (subclasses today), so a whole pickable surface cannot sit outside the ledger | feature | catalog+repo | P2 | ready (split out of BUG-35 2026-07-27, see note) |
 | CH-4 | Fill `class_features.yaml` L5-L10 (L1-L6 done) so no level falls back to the generic "Class Feature" label | chore | catalog | P3 | PARTIAL 2026-09-23, L5 Expert features + L6 done ahead of the party's L5; L7-L10 remain |
 | FR-11 | Gear catalog / picker (gear Tier B) | feature | engine+catalog+builder | P3 | parked |
@@ -404,8 +403,8 @@ strongest argument the project has for the assert-it discipline.
    the **PARTY_DERIVED guarantee** (the load-time-resync check at `builder_verify.py:2920`), which is
    a real invariant: `granted_effects` is the builder's derived half, so a hand-authored copy can
    silently disagree with the bake the Companion ships. Do not put it in a canon ledger.
-2. **CH-14. Name the engine's derived-stat labels and spine-feature strings as constants in
-   `build_engine.py`** and import them everywhere. Collapses five rows and removes the string-matching
+2. **CH-14. DONE 2026-09-24** (see `BACKLOG_DONE.md` Chores). Name the engine's derived-stat labels and spine-feature strings as constants in
+   `build_engine.py` and import them everywhere. Collapses five rows and removes the string-matching
    layer that four of the six confirmed-silent breakages travel through.
 3. **BUG-38. DONE, shipped `1711be0`.** One line, and without it nothing else here reaches production
    anyway. **It missed `fa15db4` first, and the reason generalises, so it is recorded here.** The

@@ -106,13 +106,13 @@ for _k, _fn in PARTY_LEDGERS.items():
     _rep = _be.replay(_led, _lvl)
     _d = _rep.derived
     party_derived[_k] = {
-        "level": _d["Level"], "cm": _d["Combat Mastery"],
+        "level": _d[_be.LBL_LEVEL], "cm": _d[_be.LBL_CM],
         # BUG-37: the Mana/Stamina Spend Limit, derived not frozen; caps the damage steppers.
         "spend_limit": _d["spend_limit"],
-        "attack": _d["Attack/Spell Check"], "save_dc": _d["Save DC"],
-        "initiative": _d["Initiative"], "grit": _d["Grit"],
-        "hp": _d["HP"], "sp": _d["SP"], "mp": _d["MP"],
-        "pd": _d["PD"], "ad": _d["AD"],
+        "attack": _d[_be.LBL_ATTACK], "save_dc": _d[_be.LBL_SAVE_DC],
+        "initiative": _d[_be.LBL_INITIATIVE], "grit": _d[_be.LBL_GRIT],
+        "hp": _d[_be.LBL_HP], "sp": _d[_be.LBL_SP], "mp": _d[_be.LBL_MP],
+        "pd": _d[_be.LBL_PD], "ad": _d[_be.LBL_AD],
         "dr": _d.get("dr", {}),  # FR-16A: engine-derived Damage Reduction, e.g. {"PDR":["half"],"MDR":["half"]}
         "stamina_regen": _be.stamina_regen(_led, _REGEN_CAT),  # FR-23
         "damage_addons": _be.damage_addons(_k, _DMG_CAT),  # FR-25

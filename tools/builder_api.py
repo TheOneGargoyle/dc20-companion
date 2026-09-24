@@ -51,6 +51,10 @@ SHEET_SLOT_ALIAS = {'class_features': 'class_feature', 'pact_boons': 'pact_boon'
 
 GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
                      'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
+# CH-14: the engine derived-stat rows the character sheet's core block carries, in the order the
+# sheet JS reads them (c['HP'] etc.). Engine constants, never literals; builder_verify (47) asserts it.
+SHEET_CORE = (eng.LBL_ATTACK, eng.LBL_SAVE_DC, eng.LBL_INITIATIVE, eng.LBL_GRIT, eng.LBL_HP, eng.LBL_SP,
+              eng.LBL_MP, eng.LBL_SPELLS, eng.LBL_MANEUVERS, eng.LBL_PD, eng.LBL_AD)
 # FR-17: a planned skill/trade pick can buy a Mastery-Limit raise ("cap+", core-rules.md l.991-1005):
 # it may sit ONE tier above the level cap and costs 2 points (the tier step + the limit raise). The
 # purchase is recorded as a " (cap+)" suffix on the granted value ("Awareness: Expert (cap+)"). A
@@ -684,7 +688,7 @@ class BuilderAPI:
     def _res_budget(self, resource):
         # engine-derived known count = single source of truth for the budget.
         cur = self.ledger['current_level']
-        lbl = 'Maneuvers known' if resource == 'maneuvers' else 'Spells known'
+        lbl = eng.LBL_MANEUVERS if resource == 'maneuvers' else eng.LBL_SPELLS
         try:
             return int(eng.replay(self.ledger, cur).derived.get(lbl) or 0)
         except Exception:
@@ -765,7 +769,7 @@ class BuilderAPI:
     def _res_gained_at(self, resource, lvl):
         # how many of this resource the level GRANTED = the engine budget delta across it. Any source
         # counts (class table, path rider, talent, subclass, ancestry trait) with no per-feature data.
-        lbl = 'Maneuvers known' if resource == 'maneuvers' else 'Spells known'
+        lbl = eng.LBL_MANEUVERS if resource == 'maneuvers' else eng.LBL_SPELLS
 
         def budget(l):
             if l < 1:
@@ -2455,7 +2459,7 @@ class BuilderAPI:
             if v:
                 bits.append('+%d %s' % (v, lab))
         return {'summary': ', '.join(bits),
-                'features': [f for f in row.get('features', []) if f != 'Class Features']}
+                'features': [f for f in row.get('features', []) if f != eng.FEAT_CLASS_FEATURES]}
 
     def next_level_info(self):
         cur = self.ledger['current_level']
@@ -2525,16 +2529,16 @@ class BuilderAPI:
             except Exception:
                 return 0
         attrs = {}
-        for part in str(st.get('Attributes', '')).split(' / '):
+        for part in str(st.get(eng.LBL_ATTRIBUTES, '')).split(' / '):
             part = part.strip()
             if not part:
                 continue
             ab, val = part.rsplit(' ', 1)
             key = {'Mig': 'Might', 'Agi': 'Agility', 'Cha': 'Charisma', 'Int': 'Intelligence'}.get(ab, ab)
             attrs[key] = num(val)
-        prime = num(st.get('Prime'))
-        cmv = num(st.get('Combat Mastery'))
-        hp = num(st.get('HP'))
+        prime = num(st.get(eng.LBL_PRIME))
+        cmv = num(st.get(eng.LBL_CM))
+        hp = num(st.get(eng.LBL_HP))
         MB = {'Novice': 2, 'Adept': 4, 'Expert': 6, 'Master': 8, 'Grandmaster': 10}
         skmap = (self.cat.get('skills_trades') or {}).get('skills') or {}
         attr_of = {}
@@ -2584,15 +2588,14 @@ class BuilderAPI:
         # FR-49: each item's numeric effects as [LABEL, value] pairs, in the engine's
         # EQUIP_EFFECT_KEYS order, so the sheet chips cannot drift from what the engine sums.
         equipment = [{'name': it.get('name'), 'pd': it.get('pd'), 'ad': it.get('ad'), 'mods': it.get('mods'),
-                      'bonus': [[('Saves' if k == 'saves' else k.upper()), it[k]] for k in eng.EQUIP_EFFECT_KEYS
+                      'bonus': [[eng.EQUIP_EFFECT_LABEL[k], it[k]] for k in eng.EQUIP_EFFECT_KEYS
                                 if eng.item_bonus({'equipment': [it]}, k)]}
                      for it in (self.ledger.get('equipment') or [])]
         return json.dumps({
             'character': s['character'], 'player': s['player'], 'klass': s['klass'],
             'subclass': s['subclass'], 'ancestry': s['ancestry'], 'background': s['background'],
             'level': cur, 'cm': cmv, 'prime': prime, 'attrs': attrs,
-            'core': {k: st.get(k) for k in ('Attack/Spell Check', 'Save DC', 'Initiative', 'Grit',
-                                            'HP', 'SP', 'MP', 'Spells known', 'Maneuvers known', 'PD', 'AD')},
+            'core': {k: st.get(k) for k in SHEET_CORE},
             'derived': {'bloodied': math.ceil(hp / 2), 'well_bloodied': math.ceil(hp / 4),
                         'death_threshold': eder.get('death_threshold', prime + cmv), 'rest_points': hp,
                         'saves': eder.get('saves', {}), 'move': eder.get('move'),
@@ -3093,16 +3096,16 @@ class BuilderAPI:
         for _ in range(row.get('attribute_points', 0)):
             add({'slot': 'attribute', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
         for f in row.get('features', []):
-            if f == 'Talent':
+            if f == eng.FEAT_TALENT:
                 add({'slot': 'talent', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-            elif f == 'Path':
+            elif f == eng.FEAT_PATH:
                 add({'slot': 'path', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-            elif f == 'Subclass':
+            elif f == eng.FEAT_SUBCLASS:
                 add({'slot': 'subclass', 'pick': UNDECIDED, 'note': BUILDER_NOTE})
-            elif f == '2 Ancestry Points':
+            elif f == eng.FEAT_ANCESTRY_POINTS:
                 add({'slot': 'ancestry_trait', 'pick': UNDECIDED, 'cost': 0,
                      'note': BUILDER_NOTE})
-            elif f == 'Class Features':
+            elif f == eng.FEAT_CLASS_FEATURES:
                 pass
             else:
                 # BUG-19: the class table prints a generic "Class Feature"; show the REAL feature
