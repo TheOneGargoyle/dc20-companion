@@ -292,7 +292,9 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
   5. `builder_problems` never ran `_choice_undecided` on chargen class choices; 6. `spell_sources.yaml` held Primal only;
   7. harness: `drive_fresh` hard-coded chargen choice kinds; FR-46 round-trip was name-keyed, so an MC twin (Innate Power, Meta Magic) collided with its class feature; 2 RT_UNREACHABLE entries went stale;
   8. nothing compared `class_spines.yaml` with `tables.md`: catalog_verify FR12-3 now does, all six match. It also asserts class sources are covered and MC twins agree.
-- Open, not fixed: MC features are offered to their own class (a Sorcerer can take MC Innate Power; RAW says "from any Class", ruling needed); the origin shows under the sheet's "Talent choices" label; Focus Property, Sorcery spell and Spark-restricted Ancestry Points unmodelled.
+- Ruled 2026-09-24 (Darryl): a class MAY take its own class's MC features ("from any Class", character-creation.md l.702); the picker is right as is.
+- Live-check fix, same day: Intuitive Magic moved the budget but its 2 pickers came one at a time, only after the L1 four were filled. Now childed under Innate Power (`own_list: true`, filtered to the class's own Source, reset on a Source change); builder_verify (49) + smoke S9.
+- Open, not fixed: the origin shows under the sheet's "Talent choices" label; Focus Property, Sorcery spell and Spark-restricted Ancestry Points unmodelled.
 - Six ledgers' sheet/state/derived byte-identical before and after; Scaletrix untouched.
 
 **CH-14 (2026-09-24), the engine names its labels and spine strings.** Pure refactor, CH-10 fix 2.

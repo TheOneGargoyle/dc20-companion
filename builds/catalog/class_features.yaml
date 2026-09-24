@@ -108,10 +108,10 @@ classes:
       - name: Innate Power   # classes.md l.2541-2560
         grants: {mp: 1}
         # the base-class twin of talents.yaml mc_features Innate Power (catalog_verify asserts the
-        # two agree). Intuitive Magic's 2 spells are "from your Spell List", i.e. the flat pool of
-        # the class's chosen Spell Source, so unlike the MC row there is no source_pick here.
+        # two agree). Intuitive Magic's 2 spells are "from your Spell List": own_list childs them
+        # under this feature, filtered to the class's chosen Spell Source (no source_pick, unlike MC).
         sub_choice: {kind: sorcerous_origin, label: sorcerous origin, options: [
-          {name: Intuitive Magic, grants: {spells: 2}},
+          {name: Intuitive Magic, grants: {spells: 2}, own_list: true},
           {name: Resilient Magic, no_effect: situational, note: "Dazed Resistance"},
           {name: Unstable Magic, no_effect: situational, note: "Wild Magic Table on a Spell crit success/fail"}]}
         note: "+1 max MP; 1 point Focus Property (not modelled); Sorcerous Origin sub-choice"

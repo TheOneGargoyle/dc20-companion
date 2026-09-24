@@ -576,6 +576,27 @@ def j_spell_list_widening(P):
     P.pg.wait_for_timeout(300)
 
 
+def j_sorcerer_origin(P):
+    """(S9) FR-12 Phase 3: a base Sorcerer's chosen Spell Source filters its spells, and Intuitive
+    Magic renders its 2 spell pickers AT ONCE under Innate Power (Darryl's live check 2026-09-24
+    found only the budget moved; the pickers came one at a time, after the L1 four)."""
+    print("## (S9) Sorcerer: Spell Source + Intuitive Magic pickers render")
+    P.start("sorcerer")
+    ok("the Spell Source picker offers the three Sources",
+       P.options("cg:source:0")[1:] == ["Arcane", "Divine", "Primal"], P.options("cg:source:0"))
+    P.choose("cg:source:0", "Arcane")
+    node = P.decs("^GC#cg:0#choice#0$")
+    ok("the Sorcerous Origin node renders", len(node) == 1, P.decs("^GC#"))
+    if not node:
+        return
+    P.choose(node[0], "Intuitive Magic")
+    P.pg.wait_for_timeout(500)
+    kids = P.decs("^GC#cg:0#spells#")
+    ok("Intuitive Magic renders 2 spell pickers immediately", len(kids) == 2, P.decs("^(cg|GC)"))
+    ok("...on the Arcane list", all(len(P.options(k)) > 50 for k in kids), [len(P.options(k)) for k in kids])
+    ok("Spells known reads 6", P.stat("Spells known") == "6", P.stat("Spells known"))
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -696,7 +717,8 @@ def main():
                                          ("s4", j_sheet, (cfcat,), 120),
                                          ("s6", j_rule_panel, (), 180),
                                          ("s7", j_expertise_readout, (), 120),
-                                         ("s8", j_spell_list_widening, (), 120)):
+                                         ("s8", j_spell_list_widening, (), 120),
+                                         ("s9", j_sorcerer_origin, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

@@ -305,6 +305,11 @@ def drive_fresh(cls):
         if d.get("id") == "cg:source:0" or (d["slot"] == "sub_choice"
                                             and str(d.get("id")).startswith("GC#cg:")):
             api.set_decision(d["id"], d["options"][0]["name"])
+    s = st(api)
+    for d in s["decisions"]:   # ...and the spells that node childs (Intuitive Magic), distinct picks
+        if str(d.get("id")).startswith("GC#cg:") and "#spells#" in str(d["id"]):
+            k = int(d["id"].rsplit("#", 1)[1])
+            api.set_decision(d["id"], d["options"][-1 - k]["name"])
     # spells and maneuvers: first legal option per slot
     s = st(api)
     for d in s["decisions"]:
@@ -4708,8 +4713,24 @@ def check_fr12_sorcerer():
     b0 = s1["spell_budget"]
     s2 = json.loads(a.set_decision("GC#cg:0#choice#0", "Intuitive Magic"))
     ok("Intuitive Magic adds 2 to the spell budget", s2["spell_budget"] == b0 + 2, (b0, s2["spell_budget"]))
+    # Darryl's live check 2026-09-24: the 2 spells must be pickable AT ONCE, not one ready slot at a
+    # time after the L1 four are filled. They are children of Innate Power, on the class's own list.
+    kids = [d for d in s2["decisions"] if str(d.get("id")).startswith("GC#cg:0#spells#")]
+    ok("Intuitive Magic opens 2 spell pickers under Innate Power immediately", len(kids) == 2,
+       [d["id"] for d in kids])
+    ok("those pickers offer only the chosen Source's list (as the MC Sorcerer Source filter does)",
+       all(d["options"] and {o["name"] for o in d["options"]} <= arc for d in kids),
+       [len(d["options"]) for d in kids])
+    a.set_decision(kids[0]["id"], sorted(arc)[0])
+    s2b = json.loads(a.set_decision("cg:source:0", "Divine"))
+    ok("changing the Source resets the Intuitive picks",
+       all(d.get("current") == "(undecided)" for d in s2b["decisions"]
+           if str(d.get("id")).startswith("GC#cg:0#spells#")), None)
+    a.set_decision("cg:source:0", "Arcane")
     s3 = json.loads(a.set_decision("GC#cg:0#choice#0", "Resilient Magic"))
     ok("switching to Resilient Magic takes the 2 spells back", s3["spell_budget"] == b0, s3["spell_budget"])
+    ok("and removes their pickers",
+       not [d for d in s3["decisions"] if str(d.get("id")).startswith("GC#cg:0#spells#")], None)
     a.set_decision("GC#cg:0#choice#0", "Intuitive Magic")
     groups = {g["label"]: [i["pick"] for i in g["items"]] for g in json.loads(a.sheet())["ability_groups"]}
     ok("the sheet shows the chosen Spell Source", groups.get("Spell source") == ["Arcane"], groups)

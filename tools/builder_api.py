@@ -898,6 +898,8 @@ class BuilderAPI:
         # the spell children); otherwise fall back to a static spell_access.source. Schools (if any)
         # still come from spell_access.
         src = ((parent.get('sorcerous_origin') or {}).get('chosen_source')) or sa.get('source')
+        if sa.get('own_list'):   # FR-12 Phase 3: the class's own (possibly chosen) Spell Source
+            src = self._class_source()
         if not src or str(src) == UNDECIDED:
             return None
         return src, (sa.get('schools') or None)
@@ -1070,6 +1072,14 @@ class BuilderAPI:
         if opt.get('source_pick'):
             entry['sorcerous_origin'] = {'chosen_source': UNDECIDED}
             entry.pop('spell_access', None)
+            entry['granted_spells'] = [UNDECIDED] * n
+        elif opt.get('own_list') and n:
+            # FR-12 Phase 3 (base Sorcerer Intuitive Magic, "2 Spells of your choice from your Spell
+            # List"): child the N spells under the feature, filtered to the class's own Source, so
+            # both pickers appear at once and leave with the option (the flat pool showed them one
+            # at a time, only after the L1 spells were filled: Darryl's live check 2026-09-24).
+            entry.pop('sorcerous_origin', None)
+            entry['spell_access'] = {'own_list': True}
             entry['granted_spells'] = [UNDECIDED] * n
         else:
             for k in ('sorcerous_origin', 'spell_access', 'granted_spells'):
@@ -1711,6 +1721,12 @@ class BuilderAPI:
         n = sum(1 for x in (e.get('choice') or {}).get('picks') or [] if str(x) == UNDECIDED)
         if n:
             out.append('builder: L%d %d %s pick(s) undecided' % (lvl, n, label))
+        if (e.get('spell_access') or {}).get('own_list'):   # FR-12 Phase 3: Intuitive Magic children
+            k = int((e.get('grants') or {}).get('spells', 0) or 0)
+            lst = e.get('granted_spells') or []
+            m = sum(1 for j in range(k) if j >= len(lst) or str(lst[j]) == UNDECIDED)
+            if m:
+                out.append('builder: L%d %d own-list spell pick(s) undecided' % (lvl, m))
         so = e.get('sorcerous_origin')
         if isinstance(so, dict):
             if str(so.get('chosen_source', UNDECIDED)) == UNDECIDED:
@@ -2727,7 +2743,13 @@ class BuilderAPI:
             elif kind == 'school':
                 cg['spell_schools'][int(parts[2])] = value
             elif kind == 'source':   # FR-12 Phase 3: spells already picked stay; catalog_problems flags off-list
-                cg['spell_source'] = value
+                if str(cg.get('spell_source')) != str(value):
+                    cg['spell_source'] = value
+                    # own-list spell children (Intuitive Magic) are re-filtered by the new Source,
+                    # so reset them, as the MC Sorcerer Source node does (_set_grant_child)
+                    for c in cg.get('class_choices') or []:
+                        if (c.get('spell_access') or {}).get('own_list'):
+                            c['granted_spells'] = [UNDECIDED] * len(c.get('granted_spells') or [])
             elif kind == 'spell':
                 cg['spells'][int(parts[2])] = value
             elif kind == 'man':
