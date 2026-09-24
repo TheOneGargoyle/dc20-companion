@@ -10,7 +10,7 @@
 #   "MC Warlock (Novice): Pact Spell"        -> Novice Multiclass; feature = Pact Spell
 #   "MC Bard: Remarkable Repertoire"         -> Novice Multiclass; feature by name
 #   "Life Tap" / "Meta Magic (...)"          -> Adept Multiclass; L2 feature by (base) name
-#   "Spell School Initiate: Transmutation"   -> Novice Multiclass; Wizard L1 feature
+#   "Spell School Initiate" + choice.pick    -> Novice Multiclass; Wizard L1 feature (school = node answer)
 # Grants mirror the ledger `grants:` convention; only unconditional resource deltas are
 # recorded (a boon-dependent talent like Expanded Boon takes its grants from the chosen
 # Pact Boon, see warlock.yaml pact_boons).
@@ -66,7 +66,12 @@ class_talents:
     - {name: Pact Bane, requires: "Pact Boon, Level 3", grants: {spells: 1}}
     - {name: Warlock Subcontract, requires: "Warlock Contract, Level 3", no_effect: situational}
   Wizard:
-    - {name: Expanded Spell School, requires: "Spell School Initiate", grants: {spells: 2}}
+    - {name: Expanded Spell School, requires: "Spell School Initiate", grants: {spells: 2},
+       # character-creation.md l.644-649: "Choose 1 additional Spell School. You can't choose the same
+       # School more than once. You learn 2 Arcane Spells from this Spell School". The Spell School
+       # Initiate node shape; options exclude a school already chosen on another school_magic node.
+       sub_choice: {kind: school_magic, label: spell school,
+                    options_from: {source_schools: Arcane}, child_spells: {source: Arcane}}}
     - {name: Crowned Sigil, requires: "Arcane Sigil Feature, Level 3", no_effect: situational}
     - {name: Overly Prepared Spellcaster, requires: "Prepared Spell, Spell School Initiate, Level 3", no_effect: situational}
 mc_features:   # class features the six ledgers reach via Multiclass talents (rules/classes.md)
@@ -94,6 +99,9 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      note: "+1 MP + 1pt Focus Property; Sorcerous Origin sub-choice (Intuitive Magic = 2 spells from the chosen Sorcerer Source)"}
   - {name: Spell School Initiate, class: Wizard, feature_level: 1, via: Novice Multiclass,
      grants: {spells: 2},
+     # FR-12 Phase 3: the school is the node's answer (choice.pick), never parsed out of the pick name.
+     sub_choice: {kind: school_magic, label: spell school,
+                  options_from: {source_schools: Arcane}, child_spells: {source: Arcane}},
      note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}
   - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass, no_effect: situational}
   - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass,

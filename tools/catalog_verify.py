@@ -11,7 +11,7 @@ Three checks, in order:
       each class spine == class_spines.yaml (authored data); every ancestry-trait cost matches (with source aliases,
       trait aliases, and the Redeemed Fiendborn->Angelborn fallback); every named spell exists in
       spells.md and is legal for that character's spell-access model (Spellblade: chosen schools
-      + Weapon/Ward tags + Spell School Initiate school; Warlock: 3 chosen schools + Eldritch
+      + Weapon/Ward tags (Spell School Initiate teaches 2 childed spells, no widening); Warlock: 3 chosen schools + Eldritch
       Psychic-tag grant; Druid: Primal source + Arcane grant slots; Commander/Barbarian:
       existence + path-rider note); every maneuver is a real 0.10.5 maneuver (Bonan's "Recovery" was a typo for Recover,
       placeholder whitelisted); every talent resolves to a catalog talent or multiclass feature;
@@ -504,26 +504,24 @@ def check_ledger(fname, led):
         expect(len(chosen) == cat["spellcasting"]["schools_chosen"],
                f"{who}: {len(chosen)} schools chosen vs {cat['spellcasting']['schools_chosen']} allowed")
         tags = set(cat["spellcasting"].get("tag_access") or []) if cls == "Spellblade" else set()
-        # talent-granted school access (Spell School Initiate: <School>)
-        extra_schools = [norm(e["pick"]).split(":")[1].strip()
-                         for _, e in talent_picks(led) if str(e["pick"]).startswith("Spell School Initiate:")]
+        # FR-12 Phase 3: Spell School Initiate no longer widens the Spell List (the school is a node
+        # answer and teaches 2 childed spells, it does not add the school; the name parse is retired).
         # subclass tag grants (Eldritch: Psychic)
         grant_tags = {sg["spell_access"]["tag"] for b, sg in (cat.get("subclass_grants") or {}).items()
                       if any(base_name(e["pick"]) == b for _l, e in subs) and "spell_access" in sg}
         for s in picks:
             meta = spell_meta[s]
-            legal_school = meta["school"] in chosen or meta["school"] in extra_schools
+            legal_school = meta["school"] in chosen
             legal_tag = bool(set(meta["tags"]) & tags) or bool(set(meta["tags"]) & grant_tags)
             expect(legal_school or legal_tag,
-                   f"{who}: spell {s} illegal: school {meta['school']} not in {chosen}+{extra_schools}, tags {meta['tags']}")
+                   f"{who}: spell {s} illegal: school {meta['school']} not in {chosen}, tags {meta['tags']}")
             if meta["school"] in chosen:
                 expect(s in schools_cat["schools"].get(meta["school"], []),
                        f"{who}: {s} (school {meta['school']}) missing from spell_schools.yaml")
-                why = f"school {meta['school']}"
-            elif meta["school"] in extra_schools:
-                why = f"school {meta['school']} (Spell School Initiate)"
-            else:
-                why = f"tag {set(meta['tags']) & (tags | grant_tags)}"
+            # name EVERY route, so a spell legal twice never reads as depending on one (the 2026-09-24
+            # misread: Umbral Imbued looked Transmutation-only while its Weapon tag also made it legal)
+            why = " + ".join(([f"school {meta['school']}"] if legal_school else [])
+                             + ([f"tag {sorted(set(meta['tags']) & (tags | grant_tags))}"] if legal_tag else []))
             print(f"    spell {s:18} legal via {why}")
     elif model == "source":
         src = cat["spellcasting"]["source"]
@@ -1312,6 +1310,8 @@ for _t in talents_cat["general"] + [r for rows in (talents_cat.get("class_talent
     if not _c:
         continue
     _nc += 1
+    if _c.get("kind") == "school_magic":   # FR-12 Phase 3: checked with its twins in (2g) below
+        continue
     expect(_c.get("kind") == "spell_list", f"{_t['name']}: unknown choice kind {_c.get('kind')!r}")
     for _o in _c.get("options") or []:
         _src = (_o.get("adds") or {}).get("source")
@@ -1403,10 +1403,33 @@ for _t in talents_cat["mc_features"]:
     _a, _b = _t.get("sub_choice"), _twin.get("sub_choice")
     expect(bool(_a) == bool(_b), f"{_t['name']}: sub_choice on one twin only")
     if _a and _b:
-        expect(_a["kind"] == _b["kind"] and [(o["name"], o.get("grants")) for o in _a["options"]]
-               == [(o["name"], o.get("grants")) for o in _b["options"]],
+        # FR-12 Phase 3: a node may DERIVE its options (options_from); then the twins must agree on
+        # the derivation and on the spell children instead of on a literal list
+        expect(_a["kind"] == _b["kind"] and [(o["name"], o.get("grants")) for o in _a.get("options") or []]
+               == [(o["name"], o.get("grants")) for o in _b.get("options") or []]
+               and _a.get("options_from") == _b.get("options_from")
+               and _a.get("child_spells") == _b.get("child_spells")
+               and bool(_a.get("options") or _a.get("options_from")),
                f"{_t['name']}: MC and base-class sub_choice options disagree")
 expect(_twins > 0, "no MC-feature twin was compared (trap 4)")
+# FR-12 Phase 3: every school_magic node (Spell School Initiate twins, Expanded Spell School) derives
+# its options from a real spell_sources.yaml block, childs to a real Source, and its row grants the
+# spell count the rules print ("You learn 2 Arcane Spells from this Spell School").
+_sm = [r for rows in _cfc.values() for lv in rows.values() for r in lv or []] + list(talents_cat["mc_features"]) \
+    + [r for rows in (talents_cat.get("class_talents") or {}).values() for r in rows]
+_sm = [r for r in _sm if (r.get("sub_choice") or {}).get("kind") == "school_magic"]
+expect(len(_sm) >= 3, f"expected 3 school_magic rows (SSI twins + Expanded Spell School), found {len(_sm)} (trap 4)")
+_rtxt = read("rules/classes.md") + read("rules/character-creation.md")
+for _r in _sm:
+    _c = _r["sub_choice"]
+    _src = (_c.get("options_from") or {}).get("source_schools")
+    expect(len((sources_cat["sources"].get(_src) or {})) == 8, f"{_r['name']}: options_from {_src} is not an 8-school Source")
+    expect((_c.get("child_spells") or {}).get("source") in sources_cat["sources"], f"{_r['name']}: child_spells source")
+    _blk = _rtxt[_rtxt.find("\n" + _r["name"] + "\n"):][:600]
+    _m = re.search(r"You learn (\d) Arcane Spells\s+from this Spell\s+School", " ".join(_blk.split()))
+    expect(_m is not None and int(_m.group(1)) == int((_r.get("grants") or {}).get("spells", 0)),
+           f"{_r['name']}: grants {_r.get('grants')} vs rules {_m.group(0) if _m else 'no School Magic line'}")
+print(f"  {len(_sm)} school_magic nodes derive 8 Arcane schools and grant the rules' spell count")
 print(f"  {len(CLASS_ROSTER)} class sources covered; {_twins} MC-feature twins agree with class_features.yaml")
 
 # ---- verdict --------------------------------------------------------------

@@ -1,0 +1,121 @@
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.
+catalog_version: 1
+ruleset: DC20 0.10.5
+class: Wizard
+generated_by: tools/catalog_build.py
+source: builds/catalog/class_spines.yaml + rules/classes.md l.3466-3780 + rules/tables.md l.187-200
+spine:
+  1:
+    hp: 7
+    mp: 6
+    spells: 4
+    features:
+    - Class Features
+  2:
+    hp: 1
+    features:
+    - Class Feature
+    - Talent
+    - Path
+  3:
+    hp: 1
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass
+  4:
+    hp: 1
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  5:
+    hp: 1
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Class Feature
+  6:
+    hp: 1
+    skill_points: 1
+    features:
+    - Talent
+    - Path
+  7:
+    hp: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass Expert
+  8:
+    hp: 1
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  9:
+    hp: 1
+    mp: 3
+    spells: 1
+    features:
+    - Class Capstone
+  10:
+    hp: 1
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass Capstone
+subclasses:
+- Portal Mage
+- Witch
+- Paragon
+subclass_grants:
+  Portal Mage:
+    spell_access:
+      tag: Teleportation
+  Witch:
+    grants:
+      spells: 1
+    spell_access:
+      tag: Curse
+  Paragon:
+    grants:
+      trade_points: 1
+    level_riders:
+      3:
+      - slot: talent
+        restrict: class_talents
+      7:
+      - slot: talent
+        restrict: class_talents
+      10:
+      - slot: talent
+        restrict: class_talents
+    source: character-creation.md l.757-780 (Novice / Expert / Master Paragon)
+spellcasting:
+  model: source
+  source: Arcane
+paths:
+- Martial
+- Spellcaster
+combat_training:
+- Spell Focuses
+- Light Armor
+path_training:
+  Martial:
+  - Weapons
+  Spellcaster:
+  - Spell Focuses

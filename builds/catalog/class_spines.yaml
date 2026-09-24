@@ -72,3 +72,14 @@ classes:
     8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
     9: {hp: 1, mp: 3, spells: 1, features: [Class Capstone]}
     10: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Subclass Capstone]}
+  Wizard:   # tables.md l.187-200 (classes.md l.3479-3492); same numbers as the Druid and Sorcerer tables
+    1: {hp: 7, mp: 6, spells: 4, features: [Class Features]}
+    2: {hp: 1, features: [Class Feature, Talent, Path]}
+    3: {hp: 1, attr: 1, skill: 1, trade: 1, mp: 3, spells: 1, features: [Subclass]}
+    4: {hp: 1, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Class Feature]}
+    6: {hp: 1, skill: 1, features: [Talent, Path]}
+    7: {hp: 1, mp: 3, spells: 1, features: [Subclass Expert]}
+    8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 1, mp: 3, spells: 1, features: [Class Capstone]}
+    10: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Subclass Capstone]}

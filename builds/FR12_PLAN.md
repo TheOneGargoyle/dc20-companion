@@ -63,7 +63,7 @@ _Slice 2 PUSHED + CHROME-VERIFIED `1117fea` 2026-07-19 (baseline `34ea490`; buil
 **Phase 2. Spell/maneuver legality data (the long pole, phased).**
 Tag the full spell/maneuver list by school/source/type so open pickers filter correctly (FR-13 proper). The maneuver-TYPE half is already done (pact-boon pickers, 2026-07-19). Phaseable: start with the schools/sources our six + likely MC targets use, expand outward. School tagging likely largely free from the flattened list; source tagging is the labor. This is what makes Phase 3's open pickers trustworthy.
 
-**Phase 3. Class coverage (FR-12).** _Progress: 6 of 13. Sorcerer 2026-09-24 (base L1-L6); the data-only claim failed 8 ways, see the Sorcerer note in `BACKLOG_DONE.md` Chores. The roster is now one edit (`class_spines.yaml`) plus a `catalog_build.CLASS_CONFIG` row._
+**Phase 3. Class coverage (FR-12).** _Progress: 7 of 13. Sorcerer 2026-09-24 (base L1-L6); Wizard 2026-09-24 (base L1-L6 + 3 subclasses). The data-only claim failed 8 ways each time, see the Sorcerer and Wizard notes in `BACKLOG_DONE.md` Chores. The roster is now one edit (`class_spines.yaml`) plus a `catalog_build.CLASS_CONFIG` row._
 Add the remaining 8 base classes as data files (progression + base features), one at a time or lightly batched, each independently verifiable. **Prioritize by multiclass-reach first** (our PCs already dip into other classes: Tan's MC Warlock, Scaletrix's MC Sorcerer/Innate Power), then by likely NPC/new-PC use. Where a real known build exists, validate against it; otherwise validate against the rules tables.
 
 **Phase 4. Subclass + ancestry breadth.**

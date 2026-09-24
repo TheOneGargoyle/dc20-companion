@@ -180,3 +180,34 @@ classes:
           Pact Spell: {spells: 2}      # 2 Spells from any Spell Source
         note: "+2 max HP; Pact Weapon / Armor each gain +1 Property and +1 Attack / Defense Maneuver; Pact Spell learns 2 Spells; Life Tap Checks at ADV"
     6: []
+
+  Wizard:   # classes.md l.3524-3640 (FR-12 Phase 3)
+    1:
+      - name: Spell School Initiate   # classes.md l.3526-3536
+        grants: {spells: 2}
+        # the base-class twin of talents.yaml mc_features Spell School Initiate (catalog_verify asserts
+        # the two agree). School Magic: "Choose a Spell School ... You learn 2 Arcane Spells from this
+        # Spell School". The node's options are DERIVED from spell_sources.yaml's Arcane schools, and
+        # choosing one childs the 2 spells under the feature, filtered to Arcane + that school.
+        sub_choice: {kind: school_magic, label: spell school,
+                     options_from: {source_schools: Arcane}, child_spells: {source: Arcane}}
+        note: "School Magic: 2 Arcane spells from the chosen School; Signature School -1 MP once per Long Rest (not modelled)"
+      - name: Arcane Sigil   # classes.md l.3537-3555
+        note: "1 AP + 1 MP: a 1 Space Sigil; ADV on Checks to cast Spells of the chosen School or Tag inside it"
+        no_effect: situational
+      - name: Ritual Caster   # classes.md l.3556-3562
+        flavor: true
+        note: "learn 1 Ritual; learn found Rituals over a Short Rest"
+    2:
+      - name: Prepared Spell   # classes.md l.3567-3578
+        note: "after a Long Rest choose 1 known Spell: Mana Limit Break (+1 Mana Spend Limit once) and Rehearsed Casting"
+        no_effect: situational
+    3: []
+    4: []
+    5:
+      - name: Expert Wizard   # classes.md l.3610-3631
+        grants: {spells: 1}
+        # "You learn 1 additional Arcane Spell from the chosen School": a FLAT +1 for now, so the pick is
+        # bound by the Arcane list but not by the L1 school (childing it under the L1 node is code, logged).
+        note: "+1 Arcane spell from the Spell School Initiate school (not school-filtered); Signature School -1 more MP; Sigil Tag/Area enhancements; 2 Prepared Spells"
+    6: []

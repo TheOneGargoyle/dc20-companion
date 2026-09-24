@@ -850,12 +850,24 @@ class BuilderAPI:
                            'cost': e.get('cost', 0)}
 
     # ---------- spell / maneuver / talent option lists ----------
-    def _ssi_schools(self):
+    def _school_magic_answers(self, skip=None):
+        # FR-12 Phase 3: the schools chosen on every school_magic node (Spell School Initiate, class
+        # feature or MC twin, and Expanded Spell School), read from the node answers. Replaces the parse
+        # of "Spell School Initiate: <School>" out of the pick name. `skip` = the entry asking (so its
+        # own answer never hides itself from its option list). These schools do NOT widen the Spell
+        # List: School Magic teaches 2 spells from the school, it does not add the school (09, 2026-09-24).
         out = []
+        entries = list(self.ledger['chargen'].get('class_choices') or [])
         for lvl in sorted(self.ledger.get('levels') or {}):
-            for e in self.ledger['levels'][lvl] or []:
-                if e.get('slot') == 'talent' and str(e.get('pick', '')).startswith('Spell School Initiate:'):
-                    out.append(str(e['pick']).split(':', 1)[1].strip())
+            entries += list(self.ledger['levels'][lvl] or [])
+        for e in entries:
+            if e is skip:
+                continue
+            decl = self._choice_decl(e)
+            if decl and decl.get('kind') == 'school_magic':
+                pk = (e.get('choice') or {}).get('pick')
+                if pk and str(pk) != UNDECIDED:
+                    out.append(str(pk))
         return out
 
     def _grant_tags(self):
@@ -925,11 +937,30 @@ class BuilderAPI:
             # FR-12 Phase 3: a class_features.yaml row may declare a sub_choice too (base Sorcerer's
             # Innate Power -> Sorcerous Origin). The L1 rows are folded into ONE chargen entry, so the
             # first declaring row among its picks owns the node.
-            return next((r['sub_choice'] for r in self._class_feature_rows_of(entry)
-                         if r.get('sub_choice')), None)
+            return self._resolve_decl(next((r['sub_choice'] for r in self._class_feature_rows_of(entry)
+                                            if r.get('sub_choice')), None))
         if entry.get('slot') != 'talent':
             return None
-        return (self._choice_row(entry) or {}).get('sub_choice')   # FR-42 (class_features' `choice: <slot>` is unrelated)
+        return self._resolve_decl((self._choice_row(entry) or {}).get('sub_choice'))   # FR-42 (class_features' `choice: <slot>` is unrelated)
+
+    def _resolve_decl(self, decl):
+        # FR-12 Phase 3: a declared node may name its options by `options_from` instead of listing them
+        # (trap 2: never hand-copy a list another catalog owns). `source_schools: <Source>` = the schools
+        # spell_sources.yaml files under that Source (Spell School Initiate: the 8 Arcane schools).
+        if not decl or not decl.get('options_from'):
+            return decl
+        src = (decl['options_from'] or {}).get('source_schools')
+        d = dict(decl)
+        d['options'] = [{'name': s} for s in
+                        ((self.cat.get('spell_sources') or {}).get('sources') or {}).get(src) or {}]
+        return d
+
+    def _choice_owner_name(self, entry):
+        # the NAME of the catalog row that declares an entry's node (the talent, or the class feature
+        # among a folded L1 class-features entry's picks)
+        if entry.get('slot') in CLASS_FEATURE_SLOTS:
+            return next((r['name'] for r in self._class_feature_rows_of(entry) if r.get('sub_choice')), None)
+        return (self._choice_row(entry) or {}).get('name')
 
     def _class_feature_rows_of(self, entry):
         # the class_features.yaml rows a class-feature ledger entry names (any level of this class)
@@ -984,11 +1015,15 @@ class BuilderAPI:
         pick = self._choice_pick(parent, decl)
         d = self._dec('GC#%s#choice#0' % parentref, level, 'sub_choice', pick, None, False, editable,
                       plan=level > cur, plan_editable=editable and level > cur)
-        d['options'] = [{'name': o['name'], 'group': '', 'label': o['name']} for o in decl['options']]
+        taken = set(self._school_magic_answers(skip=parent)) if decl.get('kind') == 'school_magic' else set()
+        d['options'] = [{'name': o['name'], 'group': '', 'label': o['name']} for o in decl['options']
+                        if o['name'] not in taken]
         if pick != UNDECIDED and not any(o['name'] == pick for o in d['options']):
             d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
         d['slotlabel'] = decl.get('label') or 'choice'
         d['choice_kind'] = decl.get('kind')
+        if decl.get('kind') == 'school_magic':   # FR-12 Phase 3: the sheet folds the school into its owner
+            d['choice_owner'] = (parentref, self._choice_owner_name(parent))
         out = [d]
         opt = self._choice_option(decl, pick)
         then = (opt or {}).get('then')
@@ -1021,6 +1056,8 @@ class BuilderAPI:
                     ch['picks'] = [UNDECIDED] * int(then.get('n', 0))
                 if decl.get('kind') == 'sorcerous_origin':
                     self._apply_origin(entry, opt)
+                elif decl.get('child_spells'):
+                    self._apply_child_spells(entry, decl, value, opt)
                 # the widening changed, so the talent's +N spells may now be off-list: they stay as
                 # picks and catalog_problems reports any that became illegal (never silently dropped)
         else:
@@ -1084,6 +1121,24 @@ class BuilderAPI:
         else:
             for k in ('sorcerous_origin', 'spell_access', 'granted_spells'):
                 entry.pop(k, None)
+
+    def _apply_child_spells(self, entry, decl, value, opt):
+        # FR-12 Phase 3 (Spell School Initiate / Expanded Spell School): a changed school childs the
+        # declaring row's {spells: N} under the entry, filtered to child_spells.source + the chosen
+        # school, via the existing spell_access {source, schools} path (_spell_grant_source), so both
+        # pickers appear at once. Only runs on a real change: a walked ledger with flat picks and no
+        # granted_spells (Xanwyn) is never rewritten by rendering. Undecided/off-list drops the children.
+        if entry.get('slot') in CLASS_FEATURE_SLOTS:
+            rows = [r for r in self._class_feature_rows_of(entry) if r.get('sub_choice')]
+            n = int(((rows[0] if rows else {}).get('grants') or {}).get('spells', 0) or 0)
+        else:
+            n = int(((self._choice_row(entry) or {}).get('grants') or {}).get('spells', 0) or 0)
+        if opt and n and str(value) != UNDECIDED:
+            entry['spell_access'] = {'source': decl['child_spells']['source'], 'schools': [value]}
+            entry['granted_spells'] = [UNDECIDED] * n
+        else:
+            entry.pop('spell_access', None)
+            entry.pop('granted_spells', None)
 
     def _list_widening(self):
         # FR-42: Spellcasting Expansion "add 1 Spell Source or 3 Spell Schools of your choice to your
@@ -1167,7 +1222,7 @@ class BuilderAPI:
         w_src, w_sch = self._list_widening()
         if model == 'schools':
             chosen = [s for s in (list(self.ledger['chargen'].get('spell_schools') or [])
-                                  + self._ssi_schools() + sorted(w_sch)) if str(s) != UNDECIDED]
+                                  + sorted(w_sch)) if str(s) != UNDECIDED]
             tags = set(self.ccat['spellcasting'].get('tag_access') or []) | self._grant_tags()
             names = set()
             for sch in chosen:
@@ -1194,6 +1249,10 @@ class BuilderAPI:
                      if src else set())   # a chosen source still undecided offers nothing yet
             names |= {n for n, m in self.meta.items()
                       if set(m.get('sources') or []) & w_src or m.get('school') in w_sch}
+            # FR-12 Phase 3: a subclass tag grant widens a SOURCE-model list too (Wizard Portal Mage
+            # Teleportation, Witch Curse); it was honoured only on the schools model (Eldritch Psychic).
+            gtags = self._grant_tags()
+            names |= {n for n, m in self.meta.items() if set(m['tags']) & gtags}
 
             def why(n):
                 m = self.meta.get(n)
@@ -1201,6 +1260,8 @@ class BuilderAPI:
                     return None
                 if src and src in m['sources']:
                     return src + ' source'
+                if set(m['tags']) & gtags:
+                    return 'tag ' + '/'.join(sorted(set(m['tags']) & gtags))
                 if set(m.get('sources') or []) & w_src:
                     return 'Spellcasting Expansion source ' + '/'.join(sorted(set(m['sources']) & w_src))
                 if m.get('school') in w_sch:
@@ -1727,6 +1788,10 @@ class BuilderAPI:
             m = sum(1 for j in range(k) if j >= len(lst) or str(lst[j]) == UNDECIDED)
             if m:
                 out.append('builder: L%d %d own-list spell pick(s) undecided' % (lvl, m))
+        if decl.get('child_spells') and 'granted_spells' in e:   # FR-12 Phase 3: School Magic children
+            m = sum(1 for x in e.get('granted_spells') or [] if str(x) == UNDECIDED)
+            if m:
+                out.append('builder: L%d %d %s spell pick(s) undecided' % (lvl, m, label))
         so = e.get('sorcerous_origin')
         if isinstance(so, dict):
             if str(so.get('chosen_source', UNDECIDED)) == UNDECIDED:
@@ -2608,6 +2673,15 @@ class BuilderAPI:
         cur = s['level']
         eder = eng.replay(self.ledger, cur).derived
         groups = {}
+        # FR-12 Phase 3: a school_magic node's answer is shown ON its owner ("Spell School Initiate:
+        # Transmutation", the form the sheet printed when the school was spelt in the pick name), not
+        # as a row of its own. Keyed by the owner's decision id.
+        folded = {}
+        for d in s['decisions']:
+            if d.get('choice_owner') and str(d.get('pick')) != UNDECIDED:
+                pid, nm = d['choice_owner']
+                if nm:
+                    folded[pid] = (nm, d['pick'])
         for d in s['decisions']:
             lv = d.get('level')
             if lv and lv > cur:
@@ -2615,8 +2689,15 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
-            if d.get('choice_kind') == 'expertise':
+            if d.get('choice_kind') in ('expertise', 'school_magic'):
                 continue   # FR-56: "Trade Expertise (Herbalism)" on the Ancestry line already says it
+            # a chargen class-features row carries no decision id; its node's parentref is 'cg:<i>'
+            fk = d.get('id') if d.get('id') in folded else next(
+                (k for k, (nm, _a) in folded.items() if d.get('id') is None and lv == 1
+                 and str(k).startswith('cg:') and nm in str(pick).split(', ')), None)
+            if fk:
+                nm, ans = folded[fk]
+                pick = ', '.join('%s: %s' % (x, ans) if x == nm else x for x in str(pick).split(', '))
             slot = SHEET_SLOT_ALIAS.get(d.get('slot'), d.get('slot'))   # BUG-32
             lst = groups.setdefault(slot, [])
             if not any(x['pick'] == pick for x in lst):

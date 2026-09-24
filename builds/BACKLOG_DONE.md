@@ -12,6 +12,7 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| FR-12.W | FR-12 Phase 3 class 7: base Wizard + subclasses (Spell School Initiate node) | feature | catalog+builder | P2 | DONE (2026-09-24, builder_verify (50), smoke S10; 8 code findings, note in Chores) |
 | FR-12.S | FR-12 Phase 3 class 6: base Sorcerer (+ CH-10 A14 one class roster) | feature | engine+catalog+builder | P2 | DONE (2026-09-24, builder_verify (48)(49), catalog_verify FR12-3; 8 code findings, note in Chores) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | DONE (2026-09-24, `build_engine.LBL_*`/`FEAT_*`, `path_levels()`; guard builder_verify (47); pure refactor) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | DONE (2026-09-24, `EQUIP_EFFECT_KEYS` + `item_bonus`; builder sheet Xanwyn HP 11 -> 13) |
@@ -281,6 +282,19 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**FR-12 Phase 3, class 7: Wizard (2026-09-24).** Base class L1-L6 plus Portal Mage, Witch, Paragon.
+- Data: spine, `catalog/wizard.yaml` (generated; `CLASS_CONFIG` source Arcane, `SUBCLASS_GRANTS` Portal Mage tag Teleportation, Witch 1 spell + tag Curse), `class_features.yaml` Wizard L1-L6, `talents.yaml` SSI twin + Expanded Spell School nodes.
+- **Design (agreed with Darryl):** a `school_magic` sub_choice on the SSI row, its MC twin and Expanded Spell School. Options `options_from: {source_schools: Arcane}` (derived, 8); answer `choice.pick`; a real change writes `spell_access {source: Arcane, schools: [pick]}` + `granted_spells`, so the 2 spells are childed and filtered by the existing `_spell_grant_source`. School Magic no longer widens the Spell List (RAW: it teaches 2 spells). Expanded Spell School excludes a school already chosen.
+- **Code findings (the data-only claim failed again):**
+  1. sub_choice options had to be literal: `_resolve_decl` / `options_from`; 2. only the Sorcerous Origin could child spells: `child_spells` + `_apply_child_spells`;
+  3. `_choice_undecided` knew only own_list/source children; 4. `_ssi_schools` parsed the school out of the pick name and widened the whole list: retired for `_school_magic_answers`;
+  5. the sheet showed a node answer as its own row: school_magic folds into its owner (`choice_owner`), keeping Xanwyn's sheet byte-identical;
+  6. the source-model `_spell_access` ignored subclass tag grants (Witch, Portal Mage), only schools-model Eldritch had them;
+  7. catalog_verify: SSI name parse in legality, reported only the FIRST legal route (misread Umbral Imbued / Primal Hide as Transmutation-only; both are Weapon/Ward tag), twin check assumed literal options, talent node check assumed `spell_list`; now a school_magic rules-text check (mutation red);
+  8. harness: FR-46 sub_choice check read literal options; RT_FIXED/RT_FIXED_AT rows; RT_UNREACHABLE now EMPTY.
+- Xanwyn migrated to `pick: Spell School Initiate` + `choice: {pick: Transmutation}`, spells left flat. Sheet and derived byte-identical for all six; his state moves only as predicted: the node row, and 8 non-Weapon/Ward Transmutation spells leave his flat pickers; MC SSI is no longer re-offered at L4 once held.
+- Open, not fixed: Expert Wizard's +1 spell is flat, not school-filtered; Signature School, Arcane Sigil, Prepared Spell, Hex Enhancements, Portal Magic, Witch "Curse spells count as your SSI school" unmodelled; Portal Mage's tag is a no-op in 0.10.5 (every Teleportation spell is Arcane). Canon question for Jesse in `09`: strictly only Umbral Imbued of Xanwyn's spells is an Arcane Transmutation spell.
 
 **FR-12 Phase 3, class 6: Sorcerer, with CH-10 A14 first (2026-09-24).** Base class L1-L6; Angelic/Draconic Meta Magic grants; Paragon as for all.
 - A14: `build_engine.class_roster()` (= `class_spines.yaml`, exits if empty) feeds NEWCLASSES, CLASS_NAMES, catalog_build, catalog_verify, both harness loops, smoke (whose silent fallback roster is gone). builder_verify (48) asserts each and scans tools for a 3-name literal (red on mutation).

@@ -41,8 +41,9 @@ levels:
   - {slot: class_feature, pick: Spellstrike}
   - {slot: path, pick: Martial}
   - slot: talent
-    pick: 'Spell School Initiate: Transmutation'
+    pick: Spell School Initiate
     grants: {spells: 2}
+    choice: {pick: Transmutation}     # FR-12 Phase 3: the school_magic node's answer (was parsed out of the pick name)
     note: School Magic = 2 Arcane spells from the school; Signature School = -1 MP once/rest (classes.md l.3526+)
   - {slot: maneuver, pick: Resolve, inferred: true, source: Martial path rank 1}
   - slot: spell

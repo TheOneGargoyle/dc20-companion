@@ -597,6 +597,36 @@ def j_sorcerer_origin(P):
     ok("Spells known reads 6", P.stat("Spells known") == "6", P.stat("Spells known"))
 
 
+def j_wizard_school(P):
+    """(S10) FR-12 Phase 3: a base Wizard's Spell School Initiate node renders the 8 Arcane schools,
+    choosing one renders its 2 school-filtered spell pickers at once, and the sheet folds the school
+    into the feature name (the school_magic kind; only the page shows the node label and the fold)."""
+    print("## (S10) Wizard: Spell School Initiate node + school-filtered pickers render")
+    P.start("wizard")
+    node = P.decs("^GC#cg:0#choice#0$")
+    ok("the Spell School Initiate node renders", len(node) == 1, P.decs("^GC#"))
+    if not node:
+        return
+    ok("...offering the 8 Arcane schools", len([o for o in P.options(node[0]) if o != "(undecided)"]) == 8,
+       P.options(node[0]))
+    P.choose(node[0], "Transmutation")
+    P.pg.wait_for_timeout(500)
+    kids = P.decs("^GC#cg:0#spells#")
+    ok("choosing Transmutation renders 2 spell pickers immediately", len(kids) == 2, P.decs("^(cg|GC)"))
+    ok("...each on Arcane Transmutation only (12 spells)",
+       all(len([o for o in P.options(k) if o != "(undecided)"]) == 12 for k in kids),
+       [len(P.options(k)) for k in kids])
+    ok("Spells known reads 6", P.stat("Spells known") == "6", P.stat("Spells known"))
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet reads 'Spell School Initiate: Transmutation'",
+       "Spell School Initiate: Transmutation" in text, text[text.find("Class"):][:200])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -718,7 +748,8 @@ def main():
                                          ("s6", j_rule_panel, (), 180),
                                          ("s7", j_expertise_readout, (), 120),
                                          ("s8", j_spell_list_widening, (), 120),
-                                         ("s9", j_sorcerer_origin, (), 120)):
+                                         ("s9", j_sorcerer_origin, (), 120),
+                                         ("s10", j_wizard_school, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

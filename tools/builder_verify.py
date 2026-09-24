@@ -3398,10 +3398,8 @@ RT_SHEET = {"death_threshold": "death_threshold"}
 # in BOTH directions: a stale entry (the option became reachable) fails loudly, so these get
 # retired when a fifth class or the BUG-26 multiclass route arrives.
 # Expanded Meta Magic / Greater Innate Power retired 2026-09-24: the Sorcerer is playable (FR-12).
-RT_UNREACHABLE = {
-    "Expanded Spell School":
-        "Wizard class talent; Wizard is not a playable class",
-}
+# Expanded Spell School retired 2026-09-24: the Wizard is playable (FR-12). EMPTY is the goal state.
+RT_UNREACHABLE = {}
 
 # Modelled options that are FIXED class features rather than picks: they carry an effect but
 # there is no picker to drive, so the round-trip asserts the effect on a plain scratch build
@@ -3411,7 +3409,8 @@ RT_UNREACHABLE = {
 RT_FIXED = {"Berserker": "barbarian",
             "Spellblade Disciplines": "spellblade",
             "Pact Boon": "warlock",
-            "Innate Power": "sorcerer"}
+            "Innate Power": "sorcerer",
+            "Spell School Initiate": "wizard"}
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3419,7 +3418,8 @@ RT_FIXED = {"Berserker": "barbarian",
 RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Expert Warlock": ("warlock", 5),
                "Meta Magic": ("sorcerer", 2),
-               "Expert Sorcerer": ("sorcerer", 5)}
+               "Expert Sorcerer": ("sorcerer", 5),
+               "Expert Wizard": ("wizard", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -3955,7 +3955,7 @@ def _rt_check_option(o, index):
         dd = [d for d in after["s"]["decisions"] if new and str(d.get("id")) == new[0][0]]
         _rt_ok(name, "%-64s spawns its sub_choice node with the declared options" % label,
                bool(dd) and [o["name"] for o in dd[0].get("options") or []]
-               == [o["name"] for o in row["sub_choice"]["options"]], new)
+               == [o["name"] for o in api._resolve_decl(row["sub_choice"])["options"]], new)   # FR-12: options_from
     if "opens" in row:
         _rt_assert_opens(name, label, api, row["opens"])
     if "rider" in row:
@@ -4748,6 +4748,98 @@ def check_fr12_sorcerer():
        [d.get("current") for d in s6["decisions"] if d["slot"] == "metamagic"])
 
 
+def check_fr12_wizard():
+    """FR-12 Phase 3, class 7 of 13 (2026-09-24): the base Wizard. New shape: a school_magic node
+    (Spell School Initiate, its MC twin, Expanded Spell School) whose options are DERIVED from
+    spell_sources.yaml (options_from) and whose answer childs the row's spells, filtered to Arcane +
+    the chosen school. The school no longer widens the Spell List and is never parsed out of a pick
+    name. Plus the source-model tag grant (Witch Curse, Portal Mage Teleportation)."""
+    print("\n## (50) FR-12 Phase 3: base Wizard (Spell School Initiate node, school-filtered children)")
+    src_cat = yaml.safe_load(open("spell_sources.yaml", encoding="utf-8"))["sources"]
+    arc = {x for l in src_cat["Arcane"].values() for x in l}
+    a = _fresh_at("wizard", "Human")
+    s0 = st(a)
+    node = [d for d in s0["decisions"] if d.get("id") == "GC#cg:0#choice#0"]
+    schools = [o["name"] for o in (node[0] if node else {}).get("options") or []]
+    ok("wizard L1 renders the Spell School Initiate node with the 8 Arcane schools (derived, not typed)",
+       bool(node) and node[0].get("choice_kind") == "school_magic" and schools == list(src_cat["Arcane"])
+       and len(schools) == 8, schools)
+    ok("an undecided school is reported", "L1 spell school undecided" in " ".join(s0["builder_problems"]),
+       s0["builder_problems"])
+    flat = {o["name"] for o in [d for d in s0["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    ok("the Wizard's flat spell picker is exactly the Arcane list", flat == arc, len(flat))
+    ok("L1 spell budget = 4 table + 2 School Magic", s0["spell_budget"] == 6, s0["spell_budget"])
+    s1 = json.loads(a.set_decision("GC#cg:0#choice#0", "Transmutation"))
+    kids = [d for d in s1["decisions"] if str(d.get("id")).startswith("GC#cg:0#spells#")]
+    ok("choosing a school opens 2 spell pickers under the feature at once", len(kids) == 2,
+       [d["id"] for d in kids])
+    ok("...offering exactly the Arcane spells of that school",
+       all({o["name"] for o in d["options"]} == set(src_cat["Arcane"]["Transmutation"]) for d in kids),
+       [len(d["options"]) for d in kids])
+    ok("the spell budget does not double-count the children", s1["spell_budget"] == 6, s1["spell_budget"])
+    a.set_decision(kids[0]["id"], "Invisibility")
+    s2 = json.loads(a.set_decision("GC#cg:0#choice#0", "Elemental"))
+    kids = [d for d in s2["decisions"] if str(d.get("id")).startswith("GC#cg:0#spells#")]
+    ok("re-choosing the school resets and re-filters the children",
+       len(kids) == 2 and all(d.get("current") == "(undecided)" for d in kids)
+       and all({o["name"] for o in d["options"]} == set(src_cat["Arcane"]["Elemental"]) for d in kids),
+       [(d.get("current"), len(d["options"])) for d in kids])
+    grp = {g["label"]: [i["pick"] for i in g["items"]] for g in json.loads(a.sheet())["ability_groups"]}
+    ok("the sheet folds the school into its feature (Spell School Initiate: Elemental)",
+       any("Spell School Initiate: Elemental" in p for p in grp.get("Class features") or [])
+       and "Elemental" not in sum(grp.values(), []), grp.get("Class features"))
+    s3 = json.loads(a.add_level())
+    tal = [d for d in s3["decisions"] if d.get("level") == 2 and d["slot"] == "talent"][0]
+    s4 = json.loads(a.set_decision(tal["id"], "Expanded Spell School"))
+    ess = [d for d in s4["decisions"] if d.get("level") == 2 and d["slot"] == "sub_choice"]
+    ok("Expanded Spell School opens a school node that excludes the school already chosen",
+       bool(ess) and [o["name"] for o in ess[0]["options"]] == [x for x in schools if x != "Elemental"],
+       ess and [o["name"] for o in ess[0]["options"]])
+    s5 = json.loads(a.set_decision(ess[0]["id"], "Enchantment"))
+    k2 = [d for d in s5["decisions"] if d.get("level") == 2 and d["slot"] == "spell_sourced"]
+    ok("...and its 2 spells are childed on Arcane Enchantment, +2 budget",
+       len(k2) == 2 and s5["spell_budget"] == 8
+       and all({o["name"] for o in d["options"]} == set(src_cat["Arcane"]["Enchantment"]) for d in k2),
+       (len(k2), s5["spell_budget"]))
+    for _ in range(3):
+        s6 = json.loads(a.add_level())
+    ok("L5 Expert Wizard adds its +1 spell (flat, 6 table + 2 + 2 + 1)", s6["spell_budget"] == 11,
+       s6["spell_budget"])
+    sub = [d for d in s6["decisions"] if d["slot"] == "subclass"][0]
+    ok("wizard L3 offers Portal Mage, Witch, Paragon",
+       [o["name"] for o in sub["options"]] == ["Portal Mage", "Witch", "Paragon"], sub["options"])
+    s7 = json.loads(a.set_decision(sub["id"], "Witch"))
+    curse = sorted(n for n, m in a.meta.items() if "Curse" in m["tags"])
+    tg = [d for d in s7["decisions"] if d["slot"] == "spell_tagged"]
+    ok("Witch Coven's Gift: 1 Curse-tag spell picker offering every Curse spell, off-Arcane ones too",
+       len(tg) == 1 and sorted(o["name"] for o in tg[0]["options"]) == curse
+       and any(n not in arc for n in curse), tg and [o["name"] for o in tg[0]["options"]])
+    s8 = json.loads(a.set_decision(sub["id"], "Portal Mage"))
+    tele = {n for n, m in a.meta.items() if "Teleportation" in m["tags"]}
+    flat = {o["name"] for o in [d for d in s8["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    # every Teleportation spell in 0.10.5 is already Arcane, so this is coverage, not a visible change
+    ok("Portal Mage: every Teleportation-tag spell is pickable",
+       bool(tele) and tele <= flat, sorted(tele - flat))
+    # Xanwyn (MC Spell School Initiate: Transmutation) is the real-build check.
+    x = builder_api.BuilderAPI("xanwyn", CATPATHS)
+    sx = st(x)
+    xn = [d for d in sx["decisions"] if d.get("choice_kind") == "school_magic"]
+    ok("Xanwyn's MC Spell School Initiate renders its node, answer Transmutation",
+       len(xn) == 1 and xn[0]["pick"] == "Transmutation", xn)
+    e = [e for e in x.ledger["levels"][2] if e.get("pick") == "Spell School Initiate"][0]
+    ok("rendering never rewrites a walked ledger (no granted_spells / spell_access appear)",
+       "granted_spells" not in e and "spell_access" not in e, e)
+    xg = {g["label"]: [i["pick"] for i in g["items"]] for g in json.loads(x.sheet())["ability_groups"]}
+    ok("Xanwyn's sheet still reads 'Spell School Initiate: Transmutation'",
+       "Spell School Initiate: Transmutation" in (xg.get("Talents") or []), xg.get("Talents"))
+    xf = {o["name"] for o in [d for d in sx["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    ok("School Magic does not widen the Spell List (Alter Size gone, Umbral Imbued by its Weapon tag)",
+       "Alter Size" not in xf and "Umbral Imbued" in xf, len(xf))
+    src = open("builder_api.py", encoding="utf-8").read()
+    ok("the school is never parsed out of a pick name (the 'Spell School Initiate:' parse is gone)",
+       "startswith('Spell School Initiate:')" not in src and "_ssi_schools" not in src, None)
+
+
 def check_ch14_engine_labels():
     print("\n## (47) CH-14 consumers read only the engine's named labels and spine features")
     import build_engine as be
@@ -4875,7 +4967,8 @@ def main():
                     check_bug26_sorcerous_origin, check_bug53_conditional_live,
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
                     check_fr49_equipment_effects, check_ch14_engine_labels,
-                    check_ch10_a14_roster, check_fr12_sorcerer):
+                    check_ch10_a14_roster, check_fr12_sorcerer,
+                    check_fr12_wizard):
             run(_fn)
     finally:
         os.chdir(old)

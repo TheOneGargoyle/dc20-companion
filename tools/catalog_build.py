@@ -105,6 +105,13 @@ SUBCLASS_GRANTS = {
     # modelled: the 2 Ancestry Points restricted to Angelborn / Dragonborn traits.
     "Sorcerer": {"Angelic": {"grants": {"metamagic": 1}, "prefer": {"metamagic": "Careful Spell"}},
                  "Draconic": {"grants": {"metamagic": 1}, "prefer": {"metamagic": "Transmuted Spell"}}},
+    # FR-12 Phase 3 Wizard. Portal Mage Teleportation Expert: "When you learn a new Spell, you can
+    # choose any Spell with the Teleportation Spell Tag" (classes.md l.3660-3661). Witch Coven's Gift:
+    # "You learn 1 Spell of your choice with the Curse Spell Tag" + the same tag access (l.3675-3680),
+    # the Eldritch/Psychic shape. NOT modelled: Curse spells counting as the Spell School Initiate
+    # school (Signature School), Hex Enhancements, Portal Magic.
+    "Wizard": {"Portal Mage": {"spell_access": {"tag": "Teleportation"}},
+               "Witch": {"grants": {"spells": 1}, "spell_access": {"tag": "Curse"}}},
     "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
@@ -183,6 +190,13 @@ CLASS_CONFIG = {
         # the source model with the source CHOSEN at chargen (FR-12 Phase 3): the ledger carries
         # chargen.spell_source, and there is no fixed `source` key.
         "spellcasting": {"model": "source", "source_choice": ["Arcane", "Divine", "Primal"]},
+    },
+    "Wizard": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.3466-3780 + rules/tables.md l.187-200",
+        "extras": {},
+        # classes.md l.3511-3512: "When you learn a new Spell, you can choose any Spell on the Arcane
+        # Spell Source." -> the source model with a FIXED source, like the Druid's Primal.
+        "spellcasting": {"model": "source", "source": "Arcane"},
     },
 }
 
