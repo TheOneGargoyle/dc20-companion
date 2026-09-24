@@ -2,10 +2,12 @@
 """Regenerate tools/MAP.md, the section map for the oversized tool files.
 
 Run from the repo root:  python3 tools/make_map.py
-Re-run after any structural change (new/moved/renamed top-level def or class).
+                         python3 tools/make_map.py --check   # exit 1 if MAP.md is stale (CI, CH-15)
+Re-run after any structural change (new/moved/renamed top-level def or class). Any edit that moves
+a line range or a file's line count or KB size makes the map stale, and --check says so.
 The map exists so Claude can Read a line range instead of a 200KB file.
 """
-import re, os
+import re, os, sys, difflib
 
 TARGETS = ["tools/builder_build.py", "tools/builder_api.py", "tools/builder_verify.py",
            "tools/catalog_verify.py", "tools/build_engine.py", "tools/builder_smoke.py",
@@ -39,7 +41,7 @@ def entries(lines):
             out.append((i, "# " + m4.group(1).strip()))
     return sorted(out)
 
-def main():
+def render():
     out = [HEADER]
     for t in TARGETS:
         if not os.path.exists(t):
@@ -51,7 +53,31 @@ def main():
             end = ents[j + 1][0] - 1 if j + 1 < len(ents) else len(lines)
             out.append("- L%d-%d `%s`" % (ln, end, name))
         out.append("")
-    open("tools/MAP.md", "w", encoding="utf-8").write("\n".join(out))
+    return "\n".join(out)
+
+def check(want):
+    # CH-15: compare, never write. Universal-newline read so a CRLF checkout is not "stale".
+    try:
+        have = open("tools/MAP.md", encoding="utf-8").read()
+    except FileNotFoundError:
+        print("FAIL - tools/MAP.md is missing. Run: python3 tools/make_map.py")
+        return 1
+    if have == want:
+        print("PASS - tools/MAP.md is current (%d target files)" % sum(os.path.exists(t) for t in TARGETS))
+        return 0
+    diff = list(difflib.unified_diff(have.split("\n"), want.split("\n"),
+                                     "MAP.md (committed)", "MAP.md (regenerated)", lineterm="", n=0))
+    print("FAIL - tools/MAP.md is stale. Run: python3 tools/make_map.py and commit it.")
+    print("\n".join(diff[:40]))
+    if len(diff) > 40:
+        print("... %d more diff lines" % (len(diff) - 40))
+    return 1
+
+def main():
+    want = render()
+    if "--check" in sys.argv[1:]:
+        sys.exit(check(want))
+    open("tools/MAP.md", "w", encoding="utf-8", newline="\n").write(want)
     print("wrote tools/MAP.md (%d bytes)" % os.path.getsize("tools/MAP.md"))
 
 if __name__ == "__main__":

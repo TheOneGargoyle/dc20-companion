@@ -96,6 +96,28 @@ Same conventions as the live file: no em-dashes anywhere.
 | FR-56 | Move Skill/Trade Expertise onto the FR-42 `sub_choice` node (picker only; ~28 variants per list today) | feature | builder+catalog | P3 | DONE (2026-09-23, Expertise node derived from the row, answer stays in `expertise:`; variants retired) |
 | BUG-46 | `Expanded Meta Magic` and `Expanded Boon` each declare half their rule | bug | catalog+builder | P2 | done (2026-09-24; Meta Magic half 2026-08-21) |
 | BUG-53 | The builder froze a conditional grant at pick time, so armour bought later did not remove it | bug | builder | P2 | done (2026-09-24) |
+| FR-41 | Per-PC "signature plays" cheat sheet on the Companion, from the optimisation workshops (08/10-16) | feature | companion | **P2** | DONE 2026-08-14, all 5 PCs shipped the evening Kristian asked; prompts written back into `10`/`12`/`13` too (note below) |
+| CH-10 | Audit every duplicated fact in the repo; derive or assert each one | chore | tools+catalog | P1 | DONE 2026-08-14, deliverable is `CH10_DUPLICATED_FACTS.md`, 97 rows; spawned BUG-37..50 |
+| BUG-37 | `damage_addons.yaml` freezes the Spend Limit at `cap: 2` (L4); breaks the moment the party hits L5 | bug | catalog | P1 | DONE 2026-08-14, `cap_stat: spend_limit` on both steppers; proved in-browser, 2 at L4 and 3 at L5 |
+| BUG-38 | `deploy.yml` `paths:` omits `tools/**`, so engine/API fixes never reach the live pages | bug | repo | P1 | DONE, shipped `1711be0` after missing `fa15db4`; the bridge cannot write `.github/workflows/**`, so Darryl hand-placed it (note below) |
+| BUG-39 | Bonan's ledger flattens `grants_unarmored` into an unconditional +2 AD, and names 2 wrong features | bug | data+catalog+engine | P1 | DONE 2026-08-21, the engine reads `grants_unarmored` off a ledger entry now, so the condition is LIVE; ledger names fixed; new reconcile section (2b) (note below) |
+| BUG-40 | Companion condition pills cover 12 of ~30 conditions, and 2 of the 12 do not exist | bug | companion | P2 | DONE 2026-08-14, pills DERIVED from the ruleset: 28 conditions + Prone/Grappled, Poisoned dropped (note below) |
+| BUG-43 | Lightning and Wind Runes are priced and inert (+1 Speed, +3 Jump undeclared) | bug | catalog | P2 | DONE 2026-08-21, both modelled, both round-tripped by a NEW subclass-child probe in FR-46, both numbers parsed out of classes.md |
+| BUG-44 | Six Beastborn traits are missing `requires: Natural Weapon` | bug | catalog+tools | P2 | DONE 2026-08-21, all six carry it and `catalog_verify` now reads a prerequisite stated as a SENTENCE above a bulleted list. It WARNS, it does not gate the picker, see FR-54 |
+| BUG-45 | Three of the eight Spell Schools are unpickable in the builder | bug | catalog+builder | P2 | DONE 2026-08-21, all 8 schools offered to both schools-model classes; lists generated with catalog_verify's own parser so the md stays the spec |
+| BUG-47 | Druid L1 feature `Wild Speech` missing from `class_features.yaml` | bug | catalog | P3 | DONE 2026-08-21, added; and `catalog_verify` LOADS the file now, which was the other half of this row |
+| FR-51 | Condition stack "-" chip reads as a separator, not a button | feature | companion | P3 | DONE 2026-08-14, it now wears the active pill's colours and tucks against it |
+| BUG-52 | Damage Calculator ignores the **Impact** weapon property (+1 damage on Heavy Hits) | bug | companion+catalog | P2 | DONE 2026-08-15, a grade-gated toggle on ALL SIX (the row said 4); ON only where the base IS the Impact weapon |
+| FR-52 | Roll section: add Versatile +2, Flanking +2, and the decayed Help Dice (d6/d4) | feature | companion | P2 | DONE 2026-08-15, two Attack-only toggles plus a live Help Die; grid still 9 buttons |
+| CH-17 | `catalog_verify`'s PASS banner hard-codes "90/90", so its headline count can never move | chore | tools | P3 | DONE 2026-08-15, live count is **1725**; 90/90 was section (1) only, not the harness |
+| FR-53 | Collapse the Conditions and Roll sections like the other accordions | feature | companion | P3 | DONE 2026-08-14, both collapsible AND the state persists per section |
+| CH-13 | Drop the `and e.get("grants")` conditional at 6 sites in `catalog_verify.py` | chore | tools | P1 | DONE 2026-08-14, all 6 sites unconditional; surfaced C5 and closed it without editing a canon ledger (note below) |
+| CH-12 | Offline Pyodide shim so `builder_smoke.py` runs outside CI | chore | tools | P1 | DONE 2026-08-14, layer 3 now runs locally in ~3m; OFF in CI on purpose (note below) |
+| CH-11 | Split the rules corpus out of `builder.html`: 81.9% of the file is one `RULES_DATA` literal | chore | builder+tools | P1 | DONE 2026-08-14, 2,600,533 -> 518,205 bytes (80.1%); shape changed from the filed plan, note below |
+| FR-26 | Stackable conditions (bleed/stunned) as counts not toggles | feature | companion | P3 | DONE 2026-08-14, UNPARKED: it fell out of BUG-40 for free, the rules mark stacking with a trailing X |
+| FR-55 | Companion: track Rest Points (max = HP max), spend for HP, refill on Long Rest | feature | companion | P2 | DONE 2026-09-23, tracker + Spend + Half/Complete Long Rest; hooks catalog-driven (note below) |
+| BUG-50 | `verify.yml` never builds the Companion and does not trigger on `companion-src/**` | bug | repo | P1 | DONE 2026-09-24, (38) already built it; added `companion-src/**` trigger + ORC card asserted in the artifact |
+| CH-15 | `make_map.py --check` plus one step in `verify.yml` so a stale `MAP.md` fails CI | chore | tools+repo | P2 | DONE 2026-09-24, `make_map.py --check` exits 1 on a stale/missing map; first CI step; mutation-tested |
 
 ---
 
@@ -255,6 +277,8 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**CH-15 + BUG-50 (2026-09-24), one CI edit.** `make_map.py --check` renders in memory and diffs; exit 1 on stale or missing, CRLF-only is PASS (universal-newline read); the write now forces LF. Mutation-tested: a new def, a shifted line, a deleted MAP.md all FAIL; it also caught this very commit's `builder_verify.py` edit before regeneration. BUG-50 reproduced first: builder_verify (38) already BUILDS the Companion in CI, so "never builds" was stale. Actually open were (a) no `companion-src/**` in verify.yml's push paths, so a template-only push published unverified, and (b) the ORC attribution card was read by nothing; (38) now asserts it in the built artifact (+7 checks, 979), mutation-tested by breaking the ORC link and the attribution. `catalog_build.py --check` is NOT a staleness check (it only prints), so it was not the pattern after all. verify.yml is hand-placed (bridge refuses `.github/workflows/**`).
 
 **CH-9, extract `API_PY` into `tools/builder_api.py`. DONE 2026-07-30, staged on the mount, awaiting Darryl's push.** The builder's client-side Python was a 2,789-line `r"""..."""` string literal at `builder_build.py` L81 to L2869. It is now a real module read at build time. `builder_build.py` went 3,852 to 1,082 lines, 228KB to 70KB, and `tools/MAP.md` now maps the API by line range where before it could only be reached with grep. `catalog_verify` 90/90, `builder_verify` PASS in the three usual `--only` chunks at 311 / 223 / 245, identical to the pre-change baseline taken from a fresh clone at `7cf83a2`.
 

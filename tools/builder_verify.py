@@ -974,7 +974,7 @@ def check_companion_dmg_roll():
     config back out of it.
     """
     print()
-    print("## (38) Companion Damage Calculator + Roll modifiers (BUG-52, FR-52)")
+    print("## (38) Companion Damage Calculator + Roll modifiers (BUG-52, FR-52) + ORC card (BUG-50)")
     outdir = tempfile.mkdtemp(prefix="dc20-companion-verify-")   # trap 7: a dir we just made
     out = os.path.join(outdir, "companion.html")
     try:
@@ -1055,6 +1055,19 @@ def check_companion_dmg_roll():
         n_help = art.count("'Help Die (d8)'")
         ok("FR-52: all six are at d8 today; flip Minimus to d10 when he reaches L5",
            n_help == 6, n_help)
+
+        # --- BUG-50: the ORC attribution card, in the ARTIFACT (trap 3) ---
+        # It is the one condition under which publishing DC20 text is permissible, and before this
+        # nothing read it: deploy.yml greps only for GM strings, map data and truncation.
+        a0 = art.find('id="tab-about"')
+        a1 = art.find('<div class="tab"', a0 + 1) if a0 >= 0 else -1
+        about = art[a0:a1 if a1 > a0 else a0 + 6000] if a0 >= 0 else ""
+        ok("BUG-50: the artifact carries the About tab", bool(about))
+        for needle in ("unofficial, fan-made", "The Dungeon Coach", "Alan Bjorkgren",
+                       "Open RPG Creative (ORC) License", 'href="https://paizo.com/orclicense"'):
+            ok("BUG-50: the About tab carries the ORC attribution: %s" % needle, needle in about)
+        ok("BUG-50: the build stamp is substituted, not the raw placeholder",
+           "__BUILD_STAMP__" not in art)
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
 
