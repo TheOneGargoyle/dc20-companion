@@ -4436,6 +4436,57 @@ def check_bug46_expanded_boon():
        [o["name"] for o in boons(rs, 4)[0]["options"]])
 
 
+def check_fr50_export_fixed_point():
+    """FR-50 (2026-09-24), design (b): the exporter's output IS the house format. Every canon ledger
+    is stored exactly as export(load(file)) prints it, so an untouched export is byte-identical and
+    a one-spell edit diffs as only its own lines, by construction. Run `python3 tools/ledger_fmt.py`
+    after any hand edit to a ledger; this section says which file drifted."""
+    print("\n## (45) FR-50 ledger export is a fixed point (house format)")
+    import difflib
+    chars = list(builder_build.CHARS)
+    ok("FR-50 the ledger set is not empty (trap 4)", len(chars) == 6, chars)
+
+    def changed(a, b):
+        return [l for l in difflib.unified_diff(a.splitlines(), b.splitlines(), lineterm="", n=0)
+                if l[:1] in "+-" and l[:3] not in ("+++", "---")]
+    for c in chars:
+        src = open(c + ".yaml", encoding="utf-8").read()
+        y = builder_api.BuilderAPI(c, CATPATHS).export_yaml()
+        ok("FR-50 %-10s untouched export is byte-identical to the file (else run tools/ledger_fmt.py)"
+           % c, y == src, changed(src, y)[:4])
+        y2 = builder_api.BuilderAPI(c, CATPATHS, ledger_text=y).export_yaml()
+        ok("FR-50 %-10s second round trip is still identical" % c, y2 == y, changed(y, y2)[:4])
+    # one spell changed -> only that spell's line moves
+    for c in ("xanwyn", "tanrielle"):
+        src = open(c + ".yaml", encoding="utf-8").read()
+        api = builder_api.BuilderAPI(c, CATPATHS)
+        d = find_dec(st(api), lambda d: d["slot"] == "spell" and d["editable"] and d.get("current"))
+        new = [o["name"] for o in d["options"] if o["name"] != d["current"]
+               and o["name"] not in src][0]
+        api.set_decision(d["id"], new)
+        diff = changed(src, api.export_yaml())
+        minus = [l for l in diff if l.startswith("-")]
+        plus = [l for l in diff if l.startswith("+")]
+        ok("FR-50 %-10s one spell edit (%s -> %s) diffs as exactly -1/+1 line"
+           % (c, d["current"], new),
+           len(minus) == 1 and len(plus) == 1 and d["current"] in minus[0] and new in plus[0], diff[:6])
+    # compact flow for short scalar-only collections, block for anything carrying prose
+    y = builder_api.BuilderAPI("bonan", CATPATHS).export_yaml()
+    ok("FR-50 short scalar-only collections stay flow (attributes, traits, maneuvers)",
+       re.search(r"^  attributes: \{might: 3, ", y, re.M)
+       and re.search(r"^  - \{name: Beast Insight, source: Halfling, cost: 1\}$", y, re.M)
+       and re.search(r"^  maneuvers: \[Whirlwind, Side Step\]$", y, re.M), y[:600])
+    ok("FR-50 an entry carrying a note stays block", re.search(r"^  - slot: class_feature$", y, re.M))
+    # two EOL comments that land on one flow line must both survive
+    txt = "schema: 1\nattributes:\n  might: 3   # from the sheet\n  agility: 0   # point buy\n"
+    a = builder_api.BuilderAPI(None, CATPATHS, new_class="druid")
+    a.ledger, a.src_text = yaml.safe_load(txt), txt
+    y = a.export_yaml()
+    ok("FR-50 EOL comments collapsing onto one flow line both survive and re-export stably",
+       "# from the sheet" in y and "# point buy" in y and "anchor was edited away" not in y
+       and yaml.safe_load(y) == yaml.safe_load(txt), y)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4480,7 +4531,7 @@ def main():
                     check_companion_dmg_roll, check_companion_rest_points,
                     check_l5_class_features, check_expertise, check_fr42_fr48,
                     check_bug26_sorcerous_origin, check_bug53_conditional_live,
-                    check_bug46_expanded_boon):
+                    check_bug46_expanded_boon, check_fr50_export_fixed_point):
             run(_fn)
     finally:
         os.chdir(old)

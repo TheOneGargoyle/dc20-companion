@@ -12,72 +12,40 @@ current_level: 4
 
 chargen:
   attribute_method: point_buy
-  attributes:
-    might: 3
-    agility: 0
-    charisma: -1
-    intelligence: 2
+  attributes: {might: 3, agility: 0, charisma: -1, intelligence: 2}
   # Point buy: M3=5, A0=2, C-1=1, I2=4 = 12. L3 point assumed Int 2->3 (ask Phil; Phil's
   # summary says "no increases yet" but the budget proves one was spent, same trap as Tan's).
   ancestry_traits:
   # L1 itemisation from Phil's L1 sheet (2026-07-16). Giantborn (ogre) list, all in
   # catalog ancestries.yaml Giantborn: 2+1+1+1+1+0-1 = 5 = L1 Ancestry Points.
-  - name: Powerful Build
-    source: Giantborn
-    cost: 2
-  - name: Brute
-    source: Giantborn
-    cost: 1
+  - {name: Powerful Build, source: Giantborn, cost: 2}
+  - {name: Brute, source: Giantborn, cost: 1}
   - name: Tough
     source: Giantborn
     cost: 1
-    grants:
-      hp: 1
-    note: 'Grants +1 HP (explains sheet HP 16). In both Giantborn and Dwarf lists; tagged Giantborn.'
-  - name: Titanic Toss
-    source: Giantborn
-    cost: 1
-  - name: Mighty Hurl
-    source: Giantborn
-    cost: 1
-  - name: Unyielding Movement
-    source: Giantborn
-    cost: 0
-  - name: Heavy Riser
-    source: Giantborn
-    cost: -1
-  spell_schools:
-  - Elemental
-  - Invocation
-  - Nullification
+    grants: {hp: 1}
+    note: Grants +1 HP (explains sheet HP 16). In both Giantborn and Dwarf lists; tagged Giantborn.
+  - {name: Titanic Toss, source: Giantborn, cost: 1}
+  - {name: Mighty Hurl, source: Giantborn, cost: 1}
+  - {name: Unyielding Movement, source: Giantborn, cost: 0}
+  - {name: Heavy Riser, source: Giantborn, cost: -1}
+  spell_schools: [Elemental, Invocation, Nullification]
   class_choices:
   - slot: pact_boon
-    picks:
-    - Pact Weapon
-    grants:
-      maneuvers: 2
-    granted_maneuvers:
-    - Cleave
-    - Pathcarver
+    picks: [Pact Weapon]
+    grants: {maneuvers: 2}
+    granted_maneuvers: [Cleave, Pathcarver]
     note: 'Pact Weapon grants 2 attack maneuvers (Cleave, Pathcarver - confirmed by Darryl 2026-07-16). The bonded weapon is the Staff of Lightning (Powerful focus; 1B, 2H, Guard, Reach, Impact), recorded under equipment. FR-8 slice 1 (2026-07-17): de-bundled the weapon text from the boon name so the L1 boon renders as a clean picker like the L4 Pact Armor.'
-  spells:
-  - Lightning Torrent
-  - Heal
-  - Vampiric Touch
-  - Wild Guard
+  spells: [Lightning Torrent, Heal, Vampiric Touch, Wild Guard]
   maneuvers: []  # grants-only unification (2026-07-19): Cleave & Pathcarver are FIXED grants of the L1 Pact Weapon boon (class_choices.granted_maneuvers), not free picks. Removed from the flat pool to end the double-count; the boon's granted_maneuvers is now the single source.
-  combat_training:
-  - Heavy Armor
+  combat_training: [Heavy Armor]
 
 levels:
   2:
-  - slot: path
-    pick: Martial
-    note: 'First-time rider: Spellcaster Stamina Regen'
+  - {slot: path, pick: Martial, note: 'First-time rider: Spellcaster Stamina Regen'}
   - slot: talent
     pick: Martial Expansion
-    grants:
-      maneuvers: 2
+    grants: {maneuvers: 2}
     regen_source: Monk  # FR-23: Martial Expansion Stamina Regen choice = Monk (Ath/Acro/Martial hit). Plus the Warlock Martial-path Spellcaster rider = two triggers, 1 benefit/round.
     note: +2 maneuvers, weapon training; Stamina-regen trigger = Monk option (Ath/Acro/Martial hit). Runt runs two regen triggers, 1 benefit/round (ruling 2026-07-04).
   - slot: maneuver
@@ -95,33 +63,25 @@ levels:
   3:
   - slot: subclass
     pick: Eldritch
-    grants:
-      spells: 1
-    granted_spells:
-    - Tendrils from Beyond
+    grants: {spells: 1}
+    granted_spells: [Tendrils from Beyond]
     note: 'Otherworldly Gift: Psychic Spellcasting = +1 Psychic-tag spell, itemised as a constrained child picker (FR-8 slice 5, 2026-07-17): the {spells:1} grant materialises one Psychic-only spell slot (constraint sourced from the catalog subclass_grants Eldritch spell_access tag Psychic), default Tendrils from Beyond (Conjuration school, legal ONLY via the Psychic tag since Conjuration is not a chosen school), classes.md l.3414-17. The grant is CONSUMED by this pick (counted once via the spell budget, like granted_maneuvers), so spells stays 6. Forbidden Knowledge = daily temp spell (Primal Hide routine), not a known spell.'
   - slot: attribute
     pick: intelligence
     inferred: true
     note: Destination unconfirmed. ASK PHIL (Int vs Might).
-  - slot: spell
-    pick: Lightning Bolt
-    source: class table +1
+  - {slot: spell, pick: Lightning Bolt, source: class table +1}
   4:
   - slot: talent
     pick: Expanded Boon
     note: Grants a 2nd Pact Boon; its grants live on the pact_boon pick below (catalog model). L2 talent accounting closed 2026-07-05.
   - slot: pact_boon
     pick: Pact Armor
-    grants:
-      maneuvers: 2
-    granted_maneuvers:
-    - Brace
-    - Side Step
+    grants: {maneuvers: 2}
+    granted_maneuvers: [Brace, Side Step]
     source: Expanded Boon talent
     note: 'Pact Armor grants 2 defensive maneuvers (Brace, Side Step - confirmed by Darryl 2026-07-16) plus +1 AD and MDR Half while worn (BUG-7 closed 2026-07-16: confirmed with Phil, the +1 is AD not PD). The AD/MDR are contextual (while worn), so per the catalog they are carried on the armour equipment item, not as class grants - derived AD = 13.'
-  - slot: path
-    pick: Martial
+  - {slot: path, pick: Martial}
   - slot: ancestry_trait
     pick: Strong Body
     cost: 2
@@ -135,48 +95,25 @@ levels:
 skills:
   allocation_confidence: inferred
   masteries:
-    Awareness:
-      mastery: Novice
-    Athletics:
-      mastery: Adept
-      limit_raise: skill_point_purchase
-    Intimidation:
-      mastery: Novice
-    Acrobatics:
-      mastery: Novice
-    Survival:
-      mastery: Novice
+    Awareness: {mastery: Novice}
+    Athletics: {mastery: Adept, limit_raise: skill_point_purchase}
+    Intimidation: {mastery: Novice}
+    Acrobatics: {mastery: Novice}
+    Survival: {mastery: Novice}
 trades:
   masteries:
-    Arcana:
-      mastery: Novice
-    History:
-      mastery: Novice
-    Nature:
-      mastery: Novice
-    Occultism:
-      mastery: Novice
-    Religion:
-      mastery: Novice
-    Leatherwork:
-      mastery: Novice
-    Masonry:
-      mastery: Novice
-    Cooking:
-      mastery: Novice
-  knowledge_trades:
-  - Arcana
-  - History
-  - Nature
-  - Occultism
-  - Religion
+    Arcana: {mastery: Novice}
+    History: {mastery: Novice}
+    Nature: {mastery: Novice}
+    Occultism: {mastery: Novice}
+    Religion: {mastery: Novice}
+    Leatherwork: {mastery: Novice}
+    Masonry: {mastery: Novice}
+    Cooking: {mastery: Novice}
+  knowledge_trades: [Arcana, History, Nature, Occultism, Religion]
 languages:
-- name: Common
-  fluency: Fluent
-  cost: 0
-- name: Dwarf
-  fluency: Fluent
-  cost: 2
+- {name: Common, fluency: Fluent, cost: 0}
+- {name: Dwarf, fluency: Fluent, cost: 2}
 - name: Deep Speech
   fluency: Fluent
   granted: true
@@ -190,12 +127,11 @@ equipment:
   pdr: half
   mdr: half
   mods: 'BUG-6 / BUG-7 fix 2026-07-16 (magic-item audit, confirmed with Phil): this is Deflecting Heavy (+2 PD, +0 AD, PDR Half), NOT Defensive Heavy - the earlier Defensive reading was Darryl''s mistake. The magic enchantment (2 Magical Power) removes the Rigid/Bulky penalties, so NO Speed -1 and NO DisADV Agility. ad 1 here = Pact Armor''s +1 AD while worn (contextual, carried on the worn item not as a class grant per the catalog note; the sheet had this +1 in the PD box by mistake - it is AD). DR = PDR Half (Heavy Armour PDR: tables.md l.219, char-creation.md l.142) + MDR Half (Pact Armor "Mystical Armor: +1 AD and MDR": classes.md l.3271), EDR none. FR-2 rules refs 2026-07-16; DR reduces normal Hits only, not Heavy/Crit (bestiary.md l.318-330). PD 16 unbuffed = 13 base + armour 2 + staff Guard 1; AD 13 = 12 base + Pact Armor 1; sheet PD 18 = 16 + Primal Hide 2 (daily Forbidden Knowledge routine).'
-- name: Steadfast Boots
+- {name: Steadfast Boots}
 - name: Staff of Lightning
   pd: 1
-  mods: 'bonded Pact Weapon (pass 2.1); Quarterstaff Guard property = +1 PD while wielded. Contributes +1 to PD 16 (13 base + Deflecting Heavy armour +2 + staff Guard +1).'
-- name: Brass Knuckles
-  mods: the +1-vs-grappled rider is retired (previous-version)
+  mods: bonded Pact Weapon (pass 2.1); Quarterstaff Guard property = +1 PD while wielded. Contributes +1 to PD 16 (13 base + Deflecting Heavy armour +2 + staff Guard +1).
+- {name: Brass Knuckles, mods: the +1-vs-grappled rider is retired (previous-version)}
 - name: Light Shield (Buckler)
   pd: 0
   ad: 0
@@ -212,11 +148,7 @@ expected:
   initiative: 2
   pd: 16
   ad: 13
-  saves:
-    might: 5
-    agility: 2
-    charisma: 1
-    intelligence: 5
+  saves: {might: 5, agility: 2, charisma: 1, intelligence: 5}
   move: 5
   jump: 1
 

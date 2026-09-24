@@ -222,6 +222,47 @@ def blank_ledger(cls, ccat, cfcat=None):
 
 
 # ---------- comment-preserving YAML export ----------
+# FR-50: the exporter's output IS the house format (canon ledgers are stored as it prints them,
+# builder_verify (45) asserts the fixed point). A collection whose members are all one-line scalars
+# and whose flow rendering is short dumps as flow; everything else (prose, nesting) as block. The
+# choice depends only on the data, so dump(load(dump(x))) == dump(x) by construction.
+FLOW_MAX = 100
+
+
+def _is_short_scalar(v):
+    return v is None or isinstance(v, (bool, int, float)) or \
+        (isinstance(v, str) and '\n' not in v)
+
+
+class _LedgerDumper(yaml.Dumper):
+    pass
+
+
+def _flow_ok(data, items):
+    return bool(items) and all(_is_short_scalar(x) for x in items) and \
+        len(yaml.dump(data, default_flow_style=True, width=4096, allow_unicode=True,
+                      sort_keys=False)) <= FLOW_MAX
+
+
+def _rep_list(dumper, data):
+    return dumper.represent_sequence('tag:yaml.org,2002:seq', data,
+                                     flow_style=_flow_ok(data, data))
+
+
+def _rep_dict(dumper, data):
+    return dumper.represent_mapping('tag:yaml.org,2002:map', data.items(),
+                                    flow_style=_flow_ok(data, list(data) + list(data.values())))
+
+
+_LedgerDumper.add_representer(list, _rep_list)
+_LedgerDumper.add_representer(dict, _rep_dict)
+
+
+def dump_ledger(data):
+    # width=4096: no line-wrapping, so an EOL comment can never land inside a wrapped plain scalar
+    return yaml.dump(data, Dumper=_LedgerDumper, sort_keys=False, allow_unicode=True, width=4096)
+
+
 def _line_paths(text):
     # {physical line -> node path} for every mapping key / sequence item, via the
     # real YAML composer - format-neutral, so hand-written and dumped layouts agree.
@@ -345,7 +386,10 @@ def merge_comments(src_text, dumped):
         if a['kind'] == 'lead':
             lead.setdefault(ln, []).extend(a['lines'])
         elif a['kind'] == 'eol':
-            eol[ln] = (a['text'], a['col'])
+            if ln in eol:            # FR-50: two keys collapsed onto one flow line, keep both
+                eol[ln] = (eol[ln][0] + '  ' + a['text'], eol[ln][1])
+            else:
+                eol[ln] = (a['text'], a['col'])
         else:
             trail.setdefault(ln, []).extend(a['lines'])
     out = list(header)
@@ -3167,9 +3211,7 @@ class BuilderAPI:
         return self.state()
 
     def export_yaml(self):
-        # width=4096: no line-wrapping, so an EOL comment can never land inside a
-        # wrapped plain scalar
-        dumped = yaml.dump(self.ledger, sort_keys=False, allow_unicode=True, width=4096)
+        dumped = dump_ledger(self.ledger)
         if not getattr(self, 'src_text', None):
             return ('# Build ledger: %s. Created in the rung-3 builder '
                     '(new-from-scratch mode).\n# Schema: builds/SCHEMA.md (v1).\n'

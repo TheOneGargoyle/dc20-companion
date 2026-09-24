@@ -37,7 +37,6 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 | CH-7 | Assert the `rules/classes.md` source repairs so a PDF re-extraction cannot silently revert them | chore | repo+companion | P3 | ready (new 2026-07-28, see note) |
 | BUG-41 | Companion accordions name a spell and a maneuver that do not exist, plus 7 more ledger mismatches | bug | companion | P2 | ready (CH-10; fold into FR-40) |
 | BUG-51 | `sync-commit-push.bat` copies 5 subfolders and NO root files, so a root-level change cannot ship | bug | repo | P2 | ready (found 2026-08-14 when `.gitignore` could not reach the clone; see note) |
-| FR-50 | The builder's ledger export reformats the whole file (flow to block style), so a 1-line change reviews as 175 | feature | builder | P2 | ready (found 2026-08-14 on Kristian's Minimus export; see note) |
 | CH-16 | `builder_build.py` still hand-lists the old 12 conditions; derive it like the Companion now does | chore | builder+tools | P3 | ready (the duplicate BUG-40 left behind, see note) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | ready (CH-10 fix 2; collapses A1/A4/A10/A18/A21) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | ready (CH-10 fix 6; closes a class of unmodellable item) |
@@ -437,14 +436,7 @@ files change rarely and the current miss is harmless (the cache dir only exists 
 runs, which is the sandbox and CI, never Darryl's machines). Fix is one more robocopy line for the
 root with `/XF` on the token files, or an explicit named-file copy.
 
-**FR-50 (new 2026-08-14). The builder's ledger export reformats the entire file.** Kristian's Minimus
-export changed one spell; the diff was **175 lines against 85**, because the export re-emits YAML in
-block style where the hand-authored ledgers use compact flow style. Comments DO survive, which is the
-good news. Verified semantically identical apart from the intended change by loading both sides and
-walking the structures, then applied the 3-line change by hand to keep the house format. **Why it
-matters:** the whole point of the round-trip is that a player edits in the builder and Darryl rebuilds
-on the fly, and that loop is only cheap if the diff is readable. Fix is to dump in flow style for the
-collections the ledgers use, or accept block style everywhere and reformat all six once, deliberately.
+**FR-50 closed 2026-09-24**, note moved to `builds/BACKLOG_DONE.md` (head of Features).
 
 **BUG-41 partially closed 2026-08-14.** Minimus's Companion spell card said **Grease** (a pre-0.10.5
 name for Oil Slick) and **Close Wounds**; it now reads Oil Slick and Cleanse, with Cleanse's actual
