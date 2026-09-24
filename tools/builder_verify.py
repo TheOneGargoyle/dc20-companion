@@ -4803,12 +4803,35 @@ def check_fr12_wizard():
        (len(k2), s5["spell_budget"]))
     for _ in range(3):
         s6 = json.loads(a.add_level())
-    ok("L5 Expert Wizard adds its +1 spell (flat, 6 table + 2 + 2 + 1)", s6["spell_budget"] == 11,
+    ok("L5 Expert Wizard adds its +1 spell (6 table + 2 + 2 + 1)", s6["spell_budget"] == 11,
        s6["spell_budget"])
+    ex = [d for d in s6["decisions"] if d.get("level") == 5 and d["slot"] == "spell_sourced"]
+    ok("Expert Wizard's spell is ONE picker on Arcane + the Spell School Initiate school (Elemental)",
+       len(ex) == 1 and {o["name"] for o in ex[0]["options"]} == set(src_cat["Arcane"]["Elemental"]),
+       [(d["id"], len(d["options"])) for d in ex])
+    ok("...reported undecided while unpicked",
+       "L5 1 Expert Wizard spell pick(s) undecided" in " ".join(s6["builder_problems"]), s6["builder_problems"])
+    if ex:
+        a.set_decision(ex[0]["id"], sorted(src_cat["Arcane"]["Elemental"])[0])
+    s6b = json.loads(a.set_decision("GC#cg:0#choice#0", "Divination"))
+    ex = [d for d in s6b["decisions"] if d.get("level") == 5 and d["slot"] == "spell_sourced"]
+    ok("changing the L1 school resets and re-filters the Expert Wizard spell (read live, not copied)",
+       len(ex) == 1 and ex[0].get("current") == "(undecided)"
+       and {o["name"] for o in ex[0]["options"]} == set(src_cat["Arcane"]["Divination"]), ex and ex[0].get("current"))
     sub = [d for d in s6["decisions"] if d["slot"] == "subclass"][0]
     ok("wizard L3 offers Portal Mage, Witch, Paragon",
        [o["name"] for o in sub["options"]] == ["Portal Mage", "Witch", "Paragon"], sub["options"])
     s7 = json.loads(a.set_decision(sub["id"], "Witch"))
+    curse_arc = {n for n, m in a.meta.items() if "Curse" in m["tags"] and "Arcane" in (m.get("sources") or [])}
+    div = set(src_cat["Arcane"]["Divination"])
+    ssi = [d for d in s7["decisions"] if d["slot"] == "spell_sourced" and d.get("level") in (1, 5)]
+    ok("Witch Coven's Gift: Arcane Curse spells join the SSI and Expert Wizard pickers",
+       len(ssi) == 3 and bool(curse_arc - div)
+       and all({o["name"] for o in d["options"]} == div | curse_arc for d in ssi), [len(d["options"]) for d in ssi])
+    ess2 = [d for d in s7["decisions"] if d["slot"] == "spell_sourced" and d.get("level") == 2]
+    ok("...but not Expanded Spell School's (the rule names Spell School Initiate only)",
+       len(ess2) == 2 and all({o["name"] for o in d["options"]} == set(src_cat["Arcane"]["Enchantment"])
+                              for d in ess2), [len(d["options"]) for d in ess2])
     curse = sorted(n for n, m in a.meta.items() if "Curse" in m["tags"])
     tg = [d for d in s7["decisions"] if d["slot"] == "spell_tagged"]
     ok("Witch Coven's Gift: 1 Curse-tag spell picker offering every Curse spell, off-Arcane ones too",

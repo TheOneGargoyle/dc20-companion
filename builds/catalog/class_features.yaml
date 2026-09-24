@@ -207,7 +207,9 @@ classes:
     5:
       - name: Expert Wizard   # classes.md l.3610-3631
         grants: {spells: 1}
-        # "You learn 1 additional Arcane Spell from the chosen School": a FLAT +1 for now, so the pick is
-        # bound by the Arcane list but not by the L1 school (childing it under the L1 node is code, logged).
-        note: "+1 Arcane spell from the Spell School Initiate school (not school-filtered); Signature School -1 more MP; Sigil Tag/Area enhancements; 2 Prepared Spells"
+        # "You learn 1 additional Arcane Spell from the chosen School": the +1 is childed under this
+        # feature, filtered to Arcane + the school on Spell School Initiate's node (read live, so a
+        # changed L1 school re-filters it; builder_api _spell_grant_source).
+        child_spells: {source: Arcane, school_from: Spell School Initiate}
+        note: "+1 Arcane spell from the Spell School Initiate school; Signature School -1 more MP; Sigil Tag/Area enhancements; 2 Prepared Spells"
     6: []

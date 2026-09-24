@@ -912,6 +912,13 @@ class BuilderAPI:
         src = ((parent.get('sorcerous_origin') or {}).get('chosen_source')) or sa.get('source')
         if sa.get('own_list'):   # FR-12 Phase 3: the class's own (possibly chosen) Spell Source
             src = self._class_source()
+        cs = self._row_child_spells(parent)
+        if cs and cs.get('school_from'):
+            # FR-12 Phase 3 (Expert Wizard, "1 additional Arcane Spell from the chosen School"): the
+            # school is READ LIVE from the named feature's school_magic node, never copied onto this
+            # entry, so a changed L1 school re-filters it. Undecided school -> a filter nothing passes.
+            sch = self._school_of(cs['school_from'])
+            return cs['source'], [sch if sch else UNDECIDED]
         if not src or str(src) == UNDECIDED:
             return None
         return src, (sa.get('schools') or None)
@@ -954,6 +961,47 @@ class BuilderAPI:
         d['options'] = [{'name': s} for s in
                         ((self.cat.get('spell_sources') or {}).get('sources') or {}).get(src) or {}]
         return d
+
+    def _row_child_spells(self, entry):
+        # a class-feature entry's row-level `child_spells` (Expert Wizard), else None
+        if entry.get('slot') not in CLASS_FEATURE_SLOTS:
+            return None
+        return next((r['child_spells'] for r in self._class_feature_rows_of(entry)
+                     if r.get('child_spells')), None)
+
+    def _school_entries(self, owner):
+        # every entry whose school_magic node is owned by the feature named `owner`
+        entries = list(self.ledger['chargen'].get('class_choices') or [])
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            entries += list(self.ledger['levels'][lvl] or [])
+        return [e for e in entries if (self._choice_decl(e) or {}).get('kind') == 'school_magic'
+                and self._choice_owner_name(e) == owner]
+
+    def _school_of(self, owner):
+        # the school chosen on `owner`'s school_magic node (Spell School Initiate), or None
+        for e in self._school_entries(owner):
+            pk = (e.get('choice') or {}).get('pick')
+            if pk and str(pk) != UNDECIDED:
+                return str(pk)
+        return None
+
+    def _school_extra_tags(self, parent):
+        # Witch Coven's Gift: "Spells with the Curse Spell Tag count as being part of your chosen Spell
+        # School for the purposes of your Spell School Initiate Feature" (classes.md l.3678-3680). A held
+        # subclass's `school_magic_tags` widen the Spell School Initiate children and the children that
+        # read their school from it (Expert Wizard), never Expanded Spell School's.
+        owner = (self._row_child_spells(parent) or {}).get('school_from')
+        if not owner and (self._choice_decl(parent) or {}).get('kind') == 'school_magic':
+            owner = self._choice_owner_name(parent)
+        if owner != 'Spell School Initiate':
+            return set()
+        sg = self.ccat.get('subclass_grants') or {}
+        out = set()
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            for e in self.ledger['levels'][lvl] or []:
+                if e.get('slot') == 'subclass':
+                    out |= set((sg.get(base_name(e['pick'])) or {}).get('school_magic_tags') or [])
+        return out
 
     def _choice_owner_name(self, entry):
         # the NAME of the catalog row that declares an entry's node (the talent, or the class feature
@@ -1139,6 +1187,12 @@ class BuilderAPI:
         else:
             entry.pop('spell_access', None)
             entry.pop('granted_spells', None)
+        # the children that read their school from this feature (Expert Wizard) are re-filtered, so reset
+        owner = self._choice_owner_name(entry)
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            for e in self.ledger['levels'][lvl] or []:
+                if (self._row_child_spells(e) or {}).get('school_from') == owner and e.get('granted_spells'):
+                    e['granted_spells'] = [UNDECIDED] * len(e['granted_spells'])
 
     def _list_widening(self):
         # FR-42: Spellcasting Expansion "add 1 Spell Source or 3 Spell Schools of your choice to your
@@ -1320,7 +1374,7 @@ class BuilderAPI:
             self._all_src_cache = s
         return self._all_src_cache
 
-    def _spell_sourced_options(self, source, schools=None):
+    def _spell_sourced_options(self, source, schools=None, tags=None):
         # FR-13a: options for a SOURCE-constrained spell child-slot = every spell in spells.md whose
         # Source list includes `source` (optionally narrowed to `schools`). Independent of the
         # character's own class source, since the grant reaches outside it (e.g. a Druid's Arcane
@@ -1328,7 +1382,8 @@ class BuilderAPI:
         out = []
         for n, m in self.meta.items():
             if source in (m.get('sources') or []):
-                if schools and m.get('school') not in schools:
+                if schools and m.get('school') not in schools \
+                        and not (tags and set(m.get('tags') or []) & set(tags)):
                     continue
                 out.append(n)
         return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
@@ -1860,6 +1915,12 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d spell (any list) undecided' % lvl)
+                if (self._row_child_spells(e) or {}).get('school_from'):   # FR-12 Phase 3: Expert Wizard
+                    _n = int((e.get('grants') or {}).get('spells', 0) or 0)
+                    _lst = e.get('granted_spells') or []
+                    _m = sum(1 for _k in range(_n) if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED)
+                    if _m:
+                        probs.append('builder: L%d %d %s spell pick(s) undecided' % (lvl, _m, base_name(e.get('pick'))))
         # FR-3 slice 2 / FR-17: planned levels ENFORCE their skill AND trade point budgets (Darryl's
         # call), POINTS-based rather than per-slot, because a cap+ pick costs 2 points. So a level with
         # N points is under-spent while decided picks total < N, and over-spent if they total > N (only
@@ -2280,7 +2341,7 @@ class BuilderAPI:
             src, schools = gsrc
             n = int(grants.get('spells', 0) or 0)
             lst = parent.get('granted_spells') or []
-            opts = self._spell_sourced_options(src, schools)
+            opts = self._spell_sourced_options(src, schools, self._school_extra_tags(parent))
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
                 d = self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_sourced',

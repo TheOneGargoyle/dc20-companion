@@ -108,10 +108,12 @@ SUBCLASS_GRANTS = {
     # FR-12 Phase 3 Wizard. Portal Mage Teleportation Expert: "When you learn a new Spell, you can
     # choose any Spell with the Teleportation Spell Tag" (classes.md l.3660-3661). Witch Coven's Gift:
     # "You learn 1 Spell of your choice with the Curse Spell Tag" + the same tag access (l.3675-3680),
-    # the Eldritch/Psychic shape. NOT modelled: Curse spells counting as the Spell School Initiate
-    # school (Signature School), Hex Enhancements, Portal Magic.
+    # the Eldritch/Psychic shape. `school_magic_tags`: Curse spells also fill the SSI (and Expert Wizard)
+    # pickers. NOT modelled: Signature School, Hex Enhancements, Portal Magic.
     "Wizard": {"Portal Mage": {"spell_access": {"tag": "Teleportation"}},
-               "Witch": {"grants": {"spells": 1}, "spell_access": {"tag": "Curse"}}},
+               "Witch": {"grants": {"spells": 1}, "spell_access": {"tag": "Curse"},
+                         # Coven's Gift: Curse spells count as the SSI school (l.3678-3680)
+                         "school_magic_tags": ["Curse"]}},
     "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }

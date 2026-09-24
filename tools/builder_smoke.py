@@ -617,6 +617,13 @@ def j_wizard_school(P):
        all(len([o for o in P.options(k) if o != "(undecided)"]) == 12 for k in kids),
        [len(P.options(k)) for k in kids])
     ok("Spells known reads 6", P.stat("Spells known") == "6", P.stat("Spells known"))
+    for _ in range(4):
+        P.add_level()
+    P.pg.wait_for_timeout(500)
+    ex = P.decs("^GC#L5:[0-9]+#spells#")
+    ok("at L5 Expert Wizard renders 1 spell picker on the L1 school (12 Arcane Transmutation)",
+       len(ex) == 1 and len([o for o in P.options(ex[0]) if o != "(undecided)"]) == 12,
+       [(k, len(P.options(k))) for k in ex])
     P.pg.click("#sheetbtn")
     P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
     P.pg.wait_for_timeout(600)

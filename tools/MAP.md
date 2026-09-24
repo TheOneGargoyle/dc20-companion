@@ -20,7 +20,7 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L1118-1137 `    .walk`
 - L1138-1200 `def main`
 
-## `tools/builder_api.py`  (193KB, 3370 lines)
+## `tools/builder_api.py`  (197KB, 3431 lines)
 
 - L111-125 `def _fmt_grants`
 - L126-129 `def base_name`
@@ -75,101 +75,105 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L853-872 `    ._school_magic_answers`
 - L873-883 `    ._grant_tags`
 - L884-896 `    ._spell_grant_tag`
-- L897-925 `    ._spell_grant_source`
-- L926-945 `    ._choice_decl`
-- L946-957 `    ._resolve_decl`
-- L958-964 `    ._choice_owner_name`
-- L965-971 `    ._class_feature_rows_of`
-- L972-975 `    ._is_trait_entry`
-- L976-986 `    ._trait_row`
-- L987-991 `    ._choice_pick`
-- L992-997 `    ._choice_row`
-- L998-1005 `    ._sorcerous_origin`
-- L1006-1008 `    ._choice_option`
-- L1009-1042 `    ._choice_children`
-- L1043-1069 `    ._set_choice`
-- L1070-1091 `    ._set_expertise_target`
-- L1092-1124 `    ._apply_origin`
-- L1125-1142 `    ._apply_child_spells`
-- L1143-1162 `    ._list_widening`
-- L1163-1175 `    ._talent_rows`
-- L1176-1182 `    ._any_list_defs`
-- L1183-1195 `    ._spell_grant_any`
-- L1196-1210 `    ._any_list_slots`
-- L1211-1273 `    ._spell_access`
-- L1274-1282 `    ._class_source`
-- L1283-1288 `    ._spell_options`
-- L1289-1297 `    ._spell_any_options`
-- L1298-1311 `    ._spell_tagged_options`
-- L1312-1322 `    ._all_sources`
-- L1323-1337 `    ._spell_sourced_options`
-- L1338-1341 `    ._maneuver_options`
-- L1342-1362 `    ._talent_options`
-- L1363-1419 `    ._chosen_names`
-- L1420-1429 `    ._parse_skill_pick`
-- L1430-1444 `    ._parse_plan_pick`
-- L1445-1448 `    ._plan_pick_cost`
-- L1449-1453 `    ._plan_decided`
-- L1454-1463 `    ._mastery_cap_idx`
-- L1464-1470 `    ._plan_catalog_names`
-- L1471-1491 `    ._plan_running_state`
-- L1492-1515 `    ._plan_running_caps`
-- L1516-1518 `    ._skill_running_state`
-- L1519-1544 `    ._plan_options`
-- L1545-1547 `    ._skill_plan_options`
-- L1548-1564 `    ._child_pool`
-- L1565-1621 `    ._options_for`
-- L1622-1771 `    .catalog_problems`
-- L1772-1806 `    ._choice_undecided`
-- L1807-1904 `    .builder_problems`
-- L1905-1932 `    ._origin_decisions`
-- L1933-2043 `    ._decisions`
-- L2044-2058 `    ._hide_held_boons`
-- L2059-2088 `    ._reorder_decisions`
-- L2089-2170 `    ._dec`
-- L2171-2322 `    ._grant_children`
-- L2323-2373 `    ._apply_grants`
-- L2374-2412 `    ._sync_granted_effects`
-- L2413-2424 `    ._sync_training`
-- L2425-2438 `    ._resync_all_granted_effects`
-- L2439-2468 `    ._set_grant_child`
-- L2469-2476 `    ._grant_child_entry`
-- L2477-2500 `    .set_plan_capraise`
-- L2501-2520 `    ._alloc`
-- L2521-2533 `    ._skill_trade_options`
-- L2534-2539 `    ._language_options`
-- L2540-2546 `    ._langs`
-- L2547-2562 `    ._sections`
-- L2563-2578 `    ._level_grant`
-- L2579-2586 `    .next_level_info`
-- L2587-2636 `    .state`
-- L2637-2750 `    .sheet`
-- L2751-2908 `    .set_decision`
-- L2909-3006 `    ._set_trait`
-- L3007-3012 `    ._edited`
-- L3013-3027 `    ._sync_path_rider`
-- L3028-3080 `    ._sync_subclass_rider`
-- L3081-3112 `    ._sync_talent_rider`
-- L3113-3116 `    .set_attr`
-- L3117-3122 `    .set_mastery`
-- L3123-3137 `    .set_limit_raise`
-- L3138-3145 `    .add_mastery`
-- L3146-3150 `    .remove_mastery`
-- L3151-3158 `    .add_language`
-- L3159-3166 `    .set_language`
-- L3167-3172 `    .remove_language`
-- L3173-3182 `    .add_trait`
-- L3183-3193 `    .remove_decision`
-- L3194-3207 `    .dismiss_note`
-- L3208-3212 `    .set_meta`
-- L3213-3221 `    .set_ancestry`
-- L3222-3295 `    ._gen_level_slots`
-- L3296-3321 `    .add_level`
-- L3322-3341 `    .add_planned_level`
-- L3342-3358 `    .undo_add_level`
-- L3359-3370 `    .export_yaml`
+- L897-932 `    ._spell_grant_source`
+- L933-952 `    ._choice_decl`
+- L953-964 `    ._resolve_decl`
+- L965-971 `    ._row_child_spells`
+- L972-979 `    ._school_entries`
+- L980-987 `    ._school_of`
+- L988-1005 `    ._school_extra_tags`
+- L1006-1012 `    ._choice_owner_name`
+- L1013-1019 `    ._class_feature_rows_of`
+- L1020-1023 `    ._is_trait_entry`
+- L1024-1034 `    ._trait_row`
+- L1035-1039 `    ._choice_pick`
+- L1040-1045 `    ._choice_row`
+- L1046-1053 `    ._sorcerous_origin`
+- L1054-1056 `    ._choice_option`
+- L1057-1090 `    ._choice_children`
+- L1091-1117 `    ._set_choice`
+- L1118-1139 `    ._set_expertise_target`
+- L1140-1172 `    ._apply_origin`
+- L1173-1196 `    ._apply_child_spells`
+- L1197-1216 `    ._list_widening`
+- L1217-1229 `    ._talent_rows`
+- L1230-1236 `    ._any_list_defs`
+- L1237-1249 `    ._spell_grant_any`
+- L1250-1264 `    ._any_list_slots`
+- L1265-1327 `    ._spell_access`
+- L1328-1336 `    ._class_source`
+- L1337-1342 `    ._spell_options`
+- L1343-1351 `    ._spell_any_options`
+- L1352-1365 `    ._spell_tagged_options`
+- L1366-1376 `    ._all_sources`
+- L1377-1392 `    ._spell_sourced_options`
+- L1393-1396 `    ._maneuver_options`
+- L1397-1417 `    ._talent_options`
+- L1418-1474 `    ._chosen_names`
+- L1475-1484 `    ._parse_skill_pick`
+- L1485-1499 `    ._parse_plan_pick`
+- L1500-1503 `    ._plan_pick_cost`
+- L1504-1508 `    ._plan_decided`
+- L1509-1518 `    ._mastery_cap_idx`
+- L1519-1525 `    ._plan_catalog_names`
+- L1526-1546 `    ._plan_running_state`
+- L1547-1570 `    ._plan_running_caps`
+- L1571-1573 `    ._skill_running_state`
+- L1574-1599 `    ._plan_options`
+- L1600-1602 `    ._skill_plan_options`
+- L1603-1619 `    ._child_pool`
+- L1620-1676 `    ._options_for`
+- L1677-1826 `    .catalog_problems`
+- L1827-1861 `    ._choice_undecided`
+- L1862-1965 `    .builder_problems`
+- L1966-1993 `    ._origin_decisions`
+- L1994-2104 `    ._decisions`
+- L2105-2119 `    ._hide_held_boons`
+- L2120-2149 `    ._reorder_decisions`
+- L2150-2231 `    ._dec`
+- L2232-2383 `    ._grant_children`
+- L2384-2434 `    ._apply_grants`
+- L2435-2473 `    ._sync_granted_effects`
+- L2474-2485 `    ._sync_training`
+- L2486-2499 `    ._resync_all_granted_effects`
+- L2500-2529 `    ._set_grant_child`
+- L2530-2537 `    ._grant_child_entry`
+- L2538-2561 `    .set_plan_capraise`
+- L2562-2581 `    ._alloc`
+- L2582-2594 `    ._skill_trade_options`
+- L2595-2600 `    ._language_options`
+- L2601-2607 `    ._langs`
+- L2608-2623 `    ._sections`
+- L2624-2639 `    ._level_grant`
+- L2640-2647 `    .next_level_info`
+- L2648-2697 `    .state`
+- L2698-2811 `    .sheet`
+- L2812-2969 `    .set_decision`
+- L2970-3067 `    ._set_trait`
+- L3068-3073 `    ._edited`
+- L3074-3088 `    ._sync_path_rider`
+- L3089-3141 `    ._sync_subclass_rider`
+- L3142-3173 `    ._sync_talent_rider`
+- L3174-3177 `    .set_attr`
+- L3178-3183 `    .set_mastery`
+- L3184-3198 `    .set_limit_raise`
+- L3199-3206 `    .add_mastery`
+- L3207-3211 `    .remove_mastery`
+- L3212-3219 `    .add_language`
+- L3220-3227 `    .set_language`
+- L3228-3233 `    .remove_language`
+- L3234-3243 `    .add_trait`
+- L3244-3254 `    .remove_decision`
+- L3255-3268 `    .dismiss_note`
+- L3269-3273 `    .set_meta`
+- L3274-3282 `    .set_ancestry`
+- L3283-3356 `    ._gen_level_slots`
+- L3357-3382 `    .add_level`
+- L3383-3402 `    .add_planned_level`
+- L3403-3419 `    .undo_add_level`
+- L3420-3431 `    .export_yaml`
 
-## `tools/builder_verify.py`  (306KB, 5023 lines)
+## `tools/builder_verify.py`  (307KB, 5046 lines)
 
 - L77-87 `def ok`
 - L88-91 `def sha`
@@ -330,12 +334,12 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L4633-4651 `def ch14_scan`
 - L4652-4687 `def check_ch10_a14_roster`
 - L4688-4750 `def check_fr12_sorcerer`
-- L4751-4842 `def check_fr12_wizard`
-- L4843-4923 `def check_ch14_engine_labels`
-- L4924-4935 `def main`
-- L4936-4938 `    .want`
-- L4939-4993 `    .run`
-- L4994-5023 `def _print_pass_summary`
+- L4751-4865 `def check_fr12_wizard`
+- L4866-4946 `def check_ch14_engine_labels`
+- L4947-4958 `def main`
+- L4959-4961 `    .want`
+- L4962-5016 `    .run`
+- L5017-5046 `def _print_pass_summary`
 
 ## `tools/catalog_verify.py`  (85KB, 1450 lines)
 
@@ -422,7 +426,7 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L813-843 `def damage_addons`
 - L844-869 `def main`
 
-## `tools/builder_smoke.py`  (38KB, 796 lines)
+## `tools/builder_smoke.py`  (38KB, 803 lines)
 
 - L68-119 `def attr_cell`
 - L120-135 `def ok`
@@ -461,10 +465,10 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L513-545 `def j_expertise_readout`
 - L546-578 `def j_spell_list_widening`
 - L579-599 `def j_sorcerer_origin`
-- L600-629 `def j_wizard_school`
-- L630-663 `def j_rule_panel`
-- L664-664 `### main`
-- L665-796 `def main`
+- L600-636 `def j_wizard_school`
+- L637-670 `def j_rule_panel`
+- L671-671 `### main`
+- L672-803 `def main`
 
 ## `tools/coverage.py`  (8KB, 201 lines)
 
@@ -477,16 +481,16 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L159-169 `def summarise`
 - L170-201 `def main`
 
-## `tools/catalog_build.py`  (19KB, 373 lines)
+## `tools/catalog_build.py`  (19KB, 375 lines)
 
-- L47-121 `# Warrior confer resources.`
-- L122-224 `# Paragon (L10) each grant another Class Talent.`
-- L225-237 `def spine_from_data`
-- L238-242 `def read`
-- L243-250 `def class_section`
-- L251-267 `def parse_subclasses`
-- L268-284 `def parse_combat_training`
-- L285-294 `def path_training`
-- L295-301 `def verify_names_present`
-- L302-349 `def build`
-- L350-373 `def main`
+- L47-123 `# Warrior confer resources.`
+- L124-226 `# Paragon (L10) each grant another Class Talent.`
+- L227-239 `def spine_from_data`
+- L240-244 `def read`
+- L245-252 `def class_section`
+- L253-269 `def parse_subclasses`
+- L270-286 `def parse_combat_training`
+- L287-296 `def path_training`
+- L297-303 `def verify_names_present`
+- L304-351 `def build`
+- L352-375 `def main`

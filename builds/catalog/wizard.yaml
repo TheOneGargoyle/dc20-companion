@@ -91,6 +91,8 @@ subclass_grants:
       spells: 1
     spell_access:
       tag: Curse
+    school_magic_tags:
+    - Curse
   Paragon:
     grants:
       trade_points: 1
