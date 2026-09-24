@@ -174,7 +174,7 @@ compares them), **U** unguarded. A row marked **LIVE** is already wrong.
 | A11 | `PLACEHOLDER_MARKERS` sentinels | `builder_api.py:81` | `catalog_verify.py:47` | U | derive |
 | A12 | `base_name` / `norm` normalisation rule | `builder_api.py:115` | `catalog_verify.py:67-73`, `builder_build.py:356` (deliberately different) | U | derive A/B, document C |
 | A13 | The multiclass long-form grammar | `builder_api.py:1656` regex | `catalog_verify.py:250` regex | U | derive |
-| A14 | The five-class roster and its spelling | `builder_build.py:56` | `builder_api.py:86`, `catalog_verify.py:111`, `catalog_build.py:127` | U (partial one-way) | derive from spine |
+| A14 | The five-class roster and its spelling | `builder_build.py:56` | `builder_api.py:86`, `catalog_verify.py:111`, `catalog_build.py:127` | U (partial one-way) | DONE 2026-09-24: `build_engine.class_roster()`, builder_verify (48) |
 | A15 | The Mastery ladder and its level thresholds | `build_engine.py:70,77` | `builder_api.py:82,1042`; `MB` in `builder_api.py:2139` vs `builder_verify.py:616` | U for A/B, A for the `MB` pair | derive |
 | A16 | The L10 builder ceiling | `builder_api.py:2064,2098,2715,2750` | `class_spines.yaml` max level | U | derive |
 | A17 | The `(undecided)` sentinel | `builder_api.py:83` | `builder_build.py:667,734`; 7 re-declarations in `builder_verify.py` | U | derive |

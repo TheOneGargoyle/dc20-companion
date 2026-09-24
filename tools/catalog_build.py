@@ -5,8 +5,8 @@ RUNG3_PLAN build-order step 2 (Spellblade pilot) + step 4 (fan-out to the other 
 classes) / spike 2 resolution (SS11): "script the class spine (reshape what the engine already
 holds), hand-curate the small cross-cutting cost lists."
 
-This script owns the scripted half for ALL FIVE walked classes (Spellblade, Warlock,
-Commander, Barbarian, Druid). For each class it reshapes the authored class spine from
+This script owns the scripted half for EVERY class in the roster (build_engine.class_roster(),
+i.e. class_spines.yaml; CH-10 A14). For each class it reshapes the authored class spine from
 builds/catalog/class_spines.yaml into a catalog spine, pulls the class-choice facts
 (Disciplines / Pact Boons / Subclasses / spellcasting model) out of rules/classes.md, and
 cross-checks every curated name against the rules text. Output: builds/catalog/<class>.yaml.
@@ -17,7 +17,7 @@ The cross-cutting cost lists (spell_schools.yaml, spell_sources.yaml, ancestries
 maneuvers.yaml, talents.yaml) are hand-curated and live beside the output;
 tools/catalog_verify.py checks them against rules/*.md.
 
-Usage:  python3 tools/catalog_build.py            # writes builds/catalog/<class>.yaml x5
+Usage:  python3 tools/catalog_build.py            # writes builds/catalog/<class>.yaml per roster class
         python3 tools/catalog_build.py --check     # build in memory, print, don't write
 """
 import argparse
@@ -31,7 +31,7 @@ import yaml
 # the single source of truth for the numbers is now DATA (FR-12.0): the engine and this
 # generator both read builds/catalog/class_spines.yaml, so the spines can never drift.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_engine import load_class_tables  # noqa: E402
+from build_engine import load_class_tables, class_roster  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLASS_SPINES = load_class_tables(os.path.join(ROOT, "builds", "catalog", "class_spines.yaml"))
@@ -99,6 +99,12 @@ SUBCLASS_GRANTS = {
     # Discipline, you gain another one of your choice" (classes.md l.3041-3045). So it is a 1-discipline
     # grant whose DEFAULT is fixed (Acolyte) and which becomes a free pick when Acolyte is already
     # held - `prefer` carries that, and the builder auto-fills it only when it is still available.
+    # FR-12 Phase 3: each Sorcerer Spark names a Meta Magic option ("choose another Meta Magic
+    # option if you already know it"), the same prefer shape as Paladin -> Acolyte.
+    # classes.md l.2708-2710 (Celestial Protection), l.2745-2748 (Draconic Transmutation). NOT
+    # modelled: the 2 Ancestry Points restricted to Angelborn / Dragonborn traits.
+    "Sorcerer": {"Angelic": {"grants": {"metamagic": 1}, "prefer": {"metamagic": "Careful Spell"}},
+                 "Draconic": {"grants": {"metamagic": 1}, "prefer": {"metamagic": "Transmuted Spell"}}},
     "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
@@ -169,6 +175,15 @@ CLASS_CONFIG = {
         # wrinkle bites (see spell_sources.yaml).
         "spellcasting": {"model": "source", "source": "Primal"},
     },
+    "Sorcerer": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.2482-2758 + rules/tables.md l.142-155",
+        "extras": {},
+        # classes.md l.2528-2530: "Spell List: You choose 1 Spell Source (Arcane, Divine, or Primal).
+        # When you learn a new Spell, you can choose any Spell from the chosen Spell Source." ->
+        # the source model with the source CHOSEN at chargen (FR-12 Phase 3): the ledger carries
+        # chargen.spell_source, and there is no fixed `source` key.
+        "spellcasting": {"model": "source", "source_choice": ["Arcane", "Divine", "Primal"]},
+    },
 }
 
 # BUG-35: Paragon is offered by EVERY class, so its grants are attached to every class rather
@@ -176,7 +191,15 @@ CLASS_CONFIG = {
 # trap behind BUG-31/32/33). A fresh copy per class so the YAML dump never emits an alias, and
 # so a future per-class tweak cannot leak sideways. The name is still checked against the parsed
 # subclass list in build(), so this fails loudly if a class ever stops offering Paragon.
-for _cls in CLASS_CONFIG:
+# CH-10 A14: the roster is class_spines.yaml (via the engine). CLASS_CONFIG holds the per-class
+# facts the spine cannot (spellcasting model, extras), so it must cover the roster exactly: a class
+# added to the spine without its config, or a config for a class the spine lacks, fails loudly here.
+ROSTER = class_roster(CLASS_SPINES)
+if set(CLASS_CONFIG) != set(ROSTER):
+    sys.exit("CLASS_CONFIG does not match the class_spines.yaml roster: missing %s, extra %s"
+             % (sorted(set(ROSTER) - set(CLASS_CONFIG)), sorted(set(CLASS_CONFIG) - set(ROSTER))))
+
+for _cls in ROSTER:
     SUBCLASS_GRANTS.setdefault(_cls, {})["Paragon"] = copy.deepcopy(PARAGON)
 
 # map CLASS_TABLES keys -> catalog spine keys (human-readable)
@@ -316,7 +339,7 @@ def main():
     args = ap.parse_args()
     header = ("# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py\n"
               "# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.\n")
-    for cls in CLASS_CONFIG:
+    for cls in ROSTER:
         catalog = build(cls)
         body = yaml.safe_dump(catalog, sort_keys=False, allow_unicode=True, width=100)
         out = header + body

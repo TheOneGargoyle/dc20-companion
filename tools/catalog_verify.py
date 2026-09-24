@@ -37,6 +37,7 @@ LEDGER_DIR = os.path.join(ROOT, "builds")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from build_engine import replay, load_class_tables, class_feature_rider_grants  # noqa: E402
 from build_engine import OVERLAY_MISMATCH_LABELS  # noqa: E402  (CH-14 A18)
+from build_engine import class_roster  # noqa: E402  (CH-10 A14: the one class roster)
 import coverage  # noqa: E402  (the option-coverage ledger: one walker, no mirrored lists)
 
 # FR-12.0: the class spines are authored data now, read by the engine AND catalog_build.
@@ -121,8 +122,9 @@ expect(total_mismatch == 0, f"expected 0 documented deltas (BUG-7 runt AD closed
 expect(total_ok == 90, f"expected 90 passing checks (all rows OK; BUG-7 closed), got {total_ok}")
 
 # ---- load the catalog -----------------------------------------------------
+CLASS_ROSTER = class_roster()   # exits on an empty spine (trap 4)
 CLASS_CAT = {c: load(f"builds/catalog/{c.lower()}.yaml")
-             for c in ("Spellblade", "Warlock", "Commander", "Barbarian", "Druid")}
+             for c in CLASS_ROSTER}   # CH-10 A14: derived from class_spines.yaml
 schools_cat = load("builds/catalog/spell_schools.yaml")
 sources_cat = load("builds/catalog/spell_sources.yaml")
 anc = load("builds/catalog/ancestries.yaml")
@@ -1341,6 +1343,71 @@ for _o in _so.get("options") or []:
         expect(not _o.get("grants") and not _o.get("source_pick") and _o.get("no_effect"), f"{_o['name']} must be no_effect")
 expect(len(_schools) == 8, f"spell_schools.yaml has {len(_schools)} schools")
 print(f"  {_nt} talent training riders match their rules bullet; {_nc} choice node(s) well-formed")
+
+# ---- (FR12-3) class coverage: spines vs the rules tables, sources, MC twins ----
+# FR-12 Phase 3 (2026-09-24). Three guards the Sorcerer needed and nothing asserted:
+#  a. every roster class's spine equals its rules/tables.md Class Table, row by row (no check
+#     compared class_spines.yaml with the rules at all; Phase 0 only proved engine byte-identity).
+#  b. every Spell Source a roster class draws from has a spell_sources.yaml block (the Sorcerer
+#     chooses Arcane/Divine/Primal; the file held Primal only).
+#  c. an mc_features row and its base-class twin in class_features.yaml agree (trap 2: Innate
+#     Power and Meta Magic now live in both).
+print("\n## (FR12-3) class spines vs tables.md; class sources; MC-feature twins")
+_tbl = read("rules/tables.md")
+_COL = {"Health": "hp", "Attribute": "attr", "Skill": "skill", "Trade": "trade", "Stamina": "sp",
+        "Maneuvers": "man", "Mana": "mp", "Spells": "spells"}
+_FEAT = {"Path Progression": "Path", "Subclass Feature": "Subclass",
+         "Subclass Expert Feature": "Subclass Expert", "Class Capstone Feature": "Class Capstone",
+         "Subclass Capstone Feature": "Subclass Capstone"}
+_spines = load_class_tables()
+expect(len(CLASS_ROSTER) > 0, "class roster empty")
+for _c in CLASS_ROSTER:
+    _m = re.search(r"### %s Class Table\n\n(\|.*?)\n\n" % re.escape(_c), _tbl + "\n\n", re.S)
+    expect(_m is not None, f"tables.md has no {_c} Class Table")
+    if _m is None:
+        continue
+    _rows = [[x.strip() for x in r.strip().strip("|").split("|")] for r in _m.group(1).splitlines()]
+    _hdr = [h.split()[0] for h in _rows[0]]
+    _body = [r for r in _rows[2:] if r and r[0].isdigit()]
+    expect(len(_body) == 10, f"{_c} table has {len(_body)} level rows")
+    for _r in _body:
+        _lvl = int(_r[0])
+        _want = {}
+        for _h, _v in zip(_hdr[1:], _r[1:]):
+            if _h == "Features":
+                _want["features"] = [_FEAT.get(f.strip(), f.strip()) for f in _v.split(",") if f.strip()]
+            elif _h in _COL and _v:
+                _want[_COL[_h]] = int(_v.lstrip("+"))
+        _have = dict(_spines[_c].get(_lvl) or {})
+        expect(_have == _want, f"{_c} L{_lvl} spine {_have} != tables.md {_want}")
+    print(f"  {_c}: spine matches tables.md, {len(_body)} levels")
+for _c in CLASS_ROSTER:
+    _sc = CLASS_CAT[_c].get("spellcasting") or {}
+    for _src in ([_sc["source"]] if _sc.get("source") else []) + list(_sc.get("source_choice") or []):
+        expect(bool(sources_cat["sources"].get(_src)), f"{_c} draws from {_src}: no spell_sources.yaml block")
+_cfc = class_features_cat["classes"]
+_twins = 0
+for _t in talents_cat["mc_features"]:
+    _rows_c = _cfc.get(_t["class"])
+    if not _rows_c:
+        continue   # the class is not walked yet: nothing to agree with
+    _twin = next((r for r in _rows_c.get(_t["feature_level"]) or [] if r["name"] == _t["name"]), None)
+    if _t["name"] == "Pact Spell":   # a Pact Boon option, not a class-feature row
+        continue
+    expect(_twin is not None, f"mc_features {_t['name']} has no {_t['class']} L{_t['feature_level']} class_features twin")
+    if _twin is None:
+        continue
+    _twins += 1
+    expect((_t.get("grants") or {}) == (_twin.get("grants") or {}),
+           f"{_t['name']}: MC grants {_t.get('grants')} != class feature {_twin.get('grants')}")
+    _a, _b = _t.get("sub_choice"), _twin.get("sub_choice")
+    expect(bool(_a) == bool(_b), f"{_t['name']}: sub_choice on one twin only")
+    if _a and _b:
+        expect(_a["kind"] == _b["kind"] and [(o["name"], o.get("grants")) for o in _a["options"]]
+               == [(o["name"], o.get("grants")) for o in _b["options"]],
+               f"{_t['name']}: MC and base-class sub_choice options disagree")
+expect(_twins > 0, "no MC-feature twin was compared (trap 4)")
+print(f"  {len(CLASS_ROSTER)} class sources covered; {_twins} MC-feature twins agree with class_features.yaml")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

@@ -643,8 +643,10 @@ def main():
         sys.exit(0)
 
     classes = sorted((load("class_spines") or {}).get("classes", {}).keys())
-    classes = [c.lower() for c in classes] or ["barbarian", "commander", "druid",
-                                               "spellblade", "warlock"]
+    classes = [c.lower() for c in classes]
+    if not classes:   # CH-10 A14: no silent fallback roster; an empty spine is a failure (trap 4)
+        print("FAIL - class_spines.yaml lists no classes")
+        sys.exit(1)
     cfcat = load("class_features")
     anccat = load("ancestries")
 

@@ -55,7 +55,8 @@ sys.path.insert(0, HERE)
 from rules_corpus import build_rules_data, corpus_embed, linkable_index  # FR-6 corpus, CH-11 index
 
 CHARS = ["tanrielle", "runt", "minimus", "bonan", "scaletrix", "xanwyn"]
-NEWCLASSES = ["spellblade", "warlock", "commander", "barbarian", "druid"]
+from build_engine import class_roster  # noqa: E402  CH-10 A14: the one roster
+NEWCLASSES = [c.lower() for c in class_roster()]   # derived from class_spines.yaml, never typed
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
            "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
            "class_spines",  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS

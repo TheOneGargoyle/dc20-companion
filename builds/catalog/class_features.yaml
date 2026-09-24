@@ -7,7 +7,7 @@
 # to show: a scratch character got no class features at L1 and a bare "Class Feature" row at L2, and
 # features with numeric effects (Barbarian Berserker) applied nothing.
 #
-# SCOPE (agreed with Darryl 2026-07-27): **levels 1 to 4 for the five walked classes**; L5 and L6
+# SCOPE (agreed with Darryl 2026-07-27): **levels 1 to 4 for the walked classes**; L5 and L6
 # added 2026-09-23 ahead of the party's L5 level-up (L6 has no class feature). L7-L10 is CH-4's remainder.
 # Worth knowing when filling it: classes.md has NO "#### Level 5 Class Features" heading, so the L5
 # feature ("Expert <Class>") sits inside the L4 block. Do not mis-file it; the class table
@@ -101,6 +101,36 @@ classes:
       - name: Expert Druid   # classes.md l.1613
         note: "10 Domain Spaces (+8 per extra MP); Wild Growth +1 healing per 2 MP; Wild Forms +1 HP and +1 Trait Point; Nature's Torrent 15 Spaces plus MP enhancements"
         no_effect: situational
+    6: []
+
+  Sorcerer:   # classes.md l.2539-2692 (FR-12 Phase 3)
+    1:
+      - name: Innate Power   # classes.md l.2541-2560
+        grants: {mp: 1}
+        # the base-class twin of talents.yaml mc_features Innate Power (catalog_verify asserts the
+        # two agree). Intuitive Magic's 2 spells are "from your Spell List", i.e. the flat pool of
+        # the class's chosen Spell Source, so unlike the MC row there is no source_pick here.
+        sub_choice: {kind: sorcerous_origin, label: sorcerous origin, options: [
+          {name: Intuitive Magic, grants: {spells: 2}},
+          {name: Resilient Magic, no_effect: situational, note: "Dazed Resistance"},
+          {name: Unstable Magic, no_effect: situational, note: "Wild Magic Table on a Spell crit success/fail"}]}
+        note: "+1 max MP; 1 point Focus Property (not modelled); Sorcerous Origin sub-choice"
+      - name: Overload Magic   # classes.md l.2600-2612
+        note: "1 AP + 1 MP: +5 Spell Attacks and Spell Checks for 1 minute; Attribute Save or Exhaustion"
+        no_effect: situational
+      - name: Sorcery   # classes.md l.2613
+        flavor: true
+        note: "learn the Sorcery Spell"
+    2:
+      - name: Meta Magic   # classes.md l.2618-2639
+        grants: {metamagic: 2}
+        note: "2 unique Spell Enhancements (metamagic.yaml); 1 per Spell; once per Long Rest one costs 0 MP"
+    3: []
+    4: []
+    5:
+      - name: Expert Sorcerer   # classes.md l.2674-2692
+        grants: {mp: 1, metamagic: 1}
+        note: "+1 max MP and a 2nd Focus Property (Innate Power); Overload drops the opening Save; +1 Meta Magic and 2 at a time"
     6: []
 
   Spellblade:   # classes.md l.~2840-2930

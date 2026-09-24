@@ -60,6 +60,17 @@ def load_class_tables(path=None):
     sys.exit("class_spines.yaml not found (looked in: %s)"
              % ", ".join(c for c in candidates if c))
 
+
+def class_roster(tables=None):
+    """CH-10 A14: the ONE class roster, the spine's class names in file order. Every consumer
+    (builder_build NEWCLASSES, builder_api CLASS_NAMES, catalog_build, catalog_verify, the harness
+    loops, builder_smoke) derives from this, so adding a class is a class_spines.yaml edit, not
+    seven. Empty is an error, never a quiet pass over nothing (trap 4)."""
+    names = list((tables if tables is not None else load_class_tables()).keys())
+    if not names:
+        sys.exit("class_spines.yaml has no classes: the class roster is empty")
+    return names
+
 POINT_BUY_POINTS = 12          # from -2 base in all four attributes
 ATTR_BASE_SUM = -8
 ANCESTRY_POINTS_L1 = 5         # +2 at L4 and L8 via class tables ("2 Ancestry Points")

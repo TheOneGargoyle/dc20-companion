@@ -11,8 +11,9 @@
 # source tracking.) tools/catalog_verify.py re-parses the by-Sources section tracking the
 # parent source headings and asserts these lists match.
 #
-# Scope (validate-don't-enumerate): only the sources the walked builds draw from. Scaletrix
-# (Druid) walks Primal. Add Arcane/Divine blocks when a Cleric/Sorcerer/Wizard ledger arrives.
+# Scope: all three magic sources. Primal since the Druid (Scaletrix walks it); Arcane and Divine
+# added 2026-09-24 for the Sorcerer (FR-12 Phase 3), who CHOOSES one of the three (classes.md
+# l.2528). Generated from the same by-Sources parse catalog_verify asserts against, never typed.
 
 catalog_version: 1
 model: sources
@@ -109,3 +110,181 @@ sources:
       - Poison Imbued
       - Primal Hide
       - Quicksand
+  Arcane:
+    Astromancy:
+      - Arcane Bolt
+      - Arcane Wave
+      - Banish
+      - Blessing of Air
+      - Gravity Shift
+      - Gravity Well
+      - Haste
+      - Increase Gravity
+      - Slow Time
+      - Teleport
+      - Telekinesis
+      - Time Stop
+      - Translocation
+      - Reduce Inertia
+    Conjuration:
+      - Arcane Barrier
+      - Arcane Weapon
+      - Bind
+      - Call Familiar
+      - Chaos Bomb
+      - Disguise Self
+      - Forcefield
+      - Illusory Duplicate
+      - Illusory Image
+      - Illusory Writing
+      - Mage Armor
+      - Oil Slick
+      - Summon Aberration
+      - Summon Construct
+      - Summon Dragon
+      - Summon Ooze
+      - Tendrils from Beyond
+    Divination:
+      - Danger Sense
+      - Detect Magic
+      - Empowered Sight
+      - Foresight
+      - Locate Target
+    Elemental:
+      - Acid Stream
+      - Blight Bomb
+      - Cold Wave
+      - Cone of Cold
+      - Corrosive Bolt
+      - Corrosive Cascade
+      - Corrosive Wave
+      - Elemental Shield
+      - Fireball
+      - Fire Blast
+      - Fire Bolt
+      - Fire Torrent
+      - Freeze
+      - Frost Bolt
+      - Frost Storm
+      - Inflict Poison
+      - Lightning Blast
+      - Lightning Bolt
+      - Lightning Rod
+      - Lightning Storm
+      - Lightning Torrent
+      - Living Bomb
+      - Mold Earth
+      - Poison Bolt
+      - Toxic Burst
+      - Wall of Fire
+    Enchantment:
+      - Charm
+      - Command
+      - Confusion
+      - Fear
+      - Hex
+      - Message
+      - Mind Blast
+      - Mockery
+      - Psi Bolt
+      - Psychic Wave
+      - Shatter Reality
+      - Slumber
+    Invocation:
+      - Close Wounds
+      - Life Transfer
+      - Light
+    Nullification:
+      - Arcane Shield
+      - Corpse Explosion
+      - Darkness
+      - Death
+      - Death Bolt
+      - Disintegrating Beam
+      - Disintegrate
+      - Dispel Magic
+      - Muffle
+      - Sphere of Death
+      - Umbral Burst
+      - Umbral Wave
+      - Vampiric Touch
+    Transmutation:
+      - Acid Imbued
+      - Alter Size
+      - Chaos Bolt
+      - Chaos Torrent
+      - Cold Imbued
+      - Fire Imbued
+      - Invisibility
+      - Lightning Imbued
+      - Poison Imbued
+      - Psychic Imbued
+      - Shadowbind
+      - Umbral Imbued
+  Divine:
+    Astromancy:
+      - Banish
+    Conjuration:
+      - Bind
+      - Call Familiar
+      - Mystical Weapon
+      - Summon Celestial
+      - Summon Fiend
+      - Summon Undead
+      - Unholy Aura
+    Divination:
+      - Bless
+      - Detect Magic
+      - Empowered Sight
+      - Locate Target
+      - Scrying
+    Elemental: []   # spells.md lists no Divine Elemental spells
+    Enchantment:
+      - Charm
+      - Command
+      - Fear
+      - Hex
+      - Message
+      - Mind Blast
+      - Planar Protection
+      - Psi Bolt
+      - Psychic Wave
+      - Shatter Reality
+    Invocation:
+      - Cleanse
+      - Close Wounds
+      - Death Ward
+      - Divine Protection
+      - Heal
+      - Illuminate
+      - Life Transfer
+      - Light
+      - Luminous Burst
+      - Mass Heal
+      - Radiant Bolt
+      - Revivify
+      - Solar Beam
+      - Spirit Link
+      - Sunburst
+    Nullification:
+      - Bane
+      - Corpse Explosion
+      - Darkness
+      - Death
+      - Death Bolt
+      - Enfeeble
+      - Muffle
+      - Sanctuary
+      - Sphere of Death
+      - Umbral Burst
+      - Umbral Wave
+      - Vampiric Touch
+      - Zone of Peace
+    Transmutation:
+      - Alter Size
+      - Enhance Ability
+      - Invisibility
+      - Psychic Imbued
+      - Radiant Imbued
+      - Shadowbind
+      - Umbral Imbued

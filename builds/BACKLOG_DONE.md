@@ -12,6 +12,7 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| FR-12.S | FR-12 Phase 3 class 6: base Sorcerer (+ CH-10 A14 one class roster) | feature | engine+catalog+builder | P2 | DONE (2026-09-24, builder_verify (48)(49), catalog_verify FR12-3; 8 code findings, note in Chores) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | DONE (2026-09-24, `build_engine.LBL_*`/`FEAT_*`, `path_levels()`; guard builder_verify (47); pure refactor) |
 | FR-49 | Add `hp`/`mp`/`sp` to the engine's equipment-effect keys; retires `DISPLAY_DELTAS` | feature | engine+companion | P2 | DONE (2026-09-24, `EQUIP_EFFECT_KEYS` + `item_bonus`; builder sheet Xanwyn HP 11 -> 13) |
 | FR-50 | The builder's ledger export reformats the whole file | feature | builder | P2 | DONE (2026-09-24, option (b): export is the house format, six ledgers reformatted once, fixed point asserted) |
@@ -280,6 +281,19 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**FR-12 Phase 3, class 6: Sorcerer, with CH-10 A14 first (2026-09-24).** Base class L1-L6; Angelic/Draconic Meta Magic grants; Paragon as for all.
+- A14: `build_engine.class_roster()` (= `class_spines.yaml`, exits if empty) feeds NEWCLASSES, CLASS_NAMES, catalog_build, catalog_verify, both harness loops, smoke (whose silent fallback roster is gone). builder_verify (48) asserts each and scans tools for a 3-name literal (red on mutation).
+- Data: spine, `catalog/sorcerer.yaml` (generated), `class_features.yaml` Sorcerer L1-L6, `spell_sources.yaml` Arcane + Divine (generated from the by-Sources parse).
+- **Phase 0 said a new class is data only. It was not; each is a finding:**
+  1. roster spelt in 7 places (A14, fixed); 2. `catalog_build.CLASS_CONFIG` + `SUBCLASS_GRANTS` are per-class config in code (now asserted to cover the roster);
+  3. `spellcasting.model: source` assumed a FIXED source: chosen source = `chargen.spell_source`, `_class_source()`, `cg:source:0` decision/setter/undecided (builder_api);
+  4. `sub_choice` worked on talents and traits only: class-feature rows now declare one (`CLASS_FEATURE_SLOTS`, `_class_feature_rows_of`, `_apply_origin` base grants);
+  5. `builder_problems` never ran `_choice_undecided` on chargen class choices; 6. `spell_sources.yaml` held Primal only;
+  7. harness: `drive_fresh` hard-coded chargen choice kinds; FR-46 round-trip was name-keyed, so an MC twin (Innate Power, Meta Magic) collided with its class feature; 2 RT_UNREACHABLE entries went stale;
+  8. nothing compared `class_spines.yaml` with `tables.md`: catalog_verify FR12-3 now does, all six match. It also asserts class sources are covered and MC twins agree.
+- Open, not fixed: MC features are offered to their own class (a Sorcerer can take MC Innate Power; RAW says "from any Class", ruling needed); the origin shows under the sheet's "Talent choices" label; Focus Property, Sorcery spell and Spark-restricted Ancestry Points unmodelled.
+- Six ledgers' sheet/state/derived byte-identical before and after; Scaletrix untouched.
 
 **CH-14 (2026-09-24), the engine names its labels and spine strings.** Pure refactor, CH-10 fix 2.
 - `build_engine`: `LBL_*` + `DERIVED_LABELS` (check-table order), `DERIVED_KEYS`, `GRANT_STAT_LABEL` (A10, one map, `sp` in), `EQUIP_EFFECT_LABEL`, `OVERLAY_MISMATCH_LABELS` (A18), `FEAT_*` (A21), `path_levels(table)` replaces `PATH_LEVELS` (A4). `rep.check` uses the constants.

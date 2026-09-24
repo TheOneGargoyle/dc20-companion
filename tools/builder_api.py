@@ -49,6 +49,8 @@ SHEET_SLOT_SKIP = {'spell', 'spell_tagged', 'spell_sourced', 'spell_any',
 SHEET_SLOT_ALIAS = {'class_features': 'class_feature', 'pact_boons': 'pact_boon',
                     'spellblade_disciplines': 'discipline'}
 
+# FR-12 Phase 3: the ledger slots a class_features.yaml row lands in (L1 folded, L2+ one per row)
+CLASS_FEATURE_SLOTS = ('class_features', 'class_feature')
 GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
                      'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
 # CH-14: the engine derived-stat rows the character sheet's core block carries, in the order the
@@ -92,8 +94,8 @@ BUILDER_NOTE = 'Added in builder'
 # Starts with BUILDER_NOTE so it stays removable; the suffix marks it as the trait's to clean up.
 EXPERTISE_ROW_NOTE = BUILDER_NOTE + '; Expertise free step'
 LANG_COSTS = {'Limited': 1, 'Fluent': 2}
-CLASS_NAMES = {'spellblade': 'Spellblade', 'warlock': 'Warlock', 'commander': 'Commander',
-               'barbarian': 'Barbarian', 'druid': 'Druid'}
+# CH-10 A14: derived from the engine's one roster (class_spines.yaml), never typed.
+CLASS_NAMES = {c.lower(): c for c in eng.class_roster()}
 # DERIVED from the engine's tuple, not a second copy of it: an ATTRS/ATTRIBUTES divergence
 # would silently change which variants the picker offers and which grant keys it writes
 # (trap 2, and the seam CH-5 added).
@@ -206,6 +208,8 @@ def blank_ledger(cls, ccat, cfcat=None):
     sc = ccat.get('spellcasting') or {}
     if sc.get('model') == 'schools':
         cg['spell_schools'] = [UNDECIDED] * sc.get('schools_chosen', 0)
+    if sc.get('source_choice'):   # FR-12 Phase 3: Sorcerer "choose 1 Spell Source" (classes.md l.2528)
+        cg['spell_source'] = UNDECIDED
     # the L1 choice pickers APPEND (the class-features row above may already be there)
     if ccat.get('disciplines_pick_l1'):
         cg.setdefault('class_choices', []).append(
@@ -915,9 +919,21 @@ class BuilderAPI:
                 return None
             return {'kind': 'expertise', 'label': row['name'].lower(),
                     'options': [{'name': x} for x in self._row_targets(row) or []]}
+        if entry.get('slot') in CLASS_FEATURE_SLOTS:
+            # FR-12 Phase 3: a class_features.yaml row may declare a sub_choice too (base Sorcerer's
+            # Innate Power -> Sorcerous Origin). The L1 rows are folded into ONE chargen entry, so the
+            # first declaring row among its picks owns the node.
+            return next((r['sub_choice'] for r in self._class_feature_rows_of(entry)
+                         if r.get('sub_choice')), None)
         if entry.get('slot') != 'talent':
             return None
         return (self._choice_row(entry) or {}).get('sub_choice')   # FR-42 (class_features' `choice: <slot>` is unrelated)
+
+    def _class_feature_rows_of(self, entry):
+        # the class_features.yaml rows a class-feature ledger entry names (any level of this class)
+        names = set(entry.get('picks') or []) | {str(entry.get('pick') or '')}
+        levels = ((self.cat.get('class_features') or {}).get('classes') or {}).get(self.cls) or {}
+        return [r for lvl in sorted(levels) for r in levels[lvl] or [] if r['name'] in names]
 
     @staticmethod
     def _is_trait_entry(entry):
@@ -1040,7 +1056,10 @@ class BuilderAPI:
         # (sorcerous_origin.chosen_source, FR-13a slice 2, unchanged) and resets the spells, any other
         # option drops the Source, the spell access and the spells. Only runs on a real change, so a
         # walked ledger (Scaletrix) is never rewritten by merely rendering.
-        g = dict((self._choice_row(entry) or {}).get('grants') or {})
+        if entry.get('slot') in CLASS_FEATURE_SLOTS:   # FR-12 Phase 3: base Sorcerer Innate Power
+            g = class_feature_grants(self._class_feature_rows_of(entry), unarmored=False, ledger=self.ledger)
+        else:
+            g = dict((self._choice_row(entry) or {}).get('grants') or {})
         for k, v in (opt.get('grants') or {}).items():
             g[k] = g.get(k, 0) + v
         if g:
@@ -1160,8 +1179,9 @@ class BuilderAPI:
                 return ('tag ' + '/'.join(sorted(hit))) if hit else None
             return names, why
         if model == 'source':
-            src = self.ccat['spellcasting']['source']
-            names = {sp for sch in self.cat['spell_sources']['sources'][src].values() for sp in sch}
+            src = self._class_source()
+            names = ({sp for sch in self.cat['spell_sources']['sources'][src].values() for sp in sch}
+                     if src else set())   # a chosen source still undecided offers nothing yet
             names |= {n for n, m in self.meta.items()
                       if set(m.get('sources') or []) & w_src or m.get('school') in w_sch}
 
@@ -1169,7 +1189,7 @@ class BuilderAPI:
                 m = self.meta.get(n)
                 if not m:
                     return None
-                if src in m['sources']:
+                if src and src in m['sources']:
                     return src + ' source'
                 if set(m.get('sources') or []) & w_src:
                     return 'Spellcasting Expansion source ' + '/'.join(sorted(set(m['sources']) & w_src))
@@ -1179,6 +1199,15 @@ class BuilderAPI:
             return names, why
         # model none: path-rider list choice unrecorded -> existence only
         return set(self.meta.keys()), (lambda n: 'path-rider list (unpinned)' if n in self.meta else None)
+
+    def _class_source(self):
+        # FR-12 Phase 3: the class's own Spell Source. Fixed in the catalog (Druid: Primal) or CHOSEN
+        # at chargen (Sorcerer: chargen.spell_source). None while that choice is undecided.
+        sc = self.ccat['spellcasting']
+        if sc.get('source'):
+            return sc['source']
+        v = self.ledger['chargen'].get('spell_source')
+        return None if v is None or str(v) == UNDECIDED else str(v)
 
     def _spell_options(self):
         names, why = self._spell_access()
@@ -1705,8 +1734,11 @@ class BuilderAPI:
         cnt('L1 spell', cg.get('spells') or [])
         cnt('L1 maneuver', cg.get('maneuvers') or [])
         cnt('L1 spell-school', cg.get('spell_schools') or [])
+        if 'spell_source' in cg:
+            cnt('L1 spell-source', [cg['spell_source']])
         for c in cg.get('class_choices') or []:
             cnt('L1 %s' % c['slot'], c.get('picks') or [])
+            probs.extend(self._choice_undecided(c, 1))   # FR-12 Phase 3: a class-feature node (Innate Power)
             for _res, _sing in GRANT_CHILD_SLOTS.items():   # FR-8 slice 2 grant-child slots
                 if _res in PLAN_POINTBUY:   # FR-17: skill/trade carriers are points-based, handled below
                     continue
@@ -1827,6 +1859,8 @@ class BuilderAPI:
                    'budget': 12, 'limit': 3, 'editable': True})
         for i, s in enumerate(cg.get('spell_schools') or []):
             ds.append(self._dec('cg:school:%d' % i, 1, 'spell_school', s, None, False, True))
+        if 'spell_source' in cg:   # FR-12 Phase 3: Sorcerer's chosen Spell Source (existing source_choice slot)
+            ds.append(self._dec('cg:source:0', 1, 'source_choice', cg['spell_source'], None, False, True))
         for i, t in enumerate(cg.get('ancestry_traits') or []):
             ph = any(mk in str(t.get('name')) for mk in PLACEHOLDER_MARKERS)
             ds.append(self._dec('cg:trait:%d' % i, 1, 'ancestry_trait', t['name'],
@@ -2692,6 +2726,8 @@ class BuilderAPI:
                 self._apply_grants(row_ch, agg, changed)
             elif kind == 'school':
                 cg['spell_schools'][int(parts[2])] = value
+            elif kind == 'source':   # FR-12 Phase 3: spells already picked stay; catalog_problems flags off-list
+                cg['spell_source'] = value
             elif kind == 'spell':
                 cg['spells'][int(parts[2])] = value
             elif kind == 'man':

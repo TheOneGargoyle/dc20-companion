@@ -59,6 +59,7 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import builder_build  # noqa: E402  (API_PY, extract_spell_meta, CHARS, CATALOG)
 import build_engine as _eng  # noqa: E402  (CH-14: the named derived-stat labels)
+ROSTER = [c.lower() for c in _eng.class_roster()]   # CH-10 A14; exits if empty (trap 4)
 
 FAILS = []
 
@@ -297,6 +298,13 @@ def drive_fresh(cls):
     for d in s["decisions"]:
         if d["slot"] == "sub_choice" and d.get("choice_kind") == "expertise":
             api.set_decision(d["id"], next(o["name"] for o in d["options"] if o["name"] not in bg))
+    # FR-12 Phase 3: a chosen class Spell Source (Sorcerer) and any other class-level choice node
+    # (Innate Power's Sorcerous Origin): first option. The source must precede the spells it filters.
+    s = st(api)
+    for d in s["decisions"]:
+        if d.get("id") == "cg:source:0" or (d["slot"] == "sub_choice"
+                                            and str(d.get("id")).startswith("GC#cg:")):
+            api.set_decision(d["id"], d["options"][0]["name"])
     # spells and maneuvers: first legal option per slot
     s = st(api)
     for d in s["decisions"]:
@@ -3097,7 +3105,7 @@ def check_bug33_class_talents():
     duplicate-list root cause as BUG-31/32, so the guard is the anti-mirror one: every name the
     picker offers must resolve in the row list the pick path uses."""
     print("## (CT) class talents: offered rows resolve and apply their grants (BUG-33)")
-    for cls in ("barbarian", "spellblade", "warlock", "commander", "druid"):
+    for cls in ROSTER:   # CH-10 A14: every class in class_spines.yaml
         api = _fresh_at(cls, "Human")
         offered = {o["name"] for o in api._talent_options()}
         rows = {r["name"] for r in api._talent_rows()}
@@ -3157,7 +3165,7 @@ def check_bug35_paragon():
     through it moves the derived stat. Plus the artifact (trap 3): it must reach the sheet."""
     print("## (PG) Paragon subclass: class-talent rider + Trade Point, all five classes (BUG-35)")
     UND = "(undecided)"
-    for cls in ("barbarian", "spellblade", "warlock", "commander", "druid"):
+    for cls in ROSTER:   # CH-10 A14: every class in class_spines.yaml
         api = _fresh_at(cls, "Human", levels=2)      # -> current level 3, where Subclass is chosen
         s0 = json.loads(api.state())
         d, s = _sub_pick(api, "Paragon")
@@ -3384,12 +3392,8 @@ RT_SHEET = {"death_threshold": "death_threshold"}
 # Modelled options the probe fleet legitimately cannot reach, each with the reason. Asserted
 # in BOTH directions: a stale entry (the option became reachable) fails loudly, so these get
 # retired when a fifth class or the BUG-26 multiclass route arrives.
+# Expanded Meta Magic / Greater Innate Power retired 2026-09-24: the Sorcerer is playable (FR-12).
 RT_UNREACHABLE = {
-    "Expanded Meta Magic":
-        "Sorcerer class talent; Sorcerer is not one of the five playable classes and no "
-        "MC feature unlocks another class's talent list (see BUG-26)",
-    "Greater Innate Power":
-        "Sorcerer class talent; as above",
     "Expanded Spell School":
         "Wizard class talent; Wizard is not a playable class",
 }
@@ -3397,15 +3401,20 @@ RT_UNREACHABLE = {
 # Modelled options that are FIXED class features rather than picks: they carry an effect but
 # there is no picker to drive, so the round-trip asserts the effect on a plain scratch build
 # of the class. Value is the class that gets it at L1.
+# Keyed by NAME but scoped to class_features.yaml rows (FR-12 Phase 3): Innate Power and Meta Magic
+# are ALSO mc_features talent rows, which keep their ordinary talent round-trip.
 RT_FIXED = {"Berserker": "barbarian",
             "Spellblade Disciplines": "spellblade",
-            "Pact Boon": "warlock"}
+            "Pact Boon": "warlock",
+            "Innate Power": "sorcerer"}
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
 # stripped from an in-memory copy of the catalog, so the delta is attributable to the row alone.
 RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
-               "Expert Warlock": ("warlock", 5)}
+               "Expert Warlock": ("warlock", 5),
+               "Meta Magic": ("sorcerer", 2),
+               "Expert Sorcerer": ("sorcerer", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -3665,8 +3674,7 @@ def check_fr46_round_trip():
     # ---- 2. reachability: the fleet must reach every modelled option
     index = _rt_fleet()
     unreached = sorted({o.name for o in modelled
-                        if o.name not in index and o.name not in RT_FIXED
-                        and o.name not in RT_FIXED_AT})
+                        if o.name not in index and not _rt_is_fixed(o)})
     ok("the probe fleet reaches every modelled option it is supposed to",
        set(unreached) == set(RT_UNREACHABLE), "unreached=%s expected=%s"
        % (unreached, sorted(RT_UNREACHABLE)))
@@ -3675,7 +3683,10 @@ def check_fr46_round_trip():
         ok("RT_UNREACHABLE %-22s still genuinely unreachable" % name,
            name not in index, "now reachable via %s - retire the entry (%s)"
            % (index.get(name), why))
+    mc = _rt_mc_names()
     for name in sorted(RT_FIXED):
+        if name in mc:   # its mc_features twin IS a pick (catalog_verify FR12-3 asserts they agree)
+            continue
         ok("RT_FIXED %-24s is a fixed class feature, so no picker offers it" % name,
            name not in index, "now offered as a pick via %s" % (index.get(name),))
 
@@ -3793,13 +3804,14 @@ def _rt_check_fixed_at(options, index):
     """A fixed class feature granted above L1 (RT_FIXED_AT). Level a scratch character to the
     level twice, once with the real catalog and once with that row's grants stripped, and assert
     every declared grant key moves by exactly its amount."""
-    by_name = {o.name: o for o in options}
+    by_name = {o.name: o for o in options if o.filename == "class_features.yaml"}
     for name, (cls, lvl) in sorted(RT_FIXED_AT.items()):
         o = by_name.get(name)
         if o is None:
             _rt_ok(name, "fixed@L/%-56s is still in the coverage ledger" % name, False, "retire it")
             continue
-        _rt_ok(name, "fixed@L/%-40s is not offered as a pick" % name, name not in index, index.get(name))
+        if name not in _rt_mc_names():   # an mc_features twin is a pick by design
+            _rt_ok(name, "fixed@L/%-40s is not offered as a pick" % name, name not in index, index.get(name))
         row = _rt_catalog_row(o)
         real = _fresh_at(cls, "Human", levels=lvl - 1)
         bare = _fresh_at(cls, "Human", levels=lvl - 2)
@@ -3831,10 +3843,19 @@ def _rt_check_fixed_at(options, index):
                 _rt_ok(name, "fixed@L/%-24s %-12s has an assertion" % (name, key), False, "add one")
 
 
+def _rt_mc_names():
+    return {r["name"] for r in yaml.safe_load(open(CATPATHS["talents"], encoding="utf-8"))["mc_features"]}
+
+
+def _rt_is_fixed(o):
+    # a FIXED class feature is a class_features.yaml row; its mc_features twin is a pick
+    return o.filename == "class_features.yaml" and (o.name in RT_FIXED or o.name in RT_FIXED_AT)
+
+
 def _rt_check_option(o, index):
     """Drive one modelled option and assert its declared effect arrives."""
     name = o.name
-    if name in RT_FIXED or name in RT_FIXED_AT or name in RT_UNREACHABLE:
+    if _rt_is_fixed(o) or name in RT_UNREACHABLE:
         return                                    # handled by _rt_check_fixed(_at) / reachability
     row = _rt_catalog_row(o)
     grants = row.get("grants") or {}
@@ -4072,7 +4093,7 @@ def _rt_check_fixed(options):
     catalog row declares, so an unrelated class-table difference cannot make it pass.
     For `choice` features the assertion is exact: the declared picker must exist at L1.
     """
-    by_name = {o.name: o for o in options}
+    by_name = {o.name: o for o in options if o.filename == "class_features.yaml"}
     ref_cls = "druid"                     # gets none of the three
     ref = _rt_stats(json.loads(_fresh_at(ref_cls, "Human").state()))
     for name, cls in sorted(RT_FIXED.items()):
@@ -4623,6 +4644,89 @@ def ch14_scan(sources, labels, keys, core):
     return reads, bad
 
 
+def check_ch10_a14_roster():
+    """CH-10 A14 (FR-12 Phase 3 step 0): the class roster was spelt in seven places (NEWCLASSES,
+    CLASS_NAMES, CLASS_CAT, two harness loops, CLASS_CONFIG's iteration, a smoke fallback). All now
+    derive from build_engine.class_roster() (= class_spines.yaml). This asserts the derivation and
+    scans the tools for a re-typed roster literal (any line quoting three or more class names)."""
+    print("\n## (48) CH-10 A14 one class roster, derived from class_spines.yaml")
+    import build_engine as be
+    import catalog_build as cb
+    roster = be.class_roster()
+    ok("roster is non-empty (trap 4)", len(roster) > 0, roster)
+    spines = yaml.safe_load(open(os.path.join(REPO, "builds", "catalog", "class_spines.yaml"),
+                                 encoding="utf-8"))["classes"]
+    ok("roster == class_spines.yaml classes, in file order", roster == list(spines), roster)
+    low = [c.lower() for c in roster]
+    ok("builder_build.NEWCLASSES is the roster", builder_build.NEWCLASSES == low, builder_build.NEWCLASSES)
+    ok("builder_api.CLASS_NAMES is the roster", builder_api.CLASS_NAMES == {c.lower(): c for c in roster},
+       builder_api.CLASS_NAMES)
+    ok("catalog_build.ROSTER is the roster and CLASS_CONFIG covers it exactly",
+       cb.ROSTER == roster and set(cb.CLASS_CONFIG) == set(roster), sorted(cb.CLASS_CONFIG))
+    ok("builder_verify ROSTER is the roster", ROSTER == low, ROSTER)
+    missing = [c for c in low if not os.path.exists(os.path.join(REPO, "builds", "catalog", c + ".yaml"))]
+    ok("every roster class has a generated builds/catalog/<class>.yaml", not missing, missing)
+    # the scan: a line (code, not comment) quoting 3+ distinct roster names is a re-typed roster
+    pat = re.compile(r"[\'\"](%s)[\'\"]" % "|".join(re.escape(c) for c in roster + low))
+    hits = []
+    files = [os.path.join(REPO, "tools", f) for f in sorted(os.listdir(os.path.join(REPO, "tools")))
+             if f.endswith(".py")] + [os.path.join(REPO, "companion-src", "build.py")]
+    ok("the roster-literal scan has files to read (trap 4)", len(files) > 5, len(files))
+    for fp in files:
+        for i, line in enumerate(open(fp, encoding="utf-8"), 1):
+            code = line.split("#", 1)[0]
+            if len({m.lower() for m in pat.findall(code)}) >= 3:
+                hits.append("%s:%d" % (os.path.basename(fp), i))
+    ok("no tool re-types the class roster as a literal", not hits, hits[:6])
+
+
+def check_fr12_sorcerer():
+    """FR-12 Phase 3, class 6 of 13 (2026-09-24): the base Sorcerer. Its two new shapes are the
+    CHOSEN class Spell Source (chargen.spell_source, the existing source_choice slot) and a
+    sub_choice declared on a CLASS FEATURE row (Innate Power's Sorcerous Origin), where before only
+    talents and ancestry traits could carry one. Asserted through state() and the sheet (trap 3)."""
+    print("\n## (49) FR-12 Phase 3: base Sorcerer (chosen Spell Source, Innate Power origin node)")
+    a = _fresh_at("sorcerer", "Human")
+    s0 = st(a)
+    ids = {d["id"]: d for d in s0["decisions"] if d.get("id")}
+    ok("sorcerer L1 offers a Spell Source picker (Arcane/Divine/Primal)",
+       [o["name"] for o in (ids.get("cg:source:0") or {}).get("options") or []] == ["Arcane", "Divine", "Primal"],
+       ids.get("cg:source:0"))
+    ok("sorcerer L1 renders the Sorcerous Origin node under the class features",
+       (ids.get("GC#cg:0#choice#0") or {}).get("choice_kind") == "sorcerous_origin", sorted(ids)[:12])
+    spell_opts = [d for d in s0["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]
+    ok("an undecided Spell Source offers no spells yet", spell_opts == [], len(spell_opts))
+    bp = " ".join(s0["builder_problems"])
+    ok("undecided source and origin are both reported",
+       "spell-source" in bp and "sorcerous origin undecided" in bp, s0["builder_problems"])
+    ok("sorcerer L1 MP = 6 table + 1 Innate Power", _stat(s0, "MP") == "7", _stat(s0, "MP"))
+    s1 = json.loads(a.set_decision("cg:source:0", "Arcane"))
+    arc = {o["name"] for o in [d for d in s1["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    src_cat = yaml.safe_load(open("spell_sources.yaml", encoding="utf-8"))["sources"]
+    ok("Arcane source: the spell picker is exactly the Arcane list",
+       arc == {x for l in src_cat["Arcane"].values() for x in l}, len(arc))
+    b0 = s1["spell_budget"]
+    s2 = json.loads(a.set_decision("GC#cg:0#choice#0", "Intuitive Magic"))
+    ok("Intuitive Magic adds 2 to the spell budget", s2["spell_budget"] == b0 + 2, (b0, s2["spell_budget"]))
+    s3 = json.loads(a.set_decision("GC#cg:0#choice#0", "Resilient Magic"))
+    ok("switching to Resilient Magic takes the 2 spells back", s3["spell_budget"] == b0, s3["spell_budget"])
+    a.set_decision("GC#cg:0#choice#0", "Intuitive Magic")
+    groups = {g["label"]: [i["pick"] for i in g["items"]] for g in json.loads(a.sheet())["ability_groups"]}
+    ok("the sheet shows the chosen Spell Source", groups.get("Spell source") == ["Arcane"], groups)
+    ok("the sheet shows the Sorcerous Origin", "Intuitive Magic" in sum(groups.values(), []), groups)
+    for _ in range(4):
+        s5 = json.loads(a.add_level())
+    mm = [d for d in s5["decisions"] if d["slot"] == "metamagic"]
+    ok("L2 Meta Magic + L5 Expert Sorcerer open 3 metamagic pickers", len(mm) == 3, [d["id"] for d in mm])
+    ok("L5 MP = 12 table + Innate Power + Expert Sorcerer", _stat(s5, "MP") == "14", _stat(s5, "MP"))
+    ok("L5 spell budget = 6 table + 2 Intuitive", s5["spell_budget"] == 8, s5["spell_budget"])
+    sub = [d for d in s5["decisions"] if d["slot"] == "subclass"][0]
+    s6 = json.loads(a.set_decision(sub["id"], "Draconic"))
+    ok("Draconic pre-fills Transmuted Spell on its Meta Magic grant",
+       any(d.get("current") == "Transmuted Spell" for d in s6["decisions"] if d["slot"] == "metamagic"),
+       [d.get("current") for d in s6["decisions"] if d["slot"] == "metamagic"])
+
+
 def check_ch14_engine_labels():
     print("\n## (47) CH-14 consumers read only the engine's named labels and spine features")
     import build_engine as be
@@ -4749,7 +4853,8 @@ def main():
                     check_l5_class_features, check_expertise, check_fr42_fr48,
                     check_bug26_sorcerous_origin, check_bug53_conditional_live,
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
-                    check_fr49_equipment_effects, check_ch14_engine_labels):
+                    check_fr49_equipment_effects, check_ch14_engine_labels,
+                    check_ch10_a14_roster, check_fr12_sorcerer):
             run(_fn)
     finally:
         os.chdir(old)
