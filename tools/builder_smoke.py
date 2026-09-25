@@ -634,6 +634,44 @@ def j_wizard_school(P):
     P.pg.wait_for_timeout(300)
 
 
+def j_cleric_domains(P):
+    """(S11) FR-12 Phase 3: a base Cleric's 2 Divine Domain pickers render labelled 'divine domain' (the
+    page's generic slotlabel fallback, page-only), Magic opens its Spell Tag node and the tag fills its
+    spell picker, and the sheet heads the group 'Divine Domains' and folds 'Magic: Fire'."""
+    print("## (S11) Cleric: Divine Domain pickers, Magic tag node, sheet fold")
+    P.start("cleric")
+    doms = P.decs("^GC#cg:0#disciplines#")
+    ok("Cleric Order renders 2 domain pickers", len(doms) == 2, P.decs("^GC#"))
+    if not doms:
+        return
+    lbl = P.pg.evaluate("d => { const s = document.querySelector('[data-dec=\"'+d+'\"]');"
+                        " const r = s && s.closest('div'); const l = r && r.querySelector('.slot');"
+                        " return l ? l.innerText : ''; }", doms[0])
+    ok("...labelled 'divine domain', not 'discipline'", lbl.strip().lower() == "divine domain", lbl)
+    P.choose(doms[0], "Magic")
+    P.pg.wait_for_timeout(500)
+    tag = P.decs("^GC#cg:0#domain_tag#0$")
+    ok("Magic renders its Spell Tag node", len(tag) == 1 and "Fire" in P.options(tag[0]), P.decs("^GC#"))
+    if not tag:
+        return
+    P.choose(tag[0], "Fire")
+    P.pg.wait_for_timeout(500)
+    sp = P.decs("^GC#cg:0#spells#0$")
+    opts = [o for o in P.options(sp[0]) if o != "(undecided)"] if sp else []
+    ok("choosing Fire fills the spell picker with Fire spells", bool(opts) and "Fireball" in opts, opts)
+    if opts:
+        P.choose(sp[0], "Fireball")
+        P.pg.wait_for_timeout(400)
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet shows 'Divine Domains' with 'Magic: Fire'",
+       "divine domains" in text.lower() and "Magic: Fire" in text, text[:1500])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -756,7 +794,8 @@ def main():
                                          ("s7", j_expertise_readout, (), 120),
                                          ("s8", j_spell_list_widening, (), 120),
                                          ("s9", j_sorcerer_origin, (), 120),
-                                         ("s10", j_wizard_school, (), 120)):
+                                         ("s10", j_wizard_school, (), 120),
+                                         ("s11", j_cleric_domains, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

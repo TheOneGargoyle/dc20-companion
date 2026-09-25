@@ -46,6 +46,13 @@ multiclass:
 class_talents:
   Barbarian:
     - {name: Unfathomable Strength, requires: "Rage, Level 3", grants: {jump: 1}}   # Titanic Leap, character-creation.md l.381
+  Cleric:
+    # character-creation.md l.415-441. Expanded Order: "You gain 2 additional Divine Domains. You can't
+    # choose the same option more than once" -> 2 domain grant-children (Magic stays repeatable, its own
+    # text is the specific rule).
+    - {name: Expanded Order, requires: "Cleric Order", grants: {disciplines: 2}}
+    - {name: Bountiful Blessings, requires: "Divine Blessing, Level 3", no_effect: situational}
+    - {name: Divine Cleanse, requires: "Channel Divinity, Level 3", no_effect: situational}
   Commander:
     - {name: Seize Momentum, requires: "Commander's Call, Commanding Aura, Level 3", no_effect: situational}
     - {name: Coordinated Command, requires: "Commander's Call, Level 3", no_effect: situational}

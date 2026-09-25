@@ -292,6 +292,14 @@ def drive_fresh(cls):
             idx = int(d["id"].split(":")[-1])
             pick = d["options"][idx % len(d["options"])]["name"]
             api.set_decision(d["id"], pick)
+    # FR-12 Phase 3 Cleric: chargen grant-child domains (Cleric Order's 2), distinct, spread so the
+    # fresh build stays on no-effect domains (the effectful ones are driven in section 51)
+    s = st(api)
+    for d in s["decisions"]:
+        if str(d.get("id")).startswith("GC#cg:") and "#disciplines#" in str(d["id"]):
+            k = int(d["id"].rsplit("#", 1)[1])
+            api.set_decision(d["id"], d["options"][(2 + k) % len(d["options"])]["name"])
+            s = st(api)
     # FR-56: an Expertise trait's target is chosen on its node; take one the background below won't add
     s = st(api)
     bg = {"Awareness", "Athletics", "Stealth", "Medicine", "Survival", "Brewing", "Cooking", "Gaming"}
@@ -3410,7 +3418,8 @@ RT_FIXED = {"Berserker": "barbarian",
             "Spellblade Disciplines": "spellblade",
             "Pact Boon": "warlock",
             "Innate Power": "sorcerer",
-            "Spell School Initiate": "wizard"}
+            "Spell School Initiate": "wizard",
+            "Cleric Order": "cleric"}
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3419,7 +3428,8 @@ RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Expert Warlock": ("warlock", 5),
                "Meta Magic": ("sorcerer", 2),
                "Expert Sorcerer": ("sorcerer", 5),
-               "Expert Wizard": ("wizard", 5)}
+               "Expert Wizard": ("wizard", 5),
+               "Expert Cleric": ("cleric", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -4047,7 +4057,9 @@ def _rt_subclass_child(name, index):
 
 def _rt_chargen_slot(name, index):
     for label, slot in index.get(name, []):
-        if "L1" in label:
+        # a node's answer (sub_choice: Divine Damage "Lightning") is not a catalog option of that name,
+        # so it must not capture the probe for one (the Lightning Rune, FR-12 Phase 3 Cleric)
+        if label.split()[1:2] == ["L1"] and slot != "sub_choice":
             return label.split()[0], slot
     return None, None
 
@@ -4121,9 +4133,28 @@ def _rt_check_fixed(options):
                 _rt_ok(name, "fixed/%-24s %-32s re-keys %s vs a %s" % (name, key, stat, ref_cls),
                    _rt_num(cur[stat]) != _rt_num(ref[stat]),
                    "%s %s vs %s %s" % (cls, cur[stat], ref_cls, ref[stat]))
+        s = json.loads(_fresh_at(cls, "Human").state())
+        for key, amount in sorted((row.get("grants") or {}).items()):
+            if key in builder_api.GRANT_CHILD_SLOTS and key not in builder_api.PLAN_POINTBUY:
+                # FR-12 Phase 3 (Cleric Order {disciplines: 2}): a child-resource grant on a fixed L1
+                # feature must render exactly that many child pickers under the L1 class-features row
+                kids = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#cg:")
+                        and "#%s#" % key in str(d["id"])]
+                _rt_ok(name, "fixed/%-24s %-32s renders %d %s picker(s) at L1"
+                   % (name, key, amount, builder_api.GRANT_CHILD_SLOTS[key]),
+                   len(kids) == amount and all(d["slot"] == builder_api.GRANT_CHILD_SLOTS[key]
+                                               and d.get("options") for d in kids),
+                   [(d["id"], d["slot"]) for d in kids])
+        if "sub_choice" in row:
+            node = [d for d in s["decisions"] if d["slot"] == "sub_choice"
+                    and d.get("choice_kind") == row["sub_choice"].get("kind")]
+            want = [o["name"] for o in _fresh_at(cls, "Human")._resolve_decl(row["sub_choice"])["options"]]
+            _rt_ok(name, "fixed/%-24s spawns its %s node at L1 with the declared options"
+               % (name, row["sub_choice"].get("kind")),
+               len(node) == 1 and bool(want) and [o["name"] for o in node[0]["options"]] == want,
+               [d["id"] for d in node])
         if "choice" in row:
             slot = builder_api.SHEET_SLOT_ALIAS.get(row["choice"], row["choice"])
-            s = json.loads(_fresh_at(cls, "Human").state())
             got = [d for d in s["decisions"] if d["slot"] == slot]
             _rt_ok(name, "fixed/%-24s spawns its %r picker(s) at L1 without a pick" % (name, slot),
                bool(got), sorted({d["slot"] for d in s["decisions"]}))
@@ -4944,6 +4975,150 @@ def check_ch14_engine_labels():
     ok("CH-14 the hand-kept PATH_LEVELS list is retired", not hasattr(be, "PATH_LEVELS"))
 
 
+def check_fr12_cleric():
+    """FR-12 Phase 3, class 8 of 13 (2026-09-25): the base Cleric. New shapes: Divine Domains as the
+    Discipline child shape under a class label (Cleric Order 2, Expert Cleric 1, Expanded Order 2);
+    Magic repeatable with its own Spell Tag node + tag-filtered spell child + list widening; War / Peace
+    typed maneuver children; Knowledge's feature Mastery-Limit raise; Ancestral's any-ancestry points;
+    the Divine Damage node derived from damage_types.yaml."""
+    print("\n## (51) FR-12 Phase 3: base Cleric (Divine Domains, Magic tag node, Divine Damage)")
+    src_cat = yaml.safe_load(open("spell_sources.yaml", encoding="utf-8"))["sources"]
+    div = {x for l in src_cat["Divine"].values() for x in l}
+    dmg = yaml.safe_load(open("damage_types.yaml", encoding="utf-8"))["categories"]
+    a = _fresh_at("cleric", "Human")
+    doms = [r["name"] for r in a.ccat.get("domains") or []]
+    ok("cleric.yaml carries the 15 Divine Domains (not an empty pass)", len(doms) == 15, doms)
+    s0 = st(a)
+    kids = [d for d in s0["decisions"] if str(d.get("id")).startswith("GC#cg:0#disciplines#")]
+    ok("Cleric Order renders 2 domain pickers labelled 'divine domain', offering every domain",
+       len(kids) == 2 and all(d.get("slotlabel") == "divine domain" and [o["name"] for o in d["options"]] == doms
+                              for d in kids), [(d["id"], d.get("slotlabel")) for d in kids])
+    node = [d for d in s0["decisions"] if d.get("choice_kind") == "divine_damage"]
+    ok("the Divine Damage node offers the Elemental + Mystical types from damage_types.yaml",
+       len(node) == 1 and [o["name"] for o in node[0]["options"]] == dmg["Elemental"] + dmg["Mystical"]
+       and len(node[0]["options"]) == 8, node and [o["name"] for o in node[0]["options"]])
+    flat = {o["name"] for o in [d for d in s0["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    ok("the Cleric's flat spell picker is exactly the Divine list", flat == div, len(flat))
+    ok("L1 spell budget = 4, MP 6", s0["spell_budget"] == 4 and _rt_num(_rt_stats(s0)["MP"]) == 6,
+       (s0["spell_budget"], _rt_stats(s0)["MP"]))
+    probs0 = " ".join(s0["builder_problems"])
+    ok("undecided domains and Divine Damage are reported in the class's words",
+       probs0.count("L1 divine domain undecided") == 2 and "L1 divine damage undecided" in probs0, probs0)
+
+    # Magic, twice: repeatable, each with its own tag node and spell
+    sm = json.loads(a.set_decision("GC#cg:0#disciplines#0", "Magic"))
+    sib = [d for d in sm["decisions"] if d.get("id") == "GC#cg:0#disciplines#1"][0]
+    ok("Magic can be taken twice (still offered on the sibling picker once held)",
+       "Magic" in [o["name"] for o in sib["options"]], [o["name"] for o in sib["options"]])
+    sk = json.loads(a.set_decision("GC#cg:0#disciplines#1", "Life"))
+    sib = [d for d in sk["decisions"] if d.get("id") == "GC#cg:0#disciplines#0"][0]
+    ok("...while any other held domain is filtered from its sibling (Life)",
+       "Life" not in [o["name"] for o in sib["options"]], [o["name"] for o in sib["options"]])
+    s1 = json.loads(a.set_decision("GC#cg:0#disciplines#1", "Magic"))
+    tags = [d for d in s1["decisions"] if d.get("choice_kind") == "spell_tag"]
+    alltags = sorted({t for m in a.meta.values() for t in m["tags"] if t})
+    ok("each Magic opens its own Spell Tag node, options derived from the spell data",
+       len(tags) == 2 and all([o["name"] for o in d["options"]] == alltags for d in tags) and len(alltags) > 50,
+       [d["id"] for d in tags])
+    ok("two Magic domains: +2 spell budget and +2 MP",
+       s1["spell_budget"] == 6 and _rt_num(_rt_stats(s1)["MP"]) == 8, (s1["spell_budget"], _rt_stats(s1)["MP"]))
+    ok("undecided Magic tags and spells are reported",
+       "L1 2 Magic spell tag pick(s) undecided" in " ".join(s1["builder_problems"])
+       and "L1 2 Magic spell pick(s) undecided" in " ".join(s1["builder_problems"]), s1["builder_problems"])
+    s2 = json.loads(a.set_decision("GC#cg:0#domain_tag#0", "Fire"))
+    fire = sorted(n for n, m in a.meta.items() if "Fire" in m["tags"])
+    sp = [d for d in s2["decisions"] if d.get("id") == "GC#cg:0#spells#0"][0]
+    ok("the Fire tag's spell child offers exactly the Fire-tag spells, any source",
+       [o["name"] for o in sp["options"]] == fire and bool(set(fire) - div), [o["name"] for o in sp["options"]])
+    flat2 = {o["name"] for o in [d for d in s2["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    ok("...and the tag joins the Spell List (the flat picker gains the non-Divine Fire spells)",
+       flat2 == div | set(fire), sorted(flat2 - div))
+    a.set_decision("GC#cg:0#spells#0", fire[0])
+    s3 = json.loads(a.set_decision("GC#cg:0#disciplines#1", "War"))
+    c = a.ledger["chargen"]["class_choices"][0]
+    ok("changing the OTHER domain keeps this Magic's tag and spell (ordinal-aligned lists)",
+       c.get("domain_tags") == ["Fire"] and c.get("granted_spells") == [fire[0]], c)
+    man = [d for d in s3["decisions"] if d.get("id") == "GC#cg:0#maneuvers#0"]
+    ok("War opens ONE maneuver picker, Attack maneuvers only",
+       len(man) == 1 and {o["group"] for o in man[0]["options"]} == {"Attack"}, man and man[0]["options"][:2])
+    a.set_decision("GC#cg:0#maneuvers#0", man[0]["options"][0]["name"])
+    s4 = json.loads(a.set_decision("GC#cg:0#choice#0", "Radiant"))
+    ok("War: +1 maneuver budget, filled by its child", s4["man_budget"] == 1 and s4["man_have"] == 1,
+       (s4["man_have"], s4["man_budget"]))
+    sh = json.loads(a.sheet())
+    grp = {g["label"]: [i["pick"] for i in g["items"]] for g in sh["ability_groups"]}
+    ok("the sheet heads the group 'Divine Domains' and folds the tag ('Magic: Fire')",
+       grp.get("Divine Domains") == ["Magic: Fire", "War"] and "Disciplines" not in grp, grp)
+    ok("the sheet folds the Divine Damage into Cleric Order ('Cleric Order: Radiant')",
+       any("Cleric Order: Radiant" in p for p in grp.get("Class features") or [])
+       and "Radiant" not in sum(grp.values(), []), grp.get("Class features"))
+    ok("War's Weapons training reaches the sheet; the Fire spell is in the spell list",
+       "Weapons" in sh["combat_training"] and fire[0] in [x["name"] for x in sh["spells"]],
+       (sh["combat_training"], [x["name"] for x in sh["spells"]]))
+    y = a.export_yaml()
+    b = builder_api.BuilderAPI("new-cleric", CATPATHS, ledger_text=y)
+    ok("the built Cleric round-trips through export with its domain picks intact",
+       b.ledger["chargen"]["class_choices"][0] == a.ledger["chargen"]["class_choices"][0]
+       and st(b)["decisions"] == st(a)["decisions"], None)
+
+    # Peace, Knowledge, Ancestral
+    p = _fresh_at("cleric", "Human")
+    p.set_decision("GC#cg:0#disciplines#0", "Peace")
+    sp_ = json.loads(p.set_decision("GC#cg:0#disciplines#1", "Knowledge"))
+    man = [d for d in sp_["decisions"] if d.get("id") == "GC#cg:0#maneuvers#0"]
+    ok("Peace opens ONE maneuver picker, Defense maneuvers only, and brings Heavy Armor / Heavy Shields",
+       len(man) == 1 and {o["group"] for o in man[0]["options"]} == {"Defense"}
+       and {"Heavy Armor", "Heavy Shields"} <= set(json.loads(p.sheet())["combat_training"]), man and len(man[0]["options"]))
+    ok("Knowledge: +2 skill points", sp_["points"]["skills"]["avail"] - s0["points"]["skills"]["avail"] == 2,
+       (sp_["points"]["skills"], s0["points"]["skills"]))
+    kt = yaml.safe_load(open("skills_trades.yaml", encoding="utf-8"))["knowledge_trades"]
+    p.add_mastery("trades", kt[0]); p.add_mastery("trades", "Alchemy")
+    for m in st(p)["alloc"]:
+        if m["kind"] == "trades":
+            p.set_mastery(m["id"], "Adept")
+    pr = st(p)["problems"]
+    ok("Knowledge raises the Mastery Limit of a Knowledge Trade (%s Adept is legal at L1)" % kt[0],
+       not any(kt[0] in x for x in pr) and any("Alchemy" in x and "above" in x for x in pr), pr)
+    p.set_limit_raise("trades:%s" % kt[0], "1")
+    ok("...and a point purchase cannot stack on it",
+       not p.ledger["trades"]["masteries"][kt[0]].get("limit_raise"), p.ledger["trades"]["masteries"][kt[0]])
+    q = _fresh_at("cleric", "Human")
+    base_lists = len(q._anc_lists())
+    q.set_decision("GC#cg:0#disciplines#0", "Ancestral")
+    sq = json.loads(q.set_decision("GC#cg:0#disciplines#1", "Life"))
+    ok("Ancestral: +2 Ancestry Points and every ancestry's list opens",
+       sq["anc_budget"] - s0["anc_budget"] == 2 and len(q._anc_lists()) == len(q.cat["ancestries"]["ancestries"])
+       > base_lists, (sq["anc_budget"], s0["anc_budget"], base_lists, len(q._anc_lists())))
+    off = [(o["name"], o.get("group")) for d in sq["decisions"] if d["slot"] == "ancestry_trait"
+           for o in d.get("options") or [] if o.get("group") and "Human" not in str(o.get("group"))]
+    ok("...so the trait picker offers other ancestries' traits", bool(off), off[:3])
+
+    # L2 Expanded Order, L5 Expert Cleric, subclasses
+    e = _fresh_at("cleric", "Human")
+    e.set_decision("GC#cg:0#disciplines#0", "Magic"); e.set_decision("GC#cg:0#disciplines#1", "Peace")
+    s5 = json.loads(e.add_level())
+    tal = [d for d in s5["decisions"] if d.get("level") == 2 and d["slot"] == "talent"][0]
+    s6 = json.loads(e.set_decision(tal["id"], "Expanded Order"))
+    eo = [d for d in s6["decisions"] if str(d.get("id")).startswith("GC#%s#disciplines#" % tal["id"])]
+    ok("Expanded Order adds 2 domain pickers; Peace (held) is gone, Magic stays",
+       len(eo) == 2 and all("Peace" not in [o["name"] for o in d["options"]]
+                            and "Magic" in [o["name"] for o in d["options"]] for d in eo), [d["id"] for d in eo])
+    for _ in range(3):
+        s7 = json.loads(e.add_level())
+    ex = [d for d in s7["decisions"] if d.get("level") == 5 and str(d.get("id")).startswith("GC#")
+          and "#disciplines#" in str(d["id"])]
+    ok("L5 Expert Cleric adds ONE domain picker", len(ex) == 1 and len(ex[0]["options"]) == 14,
+       [(d["id"], len(d["options"])) for d in ex])
+    sub = [d for d in s7["decisions"] if d["slot"] == "subclass"][0]
+    ok("cleric L3 offers Inquisitor, Priest, Paragon",
+       [o["name"] for o in sub["options"]] == ["Inquisitor", "Priest", "Paragon"], sub["options"])
+    e.set_decision(eo[0]["id"], "Magic")
+    s8 = json.loads(e.set_decision(tal["id"], "Bountiful Blessings"))
+    ent = [x for x in e.ledger["levels"][2] if x.get("slot") == "talent"][0]
+    ok("re-picking the talent away drops its domains and their Magic lists",
+       not any(k in ent for k in ("granted_disciplines", "domain_tags", "granted_spells", "granted_effects")), ent)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -4991,7 +5166,7 @@ def main():
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
-                    check_fr12_wizard):
+                    check_fr12_wizard, check_fr12_cleric):
             run(_fn)
     finally:
         os.chdir(old)

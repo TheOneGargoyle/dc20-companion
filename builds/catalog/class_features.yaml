@@ -59,6 +59,36 @@ classes:
         no_effect: situational
     6: []      # L6 grants Talent + Path only
 
+  Cleric:   # classes.md l.714-1005 (FR-12 Phase 3)
+    1:
+      - name: Cleric Order   # classes.md l.777-795
+        grants: {disciplines: 2}
+        # Divine Domain: "You gain the benefits of 2 Divine Domains of your choice". The domains are
+        # grant-children (cleric.yaml `domains`, the Discipline child shape), so Expert Cleric and
+        # Expanded Order add theirs the same way. Divine Damage: "Choose an Elemental or Mystical damage
+        # type", a node whose options are DERIVED from damage_types.yaml (parsed from core-rules.md).
+        sub_choice: {kind: divine_damage, label: divine damage,
+                     options_from: {damage_categories: [Elemental, Mystical]}}
+        note: "Divine Damage (Elemental or Mystical type) + 2 Divine Domains"
+      - name: Divine Blessing   # classes.md l.878-898
+        note: "1 AP + 1 MP: Destruction (3 Divine damage), Guidance (d8 Help Die), Restoration (3 HP) on your next Spell"
+        no_effect: situational
+      - name: Divine Omen   # classes.md l.899-925
+        flavor: true
+        note: "commune with your deity once per Long Rest: a yes / no / unclear answer"
+    2:
+      - name: Channel Divinity   # classes.md l.930-952
+        note: "once per Long Rest (regained on Initiative): Divine Rebuke or Lesser Divine Intervention"
+        no_effect: situational
+    3: []
+    4: []
+    5:
+      - name: Expert Cleric   # classes.md l.983-997
+        grants: {disciplines: 1}
+        # "Cleric Order: You gain 1 additional Divine Domain", a grant-child like Cleric Order's two.
+        note: "+1 Divine Domain; Destruction / Restoration +2 per extra MP; Divine Rebuke +1 damage; Lesser Divine Intervention pool +2"
+    6: []
+
   Commander:   # classes.md l.~330-370
     1:
       - name: Inspiring Presence

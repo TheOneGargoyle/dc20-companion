@@ -56,6 +56,64 @@ SPELLBLADE_DISCIPLINES = {
     "Sense Magic": {"flavor": True},
 }
 
+# FR-12 Phase 3 Cleric. Divine Domains (classes.md l.796-877): Cleric Order grants 2, Expert Cleric 1,
+# Expanded Order 2. They reuse the Spellblade Discipline child machinery (grant key `disciplines`,
+# children in granted_disciplines) under the catalog key `domains` and the label `domain_label`.
+#   * `repeatable`: Magic "You can choose this Divine Domain multiple times" (l.801), so it is exempt from
+#     the sibling-distinct filter every other domain obeys (Expanded Order: "can't choose the same option
+#     more than once", character-creation.md l.419).
+#   * `spell_tag_choice`: Magic's "Choose a Spell Tag ... You learn 1 Spell with the chosen Spell Tag, and
+#     when you learn a new Spell you can choose any Spell that also has the chosen Spell Tag" (l.803-806).
+#     Each Magic child opens its own tag node + 1 tag-filtered spell child; the tag widens the spell list.
+#   * `maneuver_type`: War "learn 1 Attack Maneuver", Peace "learn 1 Defense Maneuver" (l.852-857), the
+#     Pact Weapon / Pact Armor shape, as a typed maneuver child under the domain.
+#   * `limit_raise`: Knowledge "Your Mastery Limit increases by 1 for all Knowledge Trades" (l.797-800).
+#   * `opens_all_ancestries`: Ancestral "2 Ancestry Points that you can spend on Traits from any
+#     Ancestry" (l.874-875).
+CLERIC_DOMAINS = {
+    "Knowledge": {"grants": {"skill_points": 2}, "limit_raise": {"kind": "trades", "group": "knowledge_trades"},
+                  "note": "+2 Skill Points; Mastery Limit +1 for all Knowledge Trades (one limit raise per Trade)"},
+    "Magic": {"grants": {"mp": 1, "spells": 1}, "repeatable": True, "spell_tag_choice": True,
+              "note": "+1 MP; choose a Spell Tag, learn 1 Spell with it, and it joins your Spell List"},
+    "Divine Damage Expansion": {"no_effect": "situational",
+                                "note": "convert Spell damage to your Divine Damage type; Resistance (1) to it (no resistance surface on the sheet)"},
+    "Life": {"no_effect": "situational"},
+    "Death": {"no_effect": "situational"},
+    "Grave": {"no_effect": "situational"},
+    "Light": {"no_effect": "situational"},
+    "Dark": {"no_effect": "sense", "note": "10 Space Darkvision (+5 if you have it); Hide in Dim Light"},
+    "War": {"grants": {"maneuvers": 1}, "maneuver_type": "Attack", "training": ["Weapons"]},
+    "Peace": {"grants": {"maneuvers": 1}, "maneuver_type": "Defense", "training": ["Heavy Armor", "Heavy Shields"]},
+    "Order": {"no_effect": "situational"},
+    "Chaos": {"no_effect": "situational"},
+    "Divination": {"no_effect": "situational"},
+    "Trickery": {"no_effect": "situational"},
+    "Ancestral": {"grants": {"ancestry_points": 2}, "opens_all_ancestries": True,
+                  "note": "2 Ancestry Points for Traits from any Ancestry"},
+}
+
+# FR-12 Phase 3 Cleric: the damage type categories (core-rules.md "#### Damage Type Categories"), parsed
+# from the rules text, never typed. Written to builds/catalog/damage_types.yaml; Cleric Order's Divine
+# Damage node reads its Elemental + Mystical options from it (Spellblade Bound Damage can too, later).
+DAMAGE_CATS = ("Physical", "Elemental", "Mystical")
+
+
+def parse_damage_types():
+    text = read(os.path.join(ROOT, "rules", "core-rules.md"))
+    start = text.index("\n#### Damage Type Categories\n")
+    block = text[start:start + 800]
+    out = {}
+    for cat in DAMAGE_CATS:
+        m = re.search(r"%s Damage: Includes ([^.]+)\." % cat, block)
+        if not m:
+            sys.exit(f"Could not parse the {cat} damage types from core-rules.md")
+        out[cat] = [re.sub(r"\s+damage$", "", t.strip())
+                    for t in re.split(r",|\band\b", m.group(1)) if t.strip()]
+        if len(out[cat]) < 3:
+            sys.exit(f"{cat} damage types parsed short: {out[cat]}")
+    return out
+
+
 # Warlock Pact Boon options (classes.md "Pact Boon ... Weapon, Armor, Spell, or Familiar").
 # Pact Weapon: "You learn 2 Attack Maneuvers of your choice"; Pact Armor: "You learn 2
 # Defensive Maneuvers of your choice" (+1 AD & MDR are conditional, worn-only - not a grant).
@@ -193,6 +251,13 @@ CLASS_CONFIG = {
         # chargen.spell_source, and there is no fixed `source` key.
         "spellcasting": {"model": "source", "source_choice": ["Arcane", "Divine", "Primal"]},
     },
+    "Cleric": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.714-1057 + rules/tables.md l.52-65",
+        "extras": {"domains": CLERIC_DOMAINS, "domain_label": "divine domain"},
+        # classes.md l.763-764: "When you learn a new Spell, you can choose any Spell on the Divine Spell
+        # Source." -> the source model with a FIXED source, like the Wizard's Arcane.
+        "spellcasting": {"model": "source", "source": "Divine"},
+    },
     "Wizard": {
         "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.3466-3780 + rules/tables.md l.187-200",
         "extras": {},
@@ -327,6 +392,11 @@ def build(cls):
         verify_names_present(section, extras["pact_boons"], "pact boon(s)", cls)
         catalog["pact_boons_pick_l1"] = extras["pact_boons_pick_l1"]
         catalog["pact_boons"] = [dict({"name": n}, **v) for n, v in extras["pact_boons"].items()]
+    if "domains" in extras:
+        # FR-12 Phase 3 Cleric: Divine Domains, the Discipline child shape under their own key + label
+        verify_names_present(section, extras["domains"], "divine domain(s)", cls)
+        catalog["domain_label"] = extras["domain_label"]
+        catalog["domains"] = [dict({"name": n}, **v) for n, v in extras["domains"].items()]
     if "runes" in extras:
         # FR-8 slice 3: Rune Knight learns 2 Runes; same shape as disciplines/pact_boons so the
         # builder can look one up. Short names (ledger convention) appear in classes.md as "<X> Rune".
@@ -367,6 +437,18 @@ def main():
         path = os.path.join(outdir, cls.lower() + ".yaml")
         with open(path, "w", encoding="utf-8") as f:
             f.write(out)
+        print(f"[wrote {path}]")
+    dt = header.replace("Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.",
+                        "Damage type categories parsed from rules/core-rules.md (Damage Type Categories).")
+    dt += yaml.safe_dump({"catalog_version": 1, "ruleset": "DC20 0.10.5", "generated_by": "tools/catalog_build.py",
+                          "source": "rules/core-rules.md Damage Type Categories",
+                          "categories": parse_damage_types()}, sort_keys=False, allow_unicode=True, width=100)
+    if args.check:
+        print(dt)
+    else:
+        path = os.path.join(ROOT, "builds", "catalog", "damage_types.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(dt)
         print(f"[wrote {path}]")
 
 

@@ -12,6 +12,7 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| FR-12.C | FR-12 Phase 3 class 8: base Cleric + subclasses (Divine Domains, Magic tag node, Divine Damage) | feature | engine+catalog+builder | P2 | DONE (2026-09-25, builder_verify (51), smoke S11; 10 code findings, note in Chores) |
 | FR-12.W | FR-12 Phase 3 class 7: base Wizard + subclasses (Spell School Initiate node) | feature | catalog+builder | P2 | DONE (2026-09-24, builder_verify (50), smoke S10; 10 code findings incl. Expert Wizard follow-up, note in Chores) |
 | FR-12.S | FR-12 Phase 3 class 6: base Sorcerer (+ CH-10 A14 one class roster) | feature | engine+catalog+builder | P2 | DONE (2026-09-24, builder_verify (48)(49), catalog_verify FR12-3; 8 code findings, note in Chores) |
 | CH-14 | Name the engine's derived-stat labels and spine-feature strings as constants and import them | chore | engine+tools | P1 | DONE (2026-09-24, `build_engine.LBL_*`/`FEAT_*`, `path_levels()`; guard builder_verify (47); pure refactor) |
@@ -282,6 +283,20 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**FR-12 Phase 3, class 8: Cleric (2026-09-25).** Base class L1-L6 plus Inquisitor, Priest, Paragon (no subclass numbers or picks, so no `SUBCLASS_GRANTS`).
+- Data: spine, `catalog/cleric.yaml` (generated; source Divine, 15 `domains`, `domain_label`), `catalog/damage_types.yaml` (NEW, generated from core-rules.md), `class_features.yaml` Cleric L1-L6, `talents.yaml` Cleric class talents.
+- **Design (agreed with Darryl):** Divine Domains are the Discipline child shape (grant key `disciplines`, `granted_disciplines`) under Cleric Order {2}, Expert Cleric {1}, Expanded Order {2}; no `disciplines_pick_l1`. Magic `repeatable` (its own text beats Expanded Order's no-repeat) with a Spell Tag node + 1 tag spell (any source) + the tag widens the list. Divine Damage: `options_from: {damage_categories: [Elemental, Mystical]}`. Resistance (1) is a note (no resistance surface).
+- **Code findings (the data-only claim failed 10 ways):**
+  1. `_child_pool('discipline')` read only `disciplines`: now also a class's `domains`; 2. labels: picker `slotlabel`, page JS generic `slotlabel` fallback, sheet heading "Divine Domains", problem wording;
+  3. sibling-distinct filter had no exemption: `repeatable`; 4. a picked child could not owe picks: Magic tag node + tag spell, War/Peace typed maneuver, stored ordinal-aligned on the parent (`domain_tags`, `granted_spells`, `granted_maneuvers`), realigned on a sibling change, dropped with the parent, reported undecided;
+  5. `_grant_tags` knew only subclass tags: Magic tags widen the list; 6. no damage-type list: catalog_build parses core-rules.md into `damage_types.yaml`, `_resolve_decl` reads it;
+  7. the sheet fold knew only school_magic: Divine Damage onto Cleric Order, Magic's tag onto its domain;
+  8. no feature Mastery-Limit raise: `build_engine.feature_limit_raises` + derived `granted_limit_raises` (Knowledge, 6 Knowledge Trades), planner caps, purchase refused;
+  9. no any-ancestry points: `opens_all_ancestries` widens scratch lists + an overspend problem beyond Ancestral's 2;
+  10. harness: `_rt_chargen_slot` was captured by a node answer (Divine Damage "Lightning" hijacked the Lightning Rune probe); `_rt_check_fixed` learned child-resource grants and sub_choice nodes; the fresh driver fills chargen domain children; catalog_verify re-reads damage types and the domain block independently.
+- All six ledgers byte-identical; sheet/state/derived snapshot byte-identical before and after.
+- Open, not fixed: no MC Cleric Order twin (the domain child pool is class-scoped, so an MC Order on another class would offer nothing); the allocator row does not label a Knowledge raise; Ancestral's overspend check is scratch-mode only; Divine Blessing, Channel Divinity, blessing/Channel enhancements, Inquisitor, Priest are `situational`.
 
 **FR-12 Phase 3, class 7: Wizard (2026-09-24).** Base class L1-L6 plus Portal Mage, Witch, Paragon.
 - Data: spine, `catalog/wizard.yaml` (generated; `CLASS_CONFIG` source Arcane, `SUBCLASS_GRANTS` Portal Mage tag Teleportation, Witch 1 spell + tag Curse), `class_features.yaml` Wizard L1-L6, `talents.yaml` SSI twin + Expanded Spell School nodes.

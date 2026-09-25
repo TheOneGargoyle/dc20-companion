@@ -59,6 +59,7 @@ from build_engine import class_roster  # noqa: E402  CH-10 A14: the one roster
 NEWCLASSES = [c.lower() for c in class_roster()]   # derived from class_spines.yaml, never typed
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
            "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
+           "damage_types",  # FR-12 Phase 3: Cleric Divine Damage options (parsed from core-rules.md)
            "class_spines",  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
            "class_features"]  # BUG-19/22: named class features per class per level (+ their effects)
 CATPATHS_EXCLUDE = {"class_spines"}   # BUG-31: baked + FS-written, but loaded by the ENGINE, not BuilderAPI
@@ -827,7 +828,8 @@ function render(s){
     const slotLabel = (t.slot==='spell_tagged'||t.slot==='spell_sourced'||t.slot==='spell_any') ? 'spell'  // BUG-12(a): don't leak the internal slot kind
                     : (t.slot==='source_choice') ? 'sorcerer source'                 // FR-13a slice 2: Sorcerous Origin node
                     : (t.slot==='ancestry_origin') ? (t.slotlabel||'origin')          // BUG-24: per-ancestry Origin picker
-                    : (t.slot==='sub_choice') ? (t.slotlabel||'choice') : t.slot;  // FR-42/BUG-26: the node's catalog label
+                    : (t.slot==='sub_choice') ? (t.slotlabel||'choice')                 // FR-42/BUG-26: the node's catalog label
+                    : (t.slotlabel||t.slot);  // FR-12 Phase 3: a class-labelled slot (Cleric 'divine domain')
     return `<div class="${cls}"><span class="lv">L${t.level}</span><span class="slot">${esc(slotLabel)}</span>${body}</div>`;
   };
   let d = `<div style="font-size:.85rem;margin-bottom:.5rem"><b>${esc(s.character)}</b> - ${esc(s.klass)} (${esc(s.subclass||'?')}) | ${esc(s.ancestry||'')}</div>`;

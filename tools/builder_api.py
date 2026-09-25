@@ -469,7 +469,19 @@ class BuilderAPI:
                 out.append(lst)
         return out
 
-    def _allowed_lists(self):
+    def _any_ancestry_points(self):
+        # FR-12 Phase 3 Cleric Ancestral: "2 Ancestry Points that you can spend on Traits from any
+        # Ancestry" (classes.md l.874-875). The points a held `opens_all_ancestries` domain grants.
+        if not self.ccat.get('domains'):
+            return 0
+        ents = list(self.ledger['chargen'].get('class_choices') or [])
+        for lvl in sorted(self.ledger.get('levels') or {}):
+            if lvl <= self.ledger['current_level']:
+                ents += list(self.ledger['levels'][lvl] or [])
+        return sum(int((row.get('grants') or {}).get('ancestry_points', 0) or 0)
+                   for e in ents for _k, row in self._domain_rows(e) if row.get('opens_all_ancestries'))
+
+    def _allowed_lists(self, widen=True):
         # declared lists + lists OPENED by taken cross-list traits (Redeemed -> Angelborn,
         # Fallen -> Fiendborn), to a fixpoint
         allowed = self._declared_lists()
@@ -488,7 +500,29 @@ class BuilderAPI:
                                 and row['opens'] not in allowed:
                             allowed.append(row['opens'])
                             changed = True
+        if widen and self._any_ancestry_points():   # FR-12 Phase 3: Ancestral opens every list
+            allowed += [lst for lst in self.cat['ancestries']['ancestries'] if lst not in allowed]
         return allowed
+
+    def _ancestral_overspend(self):
+        # the Ancestral points may reach any list, the rest may not: flag off-declared-list trait cost
+        # beyond them (scratch mode, where the declared ancestry governs the lists)
+        pts = self._any_ancestry_points()
+        if not pts or not self.scratch:
+            return []
+        base = self._allowed_lists(widen=False)
+        off = 0
+        for t in self._traits():
+            if str(t.get('name')) == UNDECIDED:
+                continue
+            nm = base_name(str(t.get('name')))
+            if not any(r['name'] == nm or nm in (r.get('aliases') or [])
+                       for lst in base for r in self.cat['ancestries']['ancestries'][lst]):
+                off += int(t.get('cost') or 0)
+        if off > pts:
+            return ['builder: %d Ancestry Point(s) spent outside your ancestry, only %d from Ancestral may be'
+                    % (off, pts)]
+        return []
 
     def _anc_lists(self):
         if self.scratch:
@@ -879,6 +913,14 @@ class BuilderAPI:
                     g = sg.get(base_name(e['pick']))
                     if g and 'spell_access' in g:
                         tags.add(g['spell_access']['tag'])
+        # FR-12 Phase 3 Cleric Magic: "when you learn a new Spell you can choose any Spell that also has
+        # the chosen Spell Tag" (classes.md l.805-806), one tag per Magic domain, wherever it was granted
+        if self.ccat.get('domains'):
+            ents = list(self.ledger['chargen'].get('class_choices') or [])
+            for lvl in sorted(self.ledger.get('levels') or {}):
+                ents += list(self.ledger['levels'][lvl] or [])
+            for e in ents:
+                tags |= {str(t) for t in (e.get('domain_tags') or []) if str(t) != UNDECIDED}
         return tags
 
     def _spell_grant_tag(self, parent):
@@ -956,6 +998,14 @@ class BuilderAPI:
         # spell_sources.yaml files under that Source (Spell School Initiate: the 8 Arcane schools).
         if not decl or not decl.get('options_from'):
             return decl
+        cats = (decl['options_from'] or {}).get('damage_categories')
+        if cats:
+            # FR-12 Phase 3 Cleric Divine Damage: "Choose an Elemental or Mystical damage type" (classes.md
+            # l.787-789), the types damage_types.yaml parses out of core-rules.md, never typed here
+            d = dict(decl)
+            allc = (self.cat.get('damage_types') or {}).get('categories') or {}
+            d['options'] = [{'name': t} for c in cats for t in allc.get(c) or []]
+            return d
         src = (decl['options_from'] or {}).get('source_schools')
         d = dict(decl)
         d['options'] = [{'name': s} for s in
@@ -1070,7 +1120,7 @@ class BuilderAPI:
             d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
         d['slotlabel'] = decl.get('label') or 'choice'
         d['choice_kind'] = decl.get('kind')
-        if decl.get('kind') == 'school_magic':   # FR-12 Phase 3: the sheet folds the school into its owner
+        if decl.get('kind') in ('school_magic', 'divine_damage'):   # FR-12 Phase 3: the sheet folds the answer into its owner
             d['choice_owner'] = (parentref, self._choice_owner_name(parent))
         out = [d]
         opt = self._choice_option(decl, pick)
@@ -1554,8 +1604,12 @@ class BuilderAPI:
         # BUG-20: an Expertise raise lives on its trait entry, not the mastery row. One raise per
         # target however many sources claim it (the engine reports a stack as a problem).
         exr = eng.expertise_raises(self.ledger, cur)
+        flr = eng.feature_limit_raises(self.ledger, cur)   # FR-12 Phase 3: Cleric Knowledge
         for name, m in ((self.ledger.get(kind) or {}).get('masteries') or {}).items():
-            if m.get('limit_raise') or (kind, name) in exr:
+            if m.get('limit_raise') or (kind, name) in exr or (kind, name) in flr:
+                caps[name] = caps.get(name, 0) + 1
+        for (k2, name) in flr:   # a raised Trade with no mastery row yet still carries its raise
+            if k2 == kind and name not in ((self.ledger.get(kind) or {}).get('masteries') or {}):
                 caps[name] = caps.get(name, 0) + 1
         for L in sorted(self.ledger.get('levels') or {}):
             if L <= cur or L >= level:
@@ -1608,7 +1662,9 @@ class BuilderAPI:
         # came out of BUG-31/32/33). Keyed by the SINGULAR slot name, i.e. the values in
         # GRANT_CHILD_SLOTS, plus pact_boon which is a parent-only pick.
         if singular == 'discipline':
-            return list(self.ccat.get('disciplines') or [])
+            # FR-12 Phase 3 Cleric: Divine Domains are the Discipline child shape under the class's own
+            # catalog key (cleric.yaml `domains`); a class declares one list or the other, never both.
+            return list(self.ccat.get('disciplines') or self.ccat.get('domains') or [])
         if singular == 'pact_boon':
             return list(self.ccat.get('pact_boons') or [])
         if singular == 'rune':
@@ -1859,6 +1915,24 @@ class BuilderAPI:
                     out.append('builder: L%d %d source spell pick(s) undecided' % (lvl, m))
         return out
 
+    def _slot_word(self, singular):
+        # FR-12 Phase 3: the class's own word for the Discipline shape ("divine domain")
+        return self.ccat.get('domain_label') if singular == 'discipline' and self.ccat.get('domain_label') \
+            else singular
+
+    def _domain_undecided(self, e, lvl):
+        if not self.ccat.get('domains'):
+            return []
+        out = []
+        for key, word in (('domain_tags', 'Magic spell tag'), ('granted_spells', 'Magic spell'),
+                          ('granted_maneuvers', 'domain maneuver')):
+            if not self._domain_owed(e)[0 if key != 'granted_maneuvers' else 1]:
+                continue
+            m = sum(1 for x in e.get(key) or [] if str(x) == UNDECIDED)
+            if m:
+                out.append('builder: L%d %d %s pick(s) undecided' % (lvl, m, word))
+        return out
+
     def builder_problems(self):
         probs = []
         cg = self.ledger['chargen']
@@ -1882,11 +1956,13 @@ class BuilderAPI:
                 _lst = c.get('granted_%s' % _res) or []
                 for _k in range(_n):
                     if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
-                        probs.append('builder: L1 %s undecided' % _sing)
+                        probs.append('builder: L1 %s undecided' % self._slot_word(_sing))
+            probs.extend(self._domain_undecided(c, 1))   # FR-12 Phase 3
         for t in cg.get('ancestry_traits') or []:
             if str(t.get('name')) == UNDECIDED:
                 probs.append('builder: L1 ancestry trait undecided')
             probs.extend(self._choice_undecided(t, 1))
+        probs.extend(self._ancestral_overspend())   # FR-12 Phase 3 Cleric Ancestral
         cur = self.ledger['current_level']
         for lvl in sorted(self.ledger.get('levels') or {}):
             if lvl > cur:
@@ -1902,7 +1978,8 @@ class BuilderAPI:
                     _lst = e.get('granted_%s' % _res) or []
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
-                            probs.append('builder: L%d %s undecided' % (lvl, _sing))
+                            probs.append('builder: L%d %s undecided' % (lvl, self._slot_word(_sing)))
+                probs.extend(self._domain_undecided(e, lvl))   # FR-12 Phase 3
                 if self._spell_grant_tag(e):   # FR-8 slice 5 constrained spell grant-child
                     _n = int((e.get('grants') or {}).get('spells', 0) or 0)
                     _lst = e.get('granted_spells') or []
@@ -2160,6 +2237,8 @@ class BuilderAPI:
              'removable': removable}
         if restrict:
             d['restrict'] = restrict   # BUG-35: surfaced so the harness can assert the narrowing
+        if slot == 'discipline' and self.ccat.get('domain_label'):
+            d['slotlabel'] = self.ccat['domain_label']   # FR-12 Phase 3: the Cleric's "divine domain"
         if note:
             d['note'] = note
             if str(note).startswith('Replaced composite') or 'Overflow' in str(note):
@@ -2229,6 +2308,134 @@ class BuilderAPI:
                     0, {'name': cur, 'label': '%s (current, off-list)' % cur})
         return d
 
+    # ---------- FR-12 Phase 3 Cleric: a picked domain's own picks ----------
+    # A Discipline-shape child can itself owe picks: Magic a Spell Tag + 1 Spell with it, War / Peace a
+    # typed Maneuver. They are stored ON THE PARENT, aligned by ordinal among the children that owe
+    # them: domain_tags[j] / granted_spells[j] for the j-th tag-choice child, granted_maneuvers[j] for
+    # the j-th typed-maneuver child. granted_spells / granted_maneuvers are the lists the budget, the
+    # held-name walk and the ready-slot suppression already read, so the picks count with no new reader.
+    # The child's own grants (Magic mp/spells, War maneuvers) reach the engine via granted_effects.
+    def _domain_rows(self, parent):
+        # [(k, catalog row)] for each decided discipline child of `parent`
+        pool = {r['name']: r for r in self._child_pool('discipline')}
+        n = int((parent.get('grants') or {}).get('disciplines', 0) or 0)
+        out = []
+        for k, pk in enumerate((parent.get('granted_disciplines') or [])[:n]):
+            row = pool.get(base_name(str(pk)))
+            if row:
+                out.append((k, row))
+        return out
+
+    def _domain_owed(self, parent):
+        # -> (tag-choice child ks, typed-maneuver [(k, type)] one per maneuver owed)
+        tags, mans = [], []
+        for k, row in self._domain_rows(parent):
+            if row.get('spell_tag_choice'):
+                tags.append(k)
+            if row.get('maneuver_type'):
+                mans += [(k, row['maneuver_type'])] * int((row.get('grants') or {}).get('maneuvers', 0) or 0)
+        return tags, mans
+
+    def _domain_snapshot(self, entry):
+        # {k: value} per owing child, so a change to ONE domain keeps every other domain's own picks
+        tags, mans = self._domain_owed(entry)
+        dt, gs, gm = (list(entry.get(x) or []) for x in ('domain_tags', 'granted_spells', 'granted_maneuvers'))
+        snap_t = {k: (dt[j] if j < len(dt) else UNDECIDED, gs[j] if j < len(gs) else UNDECIDED)
+                  for j, k in enumerate(tags)}
+        snap_m = {}
+        for j, (k, _t) in enumerate(mans):
+            snap_m.setdefault(k, []).append(gm[j] if j < len(gm) else UNDECIDED)
+        return snap_t, snap_m
+
+    def _realign_domain_children(self, entry, snap, changed_k):
+        # rebuild the ordinal lists in the NEW order, carrying each unchanged domain's picks
+        snap_t, snap_m = snap
+        tags, mans = self._domain_owed(entry)
+        if tags:
+            pairs = [snap_t.get(k, (UNDECIDED, UNDECIDED)) if k != changed_k else (UNDECIDED, UNDECIDED)
+                     for k in tags]
+            entry['domain_tags'] = [p[0] for p in pairs]
+            entry['granted_spells'] = [p[1] for p in pairs]
+        else:
+            entry.pop('domain_tags', None)
+            entry.pop('granted_spells', None)
+        if mans:
+            out, used = [], {}
+            for k, _t in mans:
+                i = used.get(k, 0)
+                used[k] = i + 1
+                prev = snap_m.get(k, []) if k != changed_k else []
+                out.append(prev[i] if i < len(prev) else UNDECIDED)
+            entry['granted_maneuvers'] = out
+        else:
+            entry.pop('granted_maneuvers', None)
+
+    def _sync_domain_children(self, entry):
+        # resize the parent's ordinal-aligned domain lists to what its children owe.
+        # A no-op for every parent whose children owe nothing (all six canon ledgers).
+        if not int((entry.get('grants') or {}).get('disciplines', 0) or 0) and 'domain_tags' not in entry:
+            return   # not a domain parent: its granted_spells / granted_maneuvers are someone else's
+        tags, mans = self._domain_owed(entry)
+        for key, n in (('domain_tags', len(tags)), ('granted_spells', len(tags)),
+                       ('granted_maneuvers', len(mans))):
+            if key != 'domain_tags' and not n and key not in entry:
+                continue
+            if n <= 0:
+                entry.pop(key, None)
+                continue
+            entry[key] = (list(entry.get(key) or []) + [UNDECIDED] * n)[:n]
+
+    def _spell_tag_options(self):
+        # DERIVED from the spell metadata (every tag some spell carries), never a typed list
+        tags = sorted({t for m in self.meta.values() for t in (m.get('tags') or []) if t})
+        return [{'name': t, 'group': '', 'label': t} for t in tags]
+
+    def _domain_tag_spell_options(self, tag):
+        # Magic: "You learn 1 Spell with the chosen Spell Tag" (classes.md l.804-805), any Spell Source
+        return [{'name': n, 'group': (self.meta.get(n) or {}).get('school', '?'),
+                 'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
+                for n in sorted(self.meta) if tag in ((self.meta.get(n) or {}).get('tags') or [])]
+
+    def _domain_children(self, parent, parentref, level, editable, k):
+        if not self.ccat.get('domains'):
+            return []
+        tags, mans = self._domain_owed(parent)
+        cur = self.ledger['current_level']
+        out = []
+        pl = dict(plan=level > cur, plan_editable=editable and level > cur)
+        for j, kk in enumerate(tags):
+            if kk != k:
+                continue
+            tag = (parent.get('domain_tags') or [])[j] if j < len(parent.get('domain_tags') or []) else UNDECIDED
+            d = self._dec('GC#%s#domain_tag#%d' % (parentref, j), level, 'sub_choice', tag, None, False,
+                          editable, **pl)
+            d['options'] = self._spell_tag_options()
+            d['slotlabel'] = 'spell tag'
+            d['choice_kind'] = 'spell_tag'
+            # the sheet folds the tag onto its domain row ("Magic: Fire"), keyed by that child's id
+            d['choice_owner'] = ('GC#%s#disciplines#%d' % (parentref, k),
+                                 next(r['name'] for kk2, r in self._domain_rows(parent) if kk2 == k))
+            out.append(d)
+            sp = (parent.get('granted_spells') or [])[j] if j < len(parent.get('granted_spells') or []) else UNDECIDED
+            c = self._dec('GC#%s#spells#%d' % (parentref, j), level, 'spell_tagged', sp, None, False,
+                          editable, **pl)
+            held = self._chosen_names('spell') - {str(sp)}
+            c['options'] = ([o for o in self._domain_tag_spell_options(tag) if o['name'] not in held]
+                            if str(tag) != UNDECIDED else [])
+            if sp != UNDECIDED and not any(o['name'] == sp for o in c['options']):
+                c['options'].insert(0, {'name': sp, 'group': '', 'label': '%s (current, off-list)' % sp})
+            out.append(c)
+        for j, (kk, mtype) in enumerate(mans):
+            if kk != k:
+                continue
+            mp = (parent.get('granted_maneuvers') or [])[j] if j < len(parent.get('granted_maneuvers') or []) else UNDECIDED
+            c = self._dec('GC#%s#maneuvers#%d' % (parentref, j), level, 'maneuver', mp, None, False,
+                          editable, **pl)
+            if c.get('options'):
+                c['options'] = [o for o in c['options'] if o.get('group') == mtype or o.get('name') == mp]
+            out.append(c)
+        return out
+
     def _grant_children(self, parent, parentref, level, editable):
         # FR-8 slice 2: a grant-bearing parent (boon / discipline / talent / subclass) auto-
         # materialises typed child picker-slots for each PICKABLE grant resource (GRANT_CHILD_SLOTS:
@@ -2286,9 +2493,14 @@ class BuilderAPI:
                     # BUG-21: "if you already know that Discipline, you gain another one of your
                     # choice" - so an already-held Discipline is not a legal pick here. Filter them
                     # out (keeping this slot's own current value selectable, the _dec off-list rule).
-                    held = self._chosen_names('discipline') - {str(pick)}
+                    # FR-12 Phase 3: a `repeatable` row (Cleric Magic, "You can choose this Divine
+                    # Domain multiple times") stays offered however often it is held.
+                    rep = {r['name'] for r in self._child_pool('discipline') if r.get('repeatable')}
+                    held = self._chosen_names('discipline') - {str(pick)} - rep
                     d['options'] = [o for o in d['options'] if o['name'] not in held]
                 out.append(d)
+                if resource == 'disciplines':
+                    out.extend(self._domain_children(parent, parentref, level, editable, k))
         # FR-8 slice 5: a TAG-CONSTRAINED spell grant (Eldritch Otherworldly Gift) materialises one
         # constrained spell child-slot. The child id uses resource 'spells' so _set_grant_child writes
         # granted_spells; the slot type 'spell_tagged' filters options to the granted tag. The {spells:1}
@@ -2400,6 +2612,7 @@ class BuilderAPI:
             # would otherwise render a Source picker and source-filter the NEW option's {spells:N}.
             entry.pop('sorcerous_origin', None)
             entry.pop('spell_access', None)
+            entry.pop('domain_tags', None)   # FR-12 Phase 3: the old option's Magic tags
         for resource in GRANT_CHILD_SLOTS:
             gkey = 'granted_%s' % resource
             n = int(grants.get(resource, 0) or 0)
@@ -2430,6 +2643,8 @@ class BuilderAPI:
             else:
                 prev = [] if changed else list(entry.get('granted_maneuvers') or [])
                 entry['granted_maneuvers'] = (prev + [UNDECIDED] * n)[:n]
+        if self.ccat.get('domains'):
+            self._sync_domain_children(entry)   # FR-12 Phase 3: Magic tag / typed maneuver lists
         self._sync_granted_effects(entry)   # BUG-34: children just changed, redo their derived total
 
     def _sync_granted_effects(self, entry):
@@ -2448,7 +2663,7 @@ class BuilderAPI:
         # shape. `granted_training` is the same idea for the non-numeric half: Warrior's
         # `training: [Heavy Armor, Heavy Shield]`, which never flowed from a picked discipline on
         # ANY path (see _sync_training for the first-class half).
-        eff, trained = {}, []
+        eff, trained, raised = {}, [], {}
         for resource, singular in GRANT_CHILD_SLOTS.items():
             if resource in PLAN_POINTBUY:
                 continue   # skill/trade point-buy children are "Name: Tier" strings, not catalog rows
@@ -2465,7 +2680,14 @@ class BuilderAPI:
                 for t in row.get('training') or []:
                     if t not in trained:
                         trained.append(t)
-        for key, val in (('granted_effects', eff), ('granted_training', trained)):
+                lr = row.get('limit_raise')   # FR-12 Phase 3: Cleric Knowledge, resolved to its trades
+                if isinstance(lr, dict):
+                    tgt = raised.setdefault(lr['kind'], [])
+                    for t in (self.cat.get('skills_trades') or {}).get(lr['group']) or []:
+                        if t not in tgt:
+                            tgt.append(t)
+        for key, val in (('granted_effects', eff), ('granted_training', trained),
+                         ('granted_limit_raises', raised)):
             if val:
                 entry[key] = val
             else:
@@ -2506,6 +2728,17 @@ class BuilderAPI:
         entry = self._grant_child_entry(parentref)
         if resource in ('choice', 'choice_pick'):
             return self._set_choice(entry, resource, k, value)
+        if self.ccat.get('domains') and resource in ('domain_tag', 'spells', 'maneuvers') \
+                and (self._domain_owed(entry)[0] if resource != 'maneuvers' else self._domain_owed(entry)[1]):
+            # FR-12 Phase 3: a domain's own pick, ordinal-aligned on the parent (_domain_children)
+            self._sync_domain_children(entry)
+            key = {'domain_tag': 'domain_tags'}.get(resource, 'granted_%s' % resource)
+            lst = entry[key]
+            if k < len(lst):
+                if resource == 'domain_tag' and str(lst[k]) != str(value):
+                    entry['granted_spells'][k] = UNDECIDED   # a new tag re-filters its spell
+                lst[k] = value
+            return self.state()
         if resource == 'sorcerous_origin':
             # FR-13a slice 2: the explicit Sorcerous Origin node writes the chosen Sorcerer Source.
             # If the source actually changed, reset the source-filtered spell children to UNDECIDED
@@ -2520,8 +2753,14 @@ class BuilderAPI:
         n = int((entry.get('grants') or {}).get(resource, 0) or 0)
         lst = list(entry.get('granted_%s' % resource) or [])
         lst = (lst + [UNDECIDED] * n)[:max(n, k + 1)]
+        old = lst[k]
+        domain = resource == 'disciplines' and self.ccat.get('domains') and str(old) != str(value)
+        snap = self._domain_snapshot(entry) if domain else None
         lst[k] = value
         entry['granted_%s' % resource] = lst
+        if domain:
+            # FR-12 Phase 3: the changed domain's owed picks start fresh, every other domain keeps its own
+            self._realign_domain_children(entry, snap, k)
         # BUG-34: a grant-child can itself be grant-bearing (a discipline), so rebuild the parent's
         # derived total. Harmless for leaf kinds, which contribute nothing.
         self._sync_granted_effects(entry)
@@ -2750,7 +2989,7 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
-            if d.get('choice_kind') in ('expertise', 'school_magic'):
+            if d.get('choice_kind') in ('expertise', 'school_magic', 'divine_damage', 'spell_tag'):
                 continue   # FR-56: "Trade Expertise (Herbalism)" on the Ancestry line already says it
             # a chargen class-features row carries no decision id; its node's parentref is 'cg:<i>'
             fk = d.get('id') if d.get('id') in folded else next(
@@ -2797,7 +3036,7 @@ class BuilderAPI:
             'abilities': groups,   # kept for the harness / any caller that wants it raw
             # BUG-32: the RENDERED ability groups, in SHEET_GROUPS order, so the page cannot
             # drop a slot by forgetting to list it.
-            'ability_groups': [{'label': lbl, 'items': groups[sl]}
+            'ability_groups': [{'label': self._sheet_group_label(sl, lbl), 'items': groups[sl]}
                                for sl, lbl in SHEET_GROUPS if groups.get(sl)],
             'spells': spells, 'equipment': equipment,
             # FR-23: Stamina Regen trigger(s), derived catalog-driven by the shared engine helper.
@@ -2807,6 +3046,13 @@ class BuilderAPI:
             # arriving. Assert the artifact, not just the model (trap 3).
             'combat_training': eng.combat_training(self.ledger, cur),
         })
+
+    def _sheet_group_label(self, slot, label):
+        # FR-12 Phase 3: a class that relabels the Discipline shape (Cleric: "divine domain") heads the
+        # sheet group with its own word ("Divine Domains")
+        if slot == 'discipline' and self.ccat.get('domain_label'):
+            return self.ccat['domain_label'].title() + 's'
+        return label
 
     # ---------- edits ----------
     def set_decision(self, did, value):
@@ -3191,6 +3437,8 @@ class BuilderAPI:
         if str(on) in ('1', 'true', 'True', 'on', 'yes'):
             if (kind, name) in eng.expertise_raises(self.ledger, self.ledger['current_level']):
                 return self.state()   # BUG-20: already raised by Expertise; one raise per target
+            if (kind, name) in eng.feature_limit_raises(self.ledger, self.ledger['current_level']):
+                return self.state()   # FR-12 Phase 3: already raised by a feature (Cleric Knowledge)
             m['limit_raise'] = purchase
         elif m.get('limit_raise') in ('skill_point_purchase', 'trade_point_purchase'):
             m.pop('limit_raise', None)   # never clobber a non-purchase (Expertise) raise

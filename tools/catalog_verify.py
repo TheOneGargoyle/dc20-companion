@@ -1432,6 +1432,47 @@ for _r in _sm:
 print(f"  {len(_sm)} school_magic nodes derive 8 Arcane schools and grant the rules' spell count")
 print(f"  {len(CLASS_ROSTER)} class sources covered; {_twins} MC-feature twins agree with class_features.yaml")
 
+# ---- FR-12 Phase 3 Cleric (2026-09-25) -----------------------------------------------------------
+# damage_types.yaml is catalog_build's parse of core-rules.md; re-read the rules INDEPENDENTLY here
+# (each type must sit on its category's "Includes" line) so a parser drift cannot pass unseen.
+_dt = load("builds/catalog/damage_types.yaml")["categories"]
+_core = " ".join(read("rules/core-rules.md").split())
+for _cat in ("Physical", "Elemental", "Mystical"):
+    _m = re.search(_cat + r" Damage: Includes ([^.]+)\.", _core)
+    expect(_m is not None and bool(_dt.get(_cat)), f"damage_types {_cat}: no rules line or empty (trap 4)")
+    if _m:
+        _words = set(re.findall(r"[A-Z][a-z]+", _m.group(1)))
+        expect(set(_dt[_cat]) == _words, f"damage_types {_cat} {_dt[_cat]} != core-rules.md {sorted(_words)}")
+# the Divine Domains: 15 of them, each a standalone line (or heading, the Knowledge / Divination
+# extraction quirk) inside the Cleric Order block. Magic, and only Magic, says it repeats.
+_cl = load("builds/catalog/cleric.yaml")
+_doms = {r["name"]: r for r in _cl.get("domains") or []}
+_ctxt = read("rules/classes.md")
+_blk = _ctxt[_ctxt.index("\nCleric Order\n"):_ctxt.index("\nDivine Blessing\n")]
+_lines = [ln.strip().lstrip("#").strip() for ln in _blk.splitlines()]
+expect(len(_doms) == 15, f"cleric.yaml carries {len(_doms)} Divine Domains, rules list 15 (trap 4)")
+for _n in _doms:
+    expect(_n in _lines, f"Divine Domain {_n} is not a line in the Cleric Order block (name drift?)")
+_rep_txt = "You can choose this Divine Domain multiple times"
+for _n, _r in _doms.items():
+    _i = _blk.find("\n" + _n + "\n") if ("\n" + _n + "\n") in _blk else _blk.find("#### " + _n + "\n")
+    _seg = " ".join(_blk[_i:_i + 200].split())
+    expect(bool(_r.get("repeatable")) == (_rep_txt in _seg), f"Divine Domain {_n}: repeatable flag vs rules text")
+    if _r.get("maneuver_type"):
+        expect(_r["maneuver_type"] in load("builds/catalog/maneuvers.yaml")["maneuvers"]
+               and f"1 {_r['maneuver_type']} Maneuver" in _seg, f"Divine Domain {_n}: maneuver_type vs rules")
+    if _r.get("limit_raise"):
+        expect(_r["limit_raise"]["group"] in load("builds/catalog/skills_trades.yaml"), f"Divine Domain {_n}: limit_raise group unknown")
+# the domain counts the rules print: Cleric Order 2, Expert Cleric 1, Expanded Order 2
+_cf = {r["name"]: r for lv in _cfc["Cleric"].values() for r in lv or []}
+_eo = next(r for r in talents_cat["class_talents"]["Cleric"] if r["name"] == "Expanded Order")
+for _n, _r, _want in (("Cleric Order", _cf["Cleric Order"], 2), ("Expert Cleric", _cf["Expert Cleric"], 1),
+                      ("Expanded Order", _eo, 2)):
+    expect((_r.get("grants") or {}).get("disciplines") == _want, f"{_n}: grants {_r.get('grants')} != {_want} domains")
+_dd = (_cf["Cleric Order"].get("sub_choice") or {}).get("options_from") or {}
+expect(_dd.get("damage_categories") == ["Elemental", "Mystical"], f"Cleric Order Divine Damage options_from {_dd}")
+print(f"  damage_types.yaml matches core-rules.md; {len(_doms)} Divine Domains match the Cleric Order block")
+
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)
 if fails:

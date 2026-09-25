@@ -1,0 +1,21 @@
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Damage type categories parsed from rules/core-rules.md (Damage Type Categories).
+catalog_version: 1
+ruleset: DC20 0.10.5
+generated_by: tools/catalog_build.py
+source: rules/core-rules.md Damage Type Categories
+categories:
+  Physical:
+  - Bludgeoning
+  - Piercing
+  - Slashing
+  Elemental:
+  - Cold
+  - Corrosion
+  - Fire
+  - Lightning
+  - Poison
+  Mystical:
+  - Psychic
+  - Radiant
+  - Umbral

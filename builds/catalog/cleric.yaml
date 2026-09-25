@@ -1,0 +1,171 @@
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.
+catalog_version: 1
+ruleset: DC20 0.10.5
+class: Cleric
+generated_by: tools/catalog_build.py
+source: builds/catalog/class_spines.yaml + rules/classes.md l.714-1057 + rules/tables.md l.52-65
+spine:
+  1:
+    hp: 7
+    mp: 6
+    spells: 4
+    features:
+    - Class Features
+  2:
+    hp: 1
+    features:
+    - Class Feature
+    - Talent
+    - Path
+  3:
+    hp: 1
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass
+  4:
+    hp: 1
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  5:
+    hp: 1
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Class Feature
+  6:
+    hp: 1
+    skill_points: 1
+    features:
+    - Talent
+    - Path
+  7:
+    hp: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass Expert
+  8:
+    hp: 1
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  9:
+    hp: 1
+    mp: 3
+    spells: 1
+    features:
+    - Class Capstone
+  10:
+    hp: 1
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    mp: 3
+    spells: 1
+    features:
+    - Subclass Capstone
+domain_label: divine domain
+domains:
+- name: Knowledge
+  grants:
+    skill_points: 2
+  limit_raise:
+    kind: trades
+    group: knowledge_trades
+  note: +2 Skill Points; Mastery Limit +1 for all Knowledge Trades (one limit raise per Trade)
+- name: Magic
+  grants:
+    mp: 1
+    spells: 1
+  repeatable: true
+  spell_tag_choice: true
+  note: +1 MP; choose a Spell Tag, learn 1 Spell with it, and it joins your Spell List
+- name: Divine Damage Expansion
+  no_effect: situational
+  note: convert Spell damage to your Divine Damage type; Resistance (1) to it (no resistance surface on
+    the sheet)
+- name: Life
+  no_effect: situational
+- name: Death
+  no_effect: situational
+- name: Grave
+  no_effect: situational
+- name: Light
+  no_effect: situational
+- name: Dark
+  no_effect: sense
+  note: 10 Space Darkvision (+5 if you have it); Hide in Dim Light
+- name: War
+  grants:
+    maneuvers: 1
+  maneuver_type: Attack
+  training:
+  - Weapons
+- name: Peace
+  grants:
+    maneuvers: 1
+  maneuver_type: Defense
+  training:
+  - Heavy Armor
+  - Heavy Shields
+- name: Order
+  no_effect: situational
+- name: Chaos
+  no_effect: situational
+- name: Divination
+  no_effect: situational
+- name: Trickery
+  no_effect: situational
+- name: Ancestral
+  grants:
+    ancestry_points: 2
+  opens_all_ancestries: true
+  note: 2 Ancestry Points for Traits from any Ancestry
+subclasses:
+- Inquisitor
+- Priest
+- Paragon
+subclass_grants:
+  Paragon:
+    grants:
+      trade_points: 1
+    level_riders:
+      3:
+      - slot: talent
+        restrict: class_talents
+      7:
+      - slot: talent
+        restrict: class_talents
+      10:
+      - slot: talent
+        restrict: class_talents
+    source: character-creation.md l.757-780 (Novice / Expert / Master Paragon)
+spellcasting:
+  model: source
+  source: Divine
+paths:
+- Martial
+- Spellcaster
+combat_training:
+- Spell Focuses
+- Light Armor
+- Light Shields
+path_training:
+  Martial:
+  - Weapons
+  Spellcaster:
+  - Spell Focuses

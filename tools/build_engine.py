@@ -360,6 +360,26 @@ def expertise_raises(ledger, level):
     return out
 
 
+# FR-12 Phase 3 (Cleric Knowledge domain): "Your Mastery Limit increases by 1 for all Knowledge Trades. A
+# Trade can only benefit from 1 Feature that increases its Mastery Limit at a time" (classes.md l.797-800).
+# A limit raise with NO free step (unlike Expertise). The builder resolves the domain's trade group from
+# skills_trades.yaml and writes the targets onto the granting parent as
+# `granted_limit_raises: {trades: [Arcana, ...]}` (derived, like granted_training), so the engine stays
+# catalog-free.
+def feature_limit_raises(ledger, level):
+    """{(kind, target): [label, ...]} for every feature Mastery-Limit raise in effect at `level`."""
+    out = {}
+    for obj in _grant_bearers(ledger, level):
+        glr = obj.get("granted_limit_raises")
+        if not isinstance(glr, dict):
+            continue
+        label = str(obj.get("name") or obj.get("pick") or ", ".join(obj.get("picks") or []) or "feature")
+        for kind, targets in glr.items():
+            for t in targets or []:
+                out.setdefault((kind, t), []).append(label)
+    return out
+
+
 def ancestry_grant_levels(ledger, level, table):
     """Every level (<= `level`) at which the character GAINED ancestry points.
 
@@ -569,6 +589,7 @@ def replay(ledger, level, class_tables=None):
                      + cumulative(table, level, "skill")
                      + sum_grants(ledger, level, "skill_points"))
         exr = expertise_raises(ledger, level)
+        flr = feature_limit_raises(ledger, level)   # FR-12 Phase 3: Cleric Knowledge
         for (_k, _t), _labels in sorted(exr.items(), key=str):
             if _k not in EXPERTISE_KINDS:
                 rep.problem(f"Expertise entry {_labels[0]} names kind {_k!r}, not skills/trades")
@@ -596,7 +617,12 @@ def replay(ledger, level, class_tables=None):
                                 f"an Expertise raise; only 1 applies (ancestries.md l.336, l.345)")
             if ex:
                 steps -= 1
-            raises = (1 if lr == purchase else 0) + (1 if ex else 0) + (1 if lr and lr != purchase else 0)
+            fr = (kind, name) in flr
+            if fr and lr == purchase:
+                rep.problem(f"{kind[:-1].title()} {name} has a point-purchased limit raise and a feature raise "
+                            f"({', '.join(flr[(kind, name)])}); only 1 applies (classes.md l.799-800)")
+            raises = ((1 if lr == purchase else 0) + (1 if ex else 0) + (1 if lr and lr != purchase else 0)
+                      + (1 if fr else 0))
             if MASTERY_STEPS[m.get("mastery")] > MASTERY_STEPS[mastery_limit(level)] + min(raises, 1):
                 rep.problem(f"{kind[:-1].title()} {name} at {m.get('mastery')} above L{level} limit"
                             + (" even with its limit raise" if raises else " with no limit_raise"))
