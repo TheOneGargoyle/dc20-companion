@@ -59,6 +59,37 @@ classes:
         no_effect: situational
     6: []      # L6 grants Talent + Path only
 
+  Bard:   # classes.md l.275-518 (FR-12 Phase 3)
+    1:
+      - name: Font of Inspiration   # classes.md l.344-355
+        note: "Ranged Help Attack (10 Spaces); Help Reaction on any Check a creature you can see makes"
+        no_effect: situational
+      - name: Remarkable Repertoire   # classes.md l.356-373
+        grants: {spells: 2, skill_points: 2}
+        spell_access: {any: true}
+        # the base-class twin of talents.yaml mc_features Remarkable Repertoire (catalog_verify asserts the
+        # two agree, spell_access included). Magical Secrets: "any 2 Spells of your choice from any Spell
+        # List", childed under the feature as any-list pickers (BUG-30 shape). Magical Expression (Visual
+        # or Auditory) swaps a Verbal/Somatic Component: a note, since the builder models no components.
+        note: "Jack of All Trades 2 SP + Magical Secrets 2 spells from ANY Spell List + Magical Expression (Visual or Auditory, not modelled)"
+      - name: Crowd Pleaser   # classes.md l.374-389
+        flavor: true
+        note: "5 minutes of Artistry vs Charisma Save: ADV on Charisma Checks against the audience for 1 hour"
+    2:
+      - name: Bardic Performance   # classes.md l.392-418
+        note: "1 AP + 1 MP: 10 Space Aura for 1 minute, Battle Ballad / Fast Tempo / Inspiring / Emotional"
+        no_effect: situational
+    3: []
+    4: []
+    5:
+      - name: Expert Bard   # classes.md l.446-464
+        grants: {spells: 2, skill_points: 2}
+        spell_access: {any: true}
+        # "Remarkable Repertoire: You gain 2 Skill Points and learn any 2 Spells of your choice from any
+        # Spell List", childed under this feature as any-list pickers like Magical Secrets.
+        note: "+2 SP and 2 any-list spells (Remarkable Repertoire); Help Die d10; free performance change, +2 MP improved performances"
+    6: []
+
   Cleric:   # classes.md l.714-1005 (FR-12 Phase 3)
     1:
       - name: Cleric Order   # classes.md l.777-795

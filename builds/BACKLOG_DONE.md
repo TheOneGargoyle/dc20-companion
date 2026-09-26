@@ -12,6 +12,7 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| FR-12.B | FR-12 Phase 3 class 9: base Bard + subclasses (fixed Enchantment school, any-list class features, Enthrall) | feature | catalog+builder | P2 | DONE (2026-09-26, builder_verify (52), smoke S12; 8 code findings incl. Bonan sheet spells, note in Chores) |
 | FR-12.C | FR-12 Phase 3 class 8: base Cleric + subclasses (Divine Domains, Magic tag node, Divine Damage) | feature | engine+catalog+builder | P2 | DONE (2026-09-25, builder_verify (51), smoke S11; 10 code findings, note in Chores) |
 | FR-12.W | FR-12 Phase 3 class 7: base Wizard + subclasses (Spell School Initiate node) | feature | catalog+builder | P2 | DONE (2026-09-24, builder_verify (50), smoke S10; 10 code findings incl. Expert Wizard follow-up, note in Chores) |
 | FR-12.S | FR-12 Phase 3 class 6: base Sorcerer (+ CH-10 A14 one class roster) | feature | engine+catalog+builder | P2 | DONE (2026-09-24, builder_verify (48)(49), catalog_verify FR12-3; 8 code findings, note in Chores) |
@@ -283,6 +284,22 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**FR-12 Phase 3, class 9: Bard (2026-09-26).** Base class L1-L6 plus Eloquence, Jester, Paragon.
+- Data: spine, `catalog/bard.yaml` (generated; schools model, Enchantment fixed + Embolden/Enfeeble/Healing/Illusion/Sound), `class_features.yaml` Bard L1-L6, `talents.yaml` Bard class talents (Expanded Repertoire, Helping Hands), `SUBCLASS_GRANTS` Eloquence.
+- **Design (agreed with Darryl):** base Remarkable Repertoire is the exact twin of the MC row (`grants {spells: 2, skill_points: 2}`, `spell_access {any: true}`, any-list children). Magical Expression is a note on both (no components are modelled; a node would have put an undecided pick on Bonan). Expert Bard and Expanded Repertoire are the same any-list shape. Eloquence Enthrall is the Eldritch/Witch tag child, tag Charmed, `widens: false`.
+- **Rules question (dev channel):** Charm is the ONLY Charmed-tag spell in 0.10.5, so Enthrall's "if you already know it, learn another spell with the Charmed Tag" has no legal target.
+- **Code findings (8):**
+  1. any-list reach read talent rows only: `_any_list_spells` also reads class-feature rows (a folded L1 entry counts only its any-list rows), used for the children, their sizing, the undecided report and the slot count (now chargen too);
+  2. chargen any-list children were never reported undecided;
+  3. **the sheet's spell harvest skipped `spell_any`**, so Bonan's live sheet has lacked Command + Charm since BUG-30;
+  4. the schools model had no fixed school: `schools_fixed`;
+  5. tag-child options were the union of widening tags, not the parent's own tag: `_spell_tagged_options(tag)`;
+  6. `spell_access.widens: false` keeps a one-off tag grant out of `_grant_tags`;
+  7. catalog_verify's twin check ignored `spell_access` (now compared; mutation-tested);
+  8. harness: RT_FIXED / RT_FIXED_AT gained the Bard rows; `_rt_check_fixed_at` had no `skill_points` branch and now asserts any-list children.
+- All six ledgers byte-identical. Snapshot: state and derived byte-identical for all six, sheet byte-identical for five; Bonan's sheet differs only by +Charm +Command (finding 3, intended).
+- Open, not fixed: Font of Inspiration, Bardic Performance, Help Die, Jester and Expressions are `situational`; the Enthrall fallback pool is empty (above).
 
 **FR-12 Phase 3, class 8: Cleric (2026-09-25).** Base class L1-L6 plus Inquisitor, Priest, Paragon (no subclass numbers or picks, so no `SUBCLASS_GRANTS`).
 - Data: spine, `catalog/cleric.yaml` (generated; source Divine, 15 `domains`, `domain_label`), `catalog/damage_types.yaml` (NEW, generated from core-rules.md), `class_features.yaml` Cleric L1-L6, `talents.yaml` Cleric class talents.

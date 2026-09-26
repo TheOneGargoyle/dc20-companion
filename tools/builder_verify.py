@@ -3419,7 +3419,8 @@ RT_FIXED = {"Berserker": "barbarian",
             "Pact Boon": "warlock",
             "Innate Power": "sorcerer",
             "Spell School Initiate": "wizard",
-            "Cleric Order": "cleric"}
+            "Cleric Order": "cleric",
+            "Remarkable Repertoire": "bard"}   # FR-12 Phase 3: the base twin (the MC row is a talent)
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3429,7 +3430,8 @@ RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Meta Magic": ("sorcerer", 2),
                "Expert Sorcerer": ("sorcerer", 5),
                "Expert Wizard": ("wizard", 5),
-               "Expert Cleric": ("cleric", 5)}
+               "Expert Cleric": ("cleric", 5),
+               "Expert Bard": ("bard", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -3854,8 +3856,20 @@ def _rt_check_fixed_at(options, index):
                         and str(d["id"]).startswith("GC#") and ("#%s#" % key) in str(d["id"])]
                 _rt_ok(name, "fixed@L/%-24s %-12s spawns %d child picker(s)" % (name, key, amount),
                        len(kids) == amount, [d["id"] for d in sr["decisions"] if d["level"] == lvl])
+            elif key in RT_POINTS:   # FR-12 Phase 3: Expert Bard's 2 Skill Points
+                fld = "skill_earned" if key == "skill_points" else "trade_earned"
+                a, b = _rt_snap(real)[fld] or 0, _rt_snap(bare)[fld] or 0
+                _rt_ok(name, "fixed@L/%-24s %-12s %s earned %+d" % (name, key, RT_POINTS[key], amount),
+                       a - b == amount, (a, b))
             else:
                 _rt_ok(name, "fixed@L/%-24s %-12s has an assertion" % (name, key), False, "add one")
+        if (row.get("spell_access") or {}).get("any"):
+            # FR-12 Phase 3: an any-list row's spells are childed under it (Expert Bard), not flat
+            kids = [d for d in sr["decisions"] if d["level"] == lvl and d["slot"] == "spell_any"]
+            n = int((row.get("grants") or {}).get("spells", 0))
+            _rt_ok(name, "fixed@L/%-24s childs %d any-list spell picker(s)" % (name, n),
+                   n > 0 and len(kids) == n and all(len(d.get("options") or []) > 100 for d in kids),
+                   [(d["id"], len(d.get("options") or [])) for d in kids])
 
 
 def _rt_mc_names():
@@ -5119,6 +5133,97 @@ def check_fr12_cleric():
        not any(k in ent for k in ("granted_disciplines", "domain_tags", "granted_spells", "granted_effects")), ent)
 
 
+def check_fr12_bard():
+    """FR-12 Phase 3, class 9 of 13 (2026-09-26): the base Bard. New shapes: a FIXED school on the
+    schools model (`schools_fixed`, Enchantment) plus 5 tags; any-list spell children under a CLASS
+    FEATURE (Remarkable Repertoire folded into the L1 row, Expert Bard at L5) and the Expanded
+    Repertoire class talent; Eloquence Enthrall as a non-widening Charmed tag child (only Charm
+    qualifies in 0.10.5). Also the sheet's any-list harvest (Bonan's Command + Charm)."""
+    print("\n## (52) FR-12 Phase 3: base Bard (fixed school, any-list class features, Enthrall)")
+    sch = yaml.safe_load(open("spell_schools.yaml", encoding="utf-8"))["schools"]
+    tags5 = {"Embolden", "Enfeeble", "Healing", "Illusion", "Sound"}
+    a = _fresh_at("bard", "Human")
+    sc = a.ccat["spellcasting"]
+    ok("bard.yaml: schools model, Enchantment fixed, nothing chosen, the 5 list tags",
+       sc.get("model") == "schools" and sc.get("schools_fixed") == ["Enchantment"]
+       and sc.get("schools_chosen") == 0 and set(sc.get("tag_access") or []) == tags5, sc)
+    s0 = st(a)
+    want = set(sch["Enchantment"]) | {n for n, m in a.meta.items() if set(m["tags"]) & tags5}
+    flat = [d for d in s0["decisions"] if str(d.get("id")).startswith("cg:spell:")]
+    fl = {o["name"] for o in flat[0]["options"]} if flat else set()
+    ok("4 flat L1 spell pickers offer exactly Enchantment + the 5 tags (non-empty, Fire Bolt absent)",
+       len(flat) == 4 and fl == want and len(want) > 30 and "Charm" in fl and "Fire Bolt" not in fl,
+       (len(flat), len(fl), len(want), sorted(fl ^ want)[:5]))
+    kids = [d for d in s0["decisions"] if str(d.get("id")).startswith("GC#cg:0#spells#")]
+    ok("Remarkable Repertoire childs 2 any-list pickers under the L1 class-features row",
+       len(kids) == 2 and all(d["slot"] == "spell_any" and len(d["options"]) == len(a.meta) for d in kids),
+       [(d["id"], d["slot"], len(d["options"])) for d in kids])
+    ok("L1 spell budget = 6 (4 table + 2 Magical Secrets), MP 6",
+       s0["spell_budget"] == 6 and _rt_num(_rt_stats(s0)["MP"]) == 6, (s0["spell_budget"], _rt_stats(s0)["MP"]))
+    ok("the 2 undecided any-list spells are reported", " ".join(s0["builder_problems"]).count(
+        "L1 spell (any list) undecided") == 2, s0["builder_problems"])
+    ok("Magical Expression is a note, not a node (no choice node on the Bard at L1)",
+       not [d for d in s0["decisions"] if d.get("choice_kind")], [d.get("choice_kind") for d in s0["decisions"]])
+    a.set_decision("GC#cg:0#spells#0", "Fire Bolt")
+    s1 = json.loads(a.set_decision("GC#cg:0#spells#1", "Frost Bolt"))
+    fl1 = {o["name"] for o in [d for d in s1["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    ok("off-list Magical Secrets picks are legal and do not widen the flat pickers",
+       "L1 spell (any list) undecided" not in " ".join(s1["builder_problems"])
+       and not s1["catalog_problems"] and fl1 == fl, (s1["builder_problems"], s1["catalog_problems"]))
+    sh = [x["name"] for x in json.loads(a.sheet())["spells"]]
+    ok("the sheet lists the any-list spells", "Fire Bolt" in sh and "Frost Bolt" in sh, sh)
+
+    # L3 Eloquence, L4 Expanded Repertoire, L5 Expert Bard
+    for _ in range(4):
+        a.add_level()
+    s = st(a)
+    sub = [d for d in s["decisions"] if d["slot"] == "subclass"][0]
+    ok("L3 offers Eloquence, Jester, Paragon", [o["name"] for o in sub["options"]]
+       == ["Eloquence", "Jester", "Paragon"], [o["name"] for o in sub["options"]])
+    b3 = s["spell_budget"]
+    s = json.loads(a.set_decision(str(sub["id"]), "Eloquence"))
+    en = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#spells#" % sub["id"])]
+    ok("Eloquence Enthrall childs 1 Charmed-tag spell picker offering exactly Charm",
+       len(en) == 1 and en[0]["slot"] == "spell_tagged" and [o["name"] for o in en[0]["options"]] == ["Charm"],
+       [(d["id"], [o["name"] for o in d["options"]]) for d in en])
+    ok("...adds 1 to the spell budget", s["spell_budget"] == b3 + 1, (b3, s["spell_budget"]))
+    fl3 = {o["name"] for o in [d for d in s["decisions"] if d.get("id") == "cg:spell:0"][0]["options"]}
+    # Charm is already on the list via Enchantment, so the option set alone cannot catch a widening:
+    # assert the tag is kept out of the list-widening set itself
+    ok("...and does not widen the Spell List (widens: false)", fl3 == fl and "Charmed" not in a._grant_tags(),
+       (sorted(fl3 ^ fl), sorted(a._grant_tags())))
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 4][0]
+    ok("L4 talent offers Expanded Repertoire and Helping Hands",
+       {"Expanded Repertoire", "Helping Hands"} <= {o["name"] for o in tal["options"]}, tal["id"])
+    sk = _rt_earned(s, "Skill points")
+    s = json.loads(a.set_decision(str(tal["id"]), "Expanded Repertoire"))
+    er = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#spells#" % tal["id"])]
+    ok("Expanded Repertoire: 2 any-list children, +2 spell budget, +2 Skill Points",
+       len(er) == 2 and all(d["slot"] == "spell_any" for d in er)
+       and s["spell_budget"] == b3 + 3 and _rt_earned(s, "Skill points") == sk + 2,
+       ([d["slot"] for d in er], s["spell_budget"], sk, _rt_earned(s, "Skill points")))
+    ex = [d for d in s["decisions"] if d.get("level") == 5 and d["slot"] == "spell_any"]
+    ok("Expert Bard childs 2 any-list pickers at L5", len(ex) == 2 and all(
+        str(d["id"]).startswith("GC#L5:") for d in ex), [d["id"] for d in ex])
+    ok("L5 Spells known = 13 (4+2, +1 L3, +1 Enthrall, +2 Repertoire, +1 L5, +2 Expert)",
+       _rt_num(_rt_stats(s)["Spells known"]) == 13, _rt_stats(s)["Spells known"])
+    a.set_decision(en[0]["id"], "Charm")
+    s = st(a)
+    ok("picking Charm closes the Enthrall problem", "L3 spell (tag) undecided" not in " ".join(s["builder_problems"]),
+       s["builder_problems"])
+
+    # the MC twin, on the real ledger that reaches it
+    bo = builder_api.BuilderAPI("bonan", CATPATHS)
+    bs = st(bo)
+    bk = [d for d in bs["decisions"] if d["slot"] == "spell_any"]
+    ok("Bonan: MC Remarkable Repertoire still childs Command + Charm, no Expression node",
+       sorted(d["current"] for d in bk) == ["Charm", "Command"] and not [d for d in bs["decisions"] if d.get("choice_kind")],
+       [(d["id"], d["current"]) for d in bk])
+    bsh = [x["name"] for x in json.loads(bo.sheet())["spells"]]
+    ok("Bonan's sheet lists Command and Charm (the any-list harvest; missing since BUG-30)",
+       {"Command", "Charm", "Frost Bolt"} <= set(bsh), bsh)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -5166,7 +5271,7 @@ def main():
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
-                    check_fr12_wizard, check_fr12_cleric):
+                    check_fr12_wizard, check_fr12_cleric, check_fr12_bard):
             run(_fn)
     finally:
         os.chdir(old)

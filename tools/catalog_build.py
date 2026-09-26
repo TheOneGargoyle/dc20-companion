@@ -172,6 +172,12 @@ SUBCLASS_GRANTS = {
                "Witch": {"grants": {"spells": 1}, "spell_access": {"tag": "Curse"},
                          # Coven's Gift: Curse spells count as the SSI school (l.3678-3680)
                          "school_magic_tags": ["Curse"]}},
+    # FR-12 Phase 3 Bard. Eloquence Enthrall: "You learn the Charm Spell ... If you already know it, you
+    # instead learn another spell with the Charmed Tag" (classes.md l.480-482). The Eldritch/Witch
+    # 1-spell tag-child with tag Charmed: in 0.10.5 Charm is the ONLY Charmed spell, so the picker
+    # offers exactly Charm (the fallback pool is empty, a dev-channel question). `widens: false`: unlike
+    # Eldritch / Witch, Enthrall grants no ongoing tag access. Jester has no number or pick.
+    "Bard": {"Eloquence": {"grants": {"spells": 1}, "spell_access": {"tag": "Charmed", "widens": False}}},
     "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
@@ -257,6 +263,15 @@ CLASS_CONFIG = {
         # classes.md l.763-764: "When you learn a new Spell, you can choose any Spell on the Divine Spell
         # Source." -> the source model with a FIXED source, like the Wizard's Arcane.
         "spellcasting": {"model": "source", "source": "Divine"},
+    },
+    "Bard": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.275-518 + rules/tables.md l.22-35",
+        "extras": {},
+        # classes.md l.329-332: "When you learn a new Spell, you can choose any Spell from the Enchantment
+        # Spell School or with the following Spell Tags: Embolden, Enfeeble, Healing, Illusion, or Sound."
+        # -> the schools model with a FIXED school and nothing chosen (FR-12 Phase 3: `schools_fixed`).
+        "spellcasting": {"model": "schools", "schools_chosen": 0, "schools_fixed": ["Enchantment"],
+                         "tag_access": ["Embolden", "Enfeeble", "Healing", "Illusion", "Sound"]},
     },
     "Wizard": {
         "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.3466-3780 + rules/tables.md l.187-200",

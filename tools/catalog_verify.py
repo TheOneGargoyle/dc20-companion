@@ -1400,6 +1400,10 @@ for _t in talents_cat["mc_features"]:
     _twins += 1
     expect((_t.get("grants") or {}) == (_twin.get("grants") or {}),
            f"{_t['name']}: MC grants {_t.get('grants')} != class feature {_twin.get('grants')}")
+    # FR-12 Phase 3 Bard: the twins must agree on their spell reach too (Remarkable Repertoire's
+    # Magical Secrets is any-list on both); the grants check alone let one twin lose `spell_access`
+    expect((_t.get("spell_access") or {}) == (_twin.get("spell_access") or {}),
+           f"{_t['name']}: MC spell_access {_t.get('spell_access')} != class feature {_twin.get('spell_access')}")
     _a, _b = _t.get("sub_choice"), _twin.get("sub_choice")
     expect(bool(_a) == bool(_b), f"{_t['name']}: sub_choice on one twin only")
     if _a and _b:

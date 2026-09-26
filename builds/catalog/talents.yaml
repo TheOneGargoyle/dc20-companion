@@ -46,6 +46,14 @@ multiclass:
 class_talents:
   Barbarian:
     - {name: Unfathomable Strength, requires: "Rage, Level 3", grants: {jump: 1}}   # Titanic Leap, character-creation.md l.381
+  Bard:
+    # character-creation.md l.383-399. Expanded Repertoire: "You can only gain this Talent once ... 2 Skill
+    # Point ... 2 Spells of your choice from any Spell List" -> the Remarkable Repertoire any-list shape
+    # (childed spell pickers). The second Magical Expression manner is a note (components are not modelled).
+    - {name: Expanded Repertoire, requires: "Remarkable Repertoire, Level 3", once: true,
+       grants: {spells: 2, skill_points: 2}, spell_access: {any: true},
+       note: "+2 SP, 2 spells from ANY Spell List, and both Magical Expression manners"}
+    - {name: Helping Hands, requires: "Font of Inspiration, Level 3", no_effect: situational}
   Cleric:
     # character-creation.md l.415-441. Expanded Order: "You gain 2 additional Divine Domains. You can't
     # choose the same option more than once" -> 2 domain grant-children (Magic stays repeatable, its own
@@ -89,10 +97,10 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      grants: {spells: 2, skill_points: 2}, spell_access: {any: true},
      # spell_access.any (BUG-30): Magical Secrets is "any 2 Spells of your choice from ANY Spell
      # List" (classes.md l.360-361), so its 2 spells are NOT bound by the character's own schools
-     # or source. The builder widens the flat spell pool while this is held and counts the
-     # off-list picks against these slots. The only any-list grant in the rules we cover;
-     # Spellcasting Expansion (general talent) instead adds 1 Source or 3 Schools, a CHOSEN
-     # widening that needs its own sub-choice node (see BACKLOG FR-42).
+     # or source: they are childed under the feature as any-list pickers, and every other picker
+     # stays filtered. Base-class twin in class_features.yaml Bard L1 (FR-12 Phase 3); Expert Bard
+     # and the Expanded Repertoire class talent are the same shape. Spellcasting Expansion (general
+     # talent) instead adds 1 Source or 3 Schools, a CHOSEN widening (FR-42).
      note: "Jack of All Trades 2 SP + Magical Secrets 2 spells from ANY Spell List + Expression"}
   - {name: Innate Power, class: Sorcerer, feature_level: 1, via: Novice Multiclass,
      grants: {mp: 1},

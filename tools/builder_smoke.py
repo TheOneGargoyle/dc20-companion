@@ -672,6 +672,36 @@ def j_cleric_domains(P):
     P.pg.wait_for_timeout(300)
 
 
+def j_bard_repertoire(P):
+    """(S12) FR-12 Phase 3: a base Bard's Magical Secrets renders as 2 any-list pickers under the L1
+    class features in the real page (labelled 'spell'), they offer an off-list spell the flat pickers
+    do not, and the chosen spell reaches the sheet (the any-list harvest the sheet had dropped)."""
+    print("## (S12) Bard: Magical Secrets any-list pickers, sheet")
+    P.start("bard")
+    kids = P.decs("^GC#cg:0#spells#")
+    ok("Remarkable Repertoire renders 2 any-list spell pickers", len(kids) == 2, P.decs("^GC#"))
+    if not kids:
+        return
+    lbl = P.pg.evaluate("d => { const s = document.querySelector('[data-dec=\"'+d+'\"]');"
+                        " const r = s && s.closest('div'); const l = r && r.querySelector('.slot');"
+                        " return l ? l.innerText : ''; }", kids[0])
+    ok("...labelled 'spell'", lbl.strip().lower() == "spell", lbl)
+    flat = P.decs("^cg:spell:0$")
+    ok("the any-list picker offers Fire Bolt; the flat Bard picker does not",
+       "Fire Bolt" in P.options(kids[0]) and bool(flat) and "Fire Bolt" not in P.options(flat[0])
+       and "Charm" in P.options(flat[0]), flat and len(P.options(flat[0])))
+    P.choose(kids[0], "Fire Bolt")
+    P.pg.wait_for_timeout(500)
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet lists Fire Bolt and names Remarkable Repertoire",
+       "Fire Bolt" in text and "Remarkable Repertoire" in text, text[:1500])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -795,7 +825,8 @@ def main():
                                          ("s8", j_spell_list_widening, (), 120),
                                          ("s9", j_sorcerer_origin, (), 120),
                                          ("s10", j_wizard_school, (), 120),
-                                         ("s11", j_cleric_domains, (), 120)):
+                                         ("s11", j_cleric_domains, (), 120),
+                                         ("s12", j_bard_repertoire, (), 120)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

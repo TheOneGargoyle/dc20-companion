@@ -98,10 +98,15 @@ resource deltas without the engine special-casing it (e.g. Magus = +1 MP, +1 spe
 
 ## Spell-access models (who reads which list)
 
-- **schools** (Spellblade, Warlock): legal pick = in a CHOSEN school (`spell_schools.yaml`)
+- **schools** (Spellblade, Warlock, Bard): legal pick = in a CHOSEN school (`spell_schools.yaml`)
+  OR a FIXED one (`schools_fixed`, the Bard's Enchantment, with `schools_chosen: 0`)
   OR carries a tag in `tag_access` (Spellblade Weapon/Ward) OR granted by a subclass
   `spell_access` tag (Eldritch Psychic) OR in a school opened by a talent (Spell School
-  Initiate). No source tracking needed.
+  Initiate). No source tracking needed. A subclass tag grant with `widens: false` (Bard Eloquence
+  Enthrall, Charmed) childs its spell but opens no ongoing tag access.
+- **any-list** (`spell_access: {any: true}`, on a talent, an mc_features row or a class_features
+  row: Remarkable Repertoire both twins, Expert Bard, Expanded Repertoire): the row's spells are
+  childed under it as unfiltered pickers; every other picker stays on the character's own list.
 - **source** (Druid): legal pick = on the class's Source list (`spell_sources.yaml`), plus any
   explicit grant slots (Scaletrix: 2 Arcane spells via Innate Power Intuitive Magic + 1 via
   Fiendish Magic).

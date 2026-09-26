@@ -911,7 +911,9 @@ class BuilderAPI:
             for e in self.ledger['levels'][lvl] or []:
                 if e.get('slot') == 'subclass':
                     g = sg.get(base_name(e['pick']))
-                    if g and 'spell_access' in g:
+                    # FR-12 Phase 3 Bard Eloquence: `widens: false` is a one-off tag-child grant
+                    # (Enthrall learns Charm) with no ongoing tag access, so it does not widen the list
+                    if g and 'spell_access' in g and g['spell_access'].get('widens', True):
                         tags.add(g['spell_access']['tag'])
         # FR-12 Phase 3 Cleric Magic: "when you learn a new Spell you can choose any Spell that also has
         # the chosen Spell Tag" (classes.md l.805-806), one tag per Magic domain, wherever it was granted
@@ -1284,32 +1286,43 @@ class BuilderAPI:
         return {t['name']: t for t in self._talent_rows()
                 if (t.get('spell_access') or {}).get('any')}
 
-    def _spell_grant_any(self, parent):
-        # BUG-30: does THIS entry carry an any-list spell grant? The any-list sibling of
-        # _spell_grant_tag / _spell_grant_source: it turns the entry's {spells: N} into N unfiltered
-        # spell child-slots glued under it, so the reach belongs to the spells the feature pays for
-        # instead of leaking into every other picker. Ledgers write a multiclass feature either bare
-        # (what the picker sets) or in the documented "MC <Class>: <Feature>" long form, so match both.
-        if int((parent.get('grants') or {}).get('spells', 0) or 0) <= 0:
-            return False
+    def _any_list_spells(self, parent):
+        # BUG-30 / FR-12 Phase 3: how many of THIS entry's spells reach ANY Spell List. A talent entry
+        # (MC Bard Remarkable Repertoire, the Bard's Expanded Repertoire) counts its own {spells: N}
+        # when its catalog def carries `spell_access: {any: true}`. A class-feature entry (the base
+        # Bard's Remarkable Repertoire, folded into the L1 class-features entry; Expert Bard) counts
+        # only the spells of ITS any-list rows, so a folded entry's other spell grants stay flat.
+        # Ledgers write a multiclass feature either bare (what the picker sets) or in the documented
+        # "MC <Class>: <Feature>" long form, so match both.
+        if parent.get('slot') in CLASS_FEATURE_SLOTS:
+            return sum(int((r.get('grants') or {}).get('spells', 0) or 0)
+                       for r in self._class_feature_rows_of(parent)
+                       if (r.get('spell_access') or {}).get('any'))
+        n = int((parent.get('grants') or {}).get('spells', 0) or 0)
+        if n <= 0:
+            return 0
         nm = base_name(str(parent.get('pick') or parent.get('name') or ''))
         defs = self._any_list_defs()
-        return bool(defs.get(nm)
-                    or (defs.get(nm.split(':', 1)[-1].strip()) if nm.startswith('MC ') else None))
+        hit = defs.get(nm) or (defs.get(nm.split(':', 1)[-1].strip()) if nm.startswith('MC ') else None)
+        return n if hit else 0
+
+    def _spell_grant_any(self, parent):
+        # BUG-30: does THIS entry carry an any-list spell grant? The any-list sibling of
+        # _spell_grant_tag / _spell_grant_source: it turns the entry's any-list spells into unfiltered
+        # spell child-slots glued under it, so the reach belongs to the spells the feature pays for
+        # instead of leaking into every other picker.
+        return self._any_list_spells(parent) > 0
 
     def _any_list_slots(self):
-        # BUG-30: how many spells this character may take from ANY Spell List, i.e. the sum of the
-        # `spells` grants on held features whose catalog def carries `spell_access: {any: true}`
-        # (today: MC Bard's Remarkable Repertoire / Magical Secrets). Data-driven off the catalog,
-        # the same way _spell_grant_tag reads subclass_grants, so a second any-list feature is a
-        # data edit. Only counts DECIDED picks at or below the current level.
-        n = 0
+        # BUG-30: how many spells this character may take from ANY Spell List (the sum of
+        # _any_list_spells over held entries). Data-driven off the catalog, so a further any-list
+        # feature is a data edit. Only counts DECIDED picks at or below the current level.
+        n = sum(self._any_list_spells(c) for c in (self.ledger['chargen'].get('class_choices') or []))
         for lvl in sorted(self.ledger.get('levels') or {}):
             if lvl > self.ledger['current_level']:
                 continue
             for e in self.ledger['levels'][lvl] or []:
-                if self._spell_grant_any(e):
-                    n += int((e.get('grants') or {}).get('spells', 0) or 0)
+                n += self._any_list_spells(e)
         return n
 
     def _spell_access(self):
@@ -1325,7 +1338,10 @@ class BuilderAPI:
         # (model none) is left unrestricted: its base list is an unrecorded Path choice.
         w_src, w_sch = self._list_widening()
         if model == 'schools':
-            chosen = [s for s in (list(self.ledger['chargen'].get('spell_schools') or [])
+            # FR-12 Phase 3 Bard: `schools_fixed` is a school the class list always holds (Enchantment),
+            # beside any it has the player choose (Spellblade 2, Warlock 3, Bard 0)
+            chosen = [s for s in (list(self.ccat['spellcasting'].get('schools_fixed') or [])
+                                  + list(self.ledger['chargen'].get('spell_schools') or [])
                                   + sorted(w_sch)) if str(s) != UNDECIDED]
             tags = set(self.ccat['spellcasting'].get('tag_access') or []) | self._grant_tags()
             names = set()
@@ -1399,11 +1415,17 @@ class BuilderAPI:
                  'label': '%s (%s)' % (n, (self.meta.get(n) or {}).get('school', '?'))}
                 for n in sorted(self.meta.keys())]
 
-    def _spell_tagged_options(self):
+    def _spell_tagged_options(self, tag=None):
         # FR-8 slice 5: options for a tag-constrained spell child-slot = accessible spells that carry
         # the character's granted spell tag (Eldritch -> Psychic). _spell_access already widens the
         # accessible set to every tag-granted spell, so this yields exactly the Psychic-tag spells
         # (e.g. Tendrils from Beyond, legal via the tag though its Conjuration school is not chosen).
+        # FR-12 Phase 3 Bard: with the granting parent's own TAG, every spell carrying it, whether or not
+        # the tag widens the list (Eloquence Enthrall: `widens: false`, Charmed). For a widening tag this
+        # is the same set, since _spell_access already holds every spell with it.
+        if tag:
+            return [{'name': n, 'group': m.get('school', '?'), 'label': '%s (%s)' % (n, m.get('school', '?'))}
+                    for n, m in sorted(self.meta.items()) if tag in (m.get('tags') or [])]
         tags = self._grant_tags()
         if not tags:
             return []
@@ -1957,6 +1979,11 @@ class BuilderAPI:
                 for _k in range(_n):
                     if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                         probs.append('builder: L1 %s undecided' % self._slot_word(_sing))
+            if self._spell_grant_any(c):   # FR-12 Phase 3 Bard: Magical Secrets childed at chargen
+                _lst = c.get('granted_spells') or []
+                for _k in range(self._any_list_spells(c)):
+                    if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
+                        probs.append('builder: L1 spell (any list) undecided')
             probs.extend(self._domain_undecided(c, 1))   # FR-12 Phase 3
         for t in cg.get('ancestry_traits') or []:
             if str(t.get('name')) == UNDECIDED:
@@ -1987,7 +2014,7 @@ class BuilderAPI:
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d spell (tag) undecided' % lvl)
                 if self._spell_grant_any(e):   # BUG-30 any-list spell grant-child
-                    _n = int((e.get('grants') or {}).get('spells', 0) or 0)
+                    _n = self._any_list_spells(e)   # FR-12 Phase 3: the any-list share only
                     _lst = e.get('granted_spells') or []
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
@@ -2511,10 +2538,15 @@ class BuilderAPI:
             lst = parent.get('granted_spells') or []
             for k in range(n):
                 pick = lst[k] if k < len(lst) else UNDECIDED
-                out.append(self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_tagged',
-                                     pick, None, False, editable,
-                                     plan=level > self.ledger['current_level'],
-                                     plan_editable=editable and level > self.ledger['current_level']))
+                d = self._dec('GC#%s#spells#%d' % (parentref, k), level, 'spell_tagged',
+                              pick, None, False, editable,
+                              plan=level > self.ledger['current_level'],
+                              plan_editable=editable and level > self.ledger['current_level'])
+                d['options'] = self._spell_tagged_options(self._spell_grant_tag(parent))   # FR-12 Phase 3
+                curv = d.get('current')
+                if curv and curv != UNDECIDED and not any(o.get('name') == curv for o in d['options']):
+                    d['options'].insert(0, {'name': curv, 'label': '%s (current, off-list)' % curv})
+                out.append(d)
         # BUG-30: an ANY-LIST spell grant (MC Bard Magical Secrets: "any 2 Spells of your choice from
         # any Spell List") materialises N UNFILTERED spell child-slots glued under the granting feature.
         # Same shape as the tag / source branches (resource 'spells' -> granted_spells, consumed by the
@@ -2522,7 +2554,7 @@ class BuilderAPI:
         # what keeps every OTHER picker honestly filtered to the character's own lists, and it shows
         # the player which 2 spells the talent is paying for.
         if self._spell_grant_any(parent):
-            n = int(grants.get('spells', 0) or 0)
+            n = self._any_list_spells(parent)   # FR-12 Phase 3: a folded class-features entry's any-list share
             lst = parent.get('granted_spells') or []
             opts = self._spell_any_options()
             for k in range(n):
@@ -2627,7 +2659,9 @@ class BuilderAPI:
         # above already fired; here we rebuild it to the new count, all UNDECIDED.)
         # BUG-30: an any-list spell grant (MC Bard Magical Secrets) resizes granted_spells the same way.
         if self._spell_grant_tag(entry) or self._spell_grant_any(entry):
-            n = int(grants.get('spells', 0) or 0)
+            # FR-12 Phase 3: an any-list class feature sizes to its any-list rows (Expert Bard)
+            n = (self._any_list_spells(entry) if self._spell_grant_any(entry)
+                 else int(grants.get('spells', 0) or 0))
             if n <= 0:
                 entry.pop('granted_spells', None)
             else:
@@ -3006,7 +3040,10 @@ class BuilderAPI:
         # BUG-12(b): tag-constrained granted spells (FR-8 slice 5, e.g. Runt's Psychic
         # Tendrils from Beyond) live under the 'spell_tagged' slot, so pull those in too or
         # they drop off the sheet's spell list. Skip any still-undecided grant.
-        for e in groups.get('spell', []) + groups.get('spell_tagged', []) + groups.get('spell_sourced', []):
+        # FR-12 Phase 3 Bard: the any-list children (Magical Secrets, Expert Bard, Expanded Repertoire)
+        # were never harvested, so the sheet dropped them; Bonan's Command + Charm were missing since BUG-30.
+        for e in (groups.get('spell', []) + groups.get('spell_tagged', []) + groups.get('spell_sourced', [])
+                  + groups.get('spell_any', [])):
             if str(e['pick']) == UNDECIDED:
                 continue
             m = self.meta.get(e['pick']) or {}

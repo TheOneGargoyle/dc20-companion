@@ -23,7 +23,7 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
-| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 8 of 13 classes, Cleric 2026-09-25; `FR12_PLAN.md` Phase 3-4) |
+| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 9 of 13 classes, Bard 2026-09-26; `FR12_PLAN.md` Phase 3-4) |
 | FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | PLANNED (maneuver half done 2026-07-19; spell half = FR-13a; `FR12_PLAN.md` Phase 2) |
 | FR-33 | Rules > Ancestries: split the one big page / add dividers | feature | companion | P3 | ready |
 | FR-34 | Rules > Character Creation > Class Talents: merge the many tiny pages | feature | companion | P3 | ready |
