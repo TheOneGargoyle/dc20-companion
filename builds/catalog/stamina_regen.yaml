@@ -14,6 +14,7 @@ classes:
   Barbarian: "Once per Round, regain up to half your max SP when you score a Heavy or Critical Hit against a creature, or one is scored against you."
   Champion: "Once per Round, regain up to half your max SP when you perform a Maneuver."
   Commander: "Once per Round, regain up to half your max SP when you grant a creature a Help Die."
+  Hunter: "Once per Round, regain up to half your max SP when you Hit your Hunter's Mark target with a Martial Attack, it is reduced to 0 HP or dies, or you succeed on a Check to recall information about a creature or to locate an Unseen creature."
   Monk: "Once per Round, regain up to half your max SP when you succeed on an Athletics or Acrobatics Check, or Hit on a Martial Attack."
   Spellblade: "Once per Round, regain up to half your max SP when you Hit an Attack with your Bound Weapon, make a Spell Check, or cast a Spell with the Weapon tag."
 

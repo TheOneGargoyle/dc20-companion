@@ -775,6 +775,61 @@ def j_monk_stances(P):
     P.pg.wait_for_timeout(300)
 
 
+
+def j_hunter_terrains(P):
+    """(S15) FR-12 Phase 3: a base Hunter in the real page. Favored Terrain renders 2 terrain pickers and
+    Bestiary a creature type node (the new class-list-derived `creature_type` kind) under the L1 class
+    features; Monster Slayer at L3 renders 3 pickers of the NEW `concoction` slot kind, sibling-distinct;
+    and the sheet shows the new surfaces: the Favored Terrains group, the folded Bestiary answer, the
+    Concoctions group, and the Hunter's Stamina Regen (from the restored Martial Path)."""
+    print("## (S15) Hunter: Favored Terrain + Bestiary nodes, Concoction pickers, sheet groups")
+    P.start("hunter")
+    node = P.decs("^GC#cg:0#choice#0$")
+    kids = P.decs("^GC#cg:0#disciplines#")
+    ok("Bestiary renders its creature type node and Favored Terrain 2 terrain pickers",
+       len(node) == 1 and len(kids) == 2, P.decs("^GC#"))
+    if not node or len(kids) != 2:
+        return
+    opts = lambda d: P.pg.evaluate("d => Array.from((document.querySelector('[data-dec=\"'+d+'\"]') || {options: []})"
+                                   ".options).map(o => o.value).filter(v => v && !v.startsWith('('))", d)
+    ok("...the node offers the 14 Creature Types and each picker the 10 terrains",
+       len(opts(node[0])) == 14 and "Undead" in opts(node[0]) and all(len(opts(k)) == 10 for k in kids),
+       (opts(node[0]), [len(opts(k)) for k in kids]))
+    P.choose(node[0], "Undead")
+    P.pg.wait_for_timeout(400)
+    P.choose(kids[0], "Forest")
+    P.pg.wait_for_timeout(400)
+    ok("...and the second terrain picker then hides Forest", "Forest" not in opts(kids[1]) and len(opts(kids[1])) == 9,
+       opts(kids[1]))
+    P.choose(kids[1], "Grassland")
+    P.pg.wait_for_timeout(400)
+    for _ in range(2):
+        P.add_level()
+    sub = [d for d in P.decs("^L3:") if "Monster Slayer" in opts(d)]
+    ok("L3 renders the subclass picker with Monster Slayer", len(sub) == 1, P.decs("^L3:"))
+    if not sub:
+        return
+    P.choose(sub[0], "Monster Slayer")
+    P.pg.wait_for_timeout(600)
+    ck = P.decs("^GC#%s#concoctions#" % sub[0])
+    ok("Monster Slayer renders 3 concoction pickers offering the 8 recipes",
+       len(ck) == 3 and all(len(opts(d)) == 8 for d in ck), [(d, len(opts(d))) for d in ck])
+    if len(ck) != 3:
+        return
+    P.choose(ck[0], "Hydra's Blood")
+    P.pg.wait_for_timeout(400)
+    ok("...and the second hides Hydra's Blood", "Hydra's Blood" not in opts(ck[1]) and len(opts(ck[1])) == 7, opts(ck[1]))
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet shows Favored Terrains (Forest, Grassland), Bestiary: Undead (once), Concoctions (Hydra's Blood), Hunter regen",
+       all(x.lower() in text.lower() for x in ("Favored Terrains", "Forest", "Grassland", "Bestiary: Undead",
+                                               "Concoctions", "Hydra's Blood", "Unseen creature"))
+       and "talent choices" not in text.lower(), text[:1800])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -901,7 +956,8 @@ def main():
                                          ("s11", j_cleric_domains, (), 120),
                                          ("s12", j_bard_repertoire, (), 120),
                                          ("s13", j_champion_maneuvers, (), 180),
-                                         ("s14", j_monk_stances, (), 180)):
+                                         ("s14", j_monk_stances, (), 180),
+                                         ("s15", j_hunter_terrains, (), 180)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

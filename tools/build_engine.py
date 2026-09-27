@@ -15,6 +15,7 @@ skills/trades/languages incl. conversions). NOT yet: PD/AD derivation (armor
 stacking), per-skill die bonuses, spell/maneuver legality vs school lists.
 """
 import argparse
+import itertools
 import math
 import os
 import re
@@ -280,6 +281,14 @@ def sum_grants(ledger, level, key):
     return total
 
 
+# CH-13 / FR-12 Phase 3 Hunter: grant keys that buy a further PICK rather than move a stat, resource -> the
+# ledger slot name that pick lands under. ONE definition: builder_api materialises the child slots from it
+# and catalog_verify reads it (it used to keep a hand mirror, trap 2). Monster Slayer's `concoctions: 3` is
+# the Rune Knight `runes: 2` shape.
+GRANT_CHILD_SLOTS = {"runes": "rune", "metamagic": "metamagic", "skills": "skill", "trades": "trade",
+                     "disciplines": "discipline", "concoctions": "concoction"}
+
+
 # The four Attributes. Per-attribute deltas are declared as `attr_<name>` grants
 # (CH-5, 2026-07-28), which is how an ancestry trait like Might Attribute Decrease moves a
 # stat without the engine name-matching the option. ATTR_FLOOR is the rules floor a decrease
@@ -381,6 +390,37 @@ def feature_limit_raises(ledger, level):
         for kind, targets in glr.items():
             for t in targets or []:
                 out.setdefault((kind, t), []).append(label)
+    return out
+
+
+# FR-12 Phase 3 Hunter (Favored Terrain Forest / Urban): "You gain 2 Skill Points to use on up to 2 of the
+# following Skills" (classes.md l.1780-1782, l.1801-1803). The points join the ordinary budget through
+# `grants: {skill_points: 2}`; the builder ALSO writes the restriction onto the granting parent as
+# `granted_skill_pools: [{from, points, skills}]` (derived, like granted_limit_raises), so the engine stays
+# catalog-free. "Up to 2 Skills" never binds: 2 points buy at most 2 Mastery steps.
+def restricted_skill_pools(ledger, level):
+    """[{'from', 'points', 'skills'}] for every restricted Skill Point grant in effect at `level`."""
+    out = []
+    for obj in _grant_bearers(ledger, level):
+        for p in obj.get("granted_skill_pools") or []:
+            if isinstance(p, dict) and p.get("points"):
+                out.append({"from": str(p.get("from") or "feature"), "points": int(p["points"]),
+                            "skills": list(p.get("skills") or [])})
+    return out
+
+
+def skill_pool_shortfalls(pools, spent_by_skill, spent_elsewhere, earned):
+    """Hall's condition for restricted Skill Points. For every set S of pools, the points spent on
+    Skills OUTSIDE the union of S's Skills (plus points converted away) must fit in what is left of
+    the budget once S's points are set aside. Returns one (labels, need, room) per violated S."""
+    out = []
+    for r in range(1, len(pools) + 1):
+        for combo in itertools.combinations(pools, r):
+            allowed = set().union(*(set(p["skills"]) for p in combo))
+            need = spent_elsewhere + sum(v for k, v in spent_by_skill.items() if k not in allowed)
+            room = earned - sum(p["points"] for p in combo)
+            if need > room:
+                out.append(([p["from"] for p in combo], need, room))
     return out
 
 
@@ -636,8 +676,10 @@ def replay(ledger, level, class_tables=None):
             return steps
 
         spent_sp = 0
+        spent_by_skill = {}
         for name, m in (sk.get("masteries") or {}).items():
-            spent_sp += mastery_cost("skills", name, m)
+            spent_by_skill[name] = mastery_cost("skills", name, m)
+            spent_sp += spent_by_skill[name]
         tr = ledger.get("trades", {})
         earned_tp = (BACKGROUND_TRADE + cumulative(table, level, "trade")
                      + sum_grants(ledger, level, "trade_points"))
@@ -677,6 +719,14 @@ def replay(ledger, level, class_tables=None):
                 + f" = {total_sp} -> " + verdict(total_sp, earned_sp))
         if total_sp > earned_sp:
             rep.problem(f"Skill points over-spent: {total_sp} vs {earned_sp}")
+        # FR-12 Phase 3 Hunter: restricted Skill Points (Favored Terrain Forest / Urban). Silent for a
+        # build with no restricted grant, so the six ledgers' reports are unchanged.
+        _pools = restricted_skill_pools(ledger, level)
+        if _pools and total_sp <= earned_sp:
+            for _from, _need, _room in skill_pool_shortfalls(_pools, spent_by_skill, conv_sp, earned_sp):
+                rep.problem(f"Skill points from {' + '.join(_from)} may only be spent on "
+                            + "; ".join(", ".join(p["skills"]) for p in _pools if p["from"] in _from)
+                            + f": {_need} spent elsewhere, only {_room} unrestricted")
         tp_total, tp_avail = spent_tp + conv_tp, earned_tp + conv_sp * 2
         rep.add(f"- Trade points: earned {earned_tp} (+{conv_sp*2} via conversion), spent {spent_tp}"
                 + (f" + {conv_tp} converted to LP" if conv_tp else "")

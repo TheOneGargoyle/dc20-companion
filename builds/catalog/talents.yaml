@@ -72,6 +72,13 @@ class_talents:
   Druid:
     - {name: Wild Form Expansion, requires: "Wild Form, Level 3", no_effect: situational}
     - {name: Nature's Vortex, requires: "Nature's Torrent, Level 3", no_effect: situational}
+  Hunter:
+    # character-creation.md l.486-503. Expanded Terrains: "You gain 2 additional Favored Terrains. You can't
+    # choose the same option more than once" -> 2 terrain grant-children. Pack Leader and Big Game Hunter
+    # ride the Mark, so they have no standing number.
+    - {name: Expanded Terrains, requires: "Favored Terrain", grants: {disciplines: 2}}
+    - {name: Pack Leader, requires: "Hunter's Mark, Level 3", no_effect: situational}
+    - {name: Big Game Hunter, requires: "Hunter's Mark, Level 3", no_effect: situational}
   Monk:
     # character-creation.md l.505-530. Expanded Stances: "You learn 2 additional Monk Stances. You can't
     # choose the same option more than once" -> 2 stance grant-children. Internal Damage and Steel Fist
@@ -157,3 +164,13 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
   - {name: Spiritual Balance, class: Monk, feature_level: 2, via: Adept Multiclass,
      grants: {ki_from_sp: 1},
      note: "Ki Points = max SP; Ki Actions: Deflect Attack, Slow Fall, Uncanny Dodge"}
+  - {name: Hunter's Mark, class: Hunter, feature_level: 1, via: Novice Multiclass, no_effect: situational,
+     # FR-12 Phase 3: base-class twin in class_features.yaml Hunter L1
+     note: "1 AP + 1 SP: mark a creature; ADV to find it, first Martial Attack each turn has ADV and ignores PDR"}
+  - {name: Favored Terrain, class: Hunter, feature_level: 1, via: Novice Multiclass,
+     grants: {disciplines: 2},
+     # twin of class_features.yaml Hunter L1. Its 2 children come from hunter.yaml's terrains, not the
+     # character's own class list (builder_api _owner_ccat, the MC Monk Stance shape).
+     note: "choose 2 Favored Terrains"}
+  - {name: Hunter's Strike, class: Hunter, feature_level: 2, via: Adept Multiclass, no_effect: situational,
+     note: "1 SP on a Weapon Attack: Acid, Fire, Piercing, Snare or Toxin Enhancement"}

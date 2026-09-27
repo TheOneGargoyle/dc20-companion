@@ -1,0 +1,206 @@
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.
+catalog_version: 1
+ruleset: DC20 0.10.5
+class: Hunter
+generated_by: tools/catalog_build.py
+source: builds/catalog/class_spines.yaml + rules/classes.md l.1685-2036 + rules/tables.md l.97-110
+spine:
+  1:
+    hp: 8
+    sp: 2
+    maneuvers: 2
+    features:
+    - Class Features
+  2:
+    hp: 2
+    features:
+    - Class Feature
+    - Talent
+    - Path
+  3:
+    hp: 2
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    sp: 1
+    maneuvers: 1
+    features:
+    - Subclass
+  4:
+    hp: 2
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  5:
+    hp: 2
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    maneuvers: 1
+    features:
+    - Class Feature
+  6:
+    hp: 2
+    skill_points: 1
+    features:
+    - Talent
+    - Path
+  7:
+    hp: 2
+    sp: 1
+    maneuvers: 1
+    features:
+    - Subclass Expert
+  8:
+    hp: 2
+    attribute_points: 1
+    skill_points: 1
+    trade_points: 1
+    features:
+    - Talent
+    - 2 Ancestry Points
+    - Path
+  9:
+    hp: 2
+    sp: 1
+    maneuvers: 1
+    features:
+    - Class Capstone
+  10:
+    hp: 2
+    attribute_points: 1
+    skill_points: 2
+    trade_points: 1
+    sp: 1
+    maneuvers: 1
+    features:
+    - Subclass Capstone
+domain_label: favored terrain
+domains:
+- name: Coast
+  no_effect: movement_mode
+  note: Swim Speed = Speed, no underwater DisADV on Weapon Attacks; hold breath twice as long; ADV on
+    Awareness underwater
+- name: Desert
+  no_effect: resistance
+  note: Fire Resistance (Half); Resistance to Exhaustion from heat
+- name: Forest
+  grants:
+    skill_points: 2
+  note: 2 Skill Points on up to 2 of the listed Skills
+  skill_restrict:
+  - Animal
+  - Awareness
+  - Medicine
+  - Survival
+  - Stealth
+- name: Grassland
+  grants:
+    speed: 1
+    jump: 1
+  note: +1 Speed and Jump Distance (standing, not in-terrain)
+- name: Jungle
+  no_effect: resistance
+  note: ignore Difficult Terrain; Poisoned and Diseased Resistance
+- name: Mountain
+  no_effect: movement_mode
+  note: Climb Speed = Speed; Resistance to Exhaustion from altitude; Falling damage Resistance (Half)
+- name: Swamp
+  no_effect: resistance
+  note: Poison Resistance (Half), Poisoned and Diseased Resistance
+- name: Tundra
+  no_effect: resistance
+  note: Cold Resistance (Half); Resistance to Exhaustion from cold
+- name: Subterranean
+  no_effect: sense
+  note: Darkvision 10 Spaces (+5 if you have it); Tremorsense 3 Spaces (+2 if you have it)
+- name: Urban
+  grants:
+    skill_points: 2
+  note: 2 Skill Points on up to 2 of the listed Skills
+  skill_restrict:
+  - Influence
+  - Insight
+  - Investigation
+  - Intimidation
+  - Trickery
+creature_types:
+- Aberration
+- Beast
+- Celestial
+- Construct
+- Dragon
+- Elemental
+- Fey
+- Fiend
+- Giant
+- Humanoid
+- Monstrosity
+- Ooze
+- Plant
+- Undead
+concoctions:
+- name: Elemental Infusion
+  no_effect: situational
+  note: 'choose an Elemental type when made: +1 of it vs your Mark; Resistance (1) to it'
+- name: Hydra's Blood
+  no_effect: situational
+  note: regain 1 HP on a Heavy Hit vs your Mark; Poisoned Resistance, 1 Poison to adjacent attackers
+- name: Basilisk Eye
+  no_effect: situational
+  note: Tremorsense 20 Spaces to locate your Mark; Physical Resistance (1)
+- name: Ooze Gel
+  no_effect: situational
+  note: Heavy Hit slimes your Mark (Hindered); squeeze through 2 inch gaps, walk on any surface
+- name: Aberrant Tumor
+  no_effect: situational
+  note: ADV on Analyze Creature and Mental Saves vs your Mark; Psychic Resistance (1), unreadable thoughts
+- name: Deathweed
+  no_effect: situational
+  note: Heavy Hit on your Mark bypasses PR, no HP regain; Umbral Resistance (Half), Doomed Immunity, ADV
+    on Death Saves
+- name: Plant Fibers
+  no_effect: situational
+  note: a failed Save you force stops your Mark moving; Bleeding Immunity, 1 Temp HP each turn end
+- name: Divine Water
+  no_effect: situational
+  note: Heavy Hit makes your Mark Exposed; Radiant Resistance (Half), Bright Light 5 Spaces
+subclasses:
+- Monster Slayer
+- Trapper
+- Paragon
+subclass_grants:
+  Monster Slayer:
+    grants:
+      concoctions: 3
+  Paragon:
+    grants:
+      trade_points: 1
+    level_riders:
+      3:
+      - slot: talent
+        restrict: class_talents
+      7:
+      - slot: talent
+        restrict: class_talents
+      10:
+      - slot: talent
+        restrict: class_talents
+    source: character-creation.md l.757-780 (Novice / Expert / Master Paragon)
+spellcasting:
+  model: none
+  path_rider: spell list of choice from any class (character-creation.md l.753-756)
+paths:
+- Martial
+- Spellcaster
+combat_training:
+- Weapons
+- Light Armor
+- Light Shields
+path_training:
+  Martial:
+  - Weapons
+  Spellcaster:
+  - Spell Focuses

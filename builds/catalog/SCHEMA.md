@@ -147,6 +147,27 @@ match the rules text.
 - **MC discipline grants** draw on the FEATURE's class list, not the character's
   (`builder_api._owner_ccat`), and a talent row's `grants_unarmored` rides its ledger entry.
 
+## Hunter shapes (FR-12 Phase 3, 2026-09-27)
+
+- **Favored Terrains** are the Discipline child shape under `hunter.yaml` `domains`, `domain_label:
+  favored terrain` (the Monk Stance shape). Grassland's +1 Speed and Jump is a standing grant; the
+  in-terrain ADV rider is situational for all ten.
+- **Restricted Skill Points.** A child row may carry `skill_restrict: [Skill, ...]` beside
+  `grants: {skill_points: N}` (Forest, Urban; parsed from the rules line by `catalog_build`). The
+  builder writes `granted_skill_pools: [{from, points, skills}]` onto the parent, and the engine checks
+  Hall's condition over every set of pools (`build_engine.skill_pool_shortfalls`): points spent outside a
+  set's Skills, plus Skill Points converted to Trade Points, must fit in the budget left after that set.
+  Silent when no pool is held.
+- **`options_from: {class_list: {class, key}}`** fills a node from a list a class catalog parses (the
+  Bestiary `creature_type` node reads `hunter.yaml` `creature_types`). `FOLDED_CHOICE_KINDS`
+  (`builder_api`) is the one list of kinds the sheet folds into their owner.
+- **`concoction`** is a leaf grant-child slot kind (Monster Slayer `grants: {concoctions: 3}`, the Rune
+  Knight shape) with its own sheet group. `GRANT_CHILD_SLOTS` now lives in `build_engine` and both
+  `builder_api` and `catalog_verify` read it. `DISTINCT_CHILD_SLOTS` makes its pickers never re-offer a
+  held pick (runes are deliberately not in it yet, see BACKLOG).
+- **An MC child list carries its owner's word**: MC Favored Terrain children on a Monk are labelled
+  favored terrain and head their own sheet group (`discipline:<label>` internally).
+
 ## `ancestries.yaml` (curated)
 
 ```yaml

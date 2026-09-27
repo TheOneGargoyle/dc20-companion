@@ -48,10 +48,9 @@ KNOWN_OPEN = set()  # retired 2026-07-16: runt's trade over-spend was the phanto
 # Ledger entries that are placeholders for known-missing/known-invalid data, not real picks:
 PLACEHOLDER_MARKERS = ("not itemised", "does NOT exist")
 # CH-13: grant keys that buy a further PICK rather than move a stat, resource -> the ledger
-# slot name that pick lands under. Mirrors GRANT_CHILD_SLOTS in tools/builder_api.py; keep
-# the two in step (CH-14 is the row that proposes naming shared constants once).
-CHILD_SLOTS = {"runes": "rune", "metamagic": "metamagic", "skills": "skill",
-               "trades": "trade", "disciplines": "discipline"}
+# slot name that pick lands under. FR-12 Phase 3 Hunter: the engine's one definition, which
+# builder_api also reads (this used to be a hand mirror of builder_api's copy, trap 2).
+from build_engine import GRANT_CHILD_SLOTS as CHILD_SLOTS  # noqa: E402
 
 fails = []
 checks = 0   # CH-17: every expect() call, so the banner can report a real number
@@ -836,7 +835,8 @@ for klass, lst in talents_cat["class_talents"].items():
     for t in lst:
         expect(norm(t["name"]) in cc.replace("’", "'"), f"class talent {t['name']} not in character-creation.md")
 for t in talents_cat["mc_features"]:
-    expect(t["name"] in classes, f"mc_feature {t['name']} not in classes.md")
+    # FR-12 Phase 3 Hunter: the rules text spells Hunter's Mark with a curly apostrophe
+    expect(t["name"] in classes.replace("\u2019", "'"), f"mc_feature {t['name']} not in classes.md")
 print(f"  talents: {len(talents_cat['general'])} general + {len(talents_cat['multiclass'])} multiclass + "
       f"{sum(len(v) for v in talents_cat['class_talents'].values())} class + "
       f"{len(talents_cat['mc_features'])} MC features all found in rules text")
@@ -886,6 +886,15 @@ _REGEN_KEYS = {
     "Monk": ("Acrobatics", _classes_md),
     "Spellblade": ("Bound Weapon", _index_md),  # errata source (_INDEX.md), NOT classes.md
 }
+# FR-12 Phase 3 Hunter: the keyword table above is hand-kept, so it could not notice a class MISSING
+# from it (the Hunter was, for as long as its Martial Path block was missing from classes.md). Derive the
+# set of classes whose Martial Path states a Stamina Regen from the rules text and assert each is keyed.
+_REGEN_KEYS["Hunter"] = ("locate an Unseen creature", _classes_md)
+_mp_classes = set(re.findall(r"\n#### (\w+) Martial Path\n", _classes_md))
+expect(len(_mp_classes) >= 6 and "Hunter" in _mp_classes,
+       f"stamina_regen: expected the Hunter among the classes.md Martial Path blocks, found {sorted(_mp_classes)}")
+expect(_mp_classes <= set(_REGEN_KEYS),
+       f"stamina_regen: Martial Path classes with no keyword row: {sorted(_mp_classes - set(_REGEN_KEYS))}")
 for _cls, (_kw, _src) in _REGEN_KEYS.items():
     expect(_cls in _regen["classes"], f"stamina_regen: {_cls} missing from catalog")
     expect(_kw in _src, f"stamina_regen: {_cls} keyword {_kw!r} not found in its rules source")
@@ -1557,6 +1566,63 @@ expect("Ki Point maximum increases by 1" in _mt and _ex.get("ki") == 1, f"Expert
 expect("maximum number of Ki Points equal to your Stamina Points" in _mt
        and (_mf["Spiritual Balance"].get("grants") or {}) == {"ki_from_sp": 1}, f"Spiritual Balance: {_mf['Spiritual Balance'].get('grants')}")
 print(f"  weapon_styles.yaml matches both rules listings ({len(_wnames)} styles); {len(_st)} Monk Stances; Monk counts match the rules")
+
+# ---- FR-12 Phase 3 Hunter (2026-09-27) -----------------------------------------------------------
+# classes.md was REPAIRED at source: the extraction dropped the Hunter Martial Path block (restored from
+# Darryl's PDF screenshot). A re-extraction would silently undo it, so assert the block is there.
+_htxt = _classes_md[_classes_md.index("\n### Hunter\n"):_classes_md.index("\n### Monk\n")]
+_ht = " ".join(_htxt.replace("\u2019", "'").split())
+expect("\n#### Hunter Martial Path\n" in _htxt and "Combat Training: Weapons, Light Armor, Light Shields" in _htxt,
+       "classes.md lost the hand-restored Hunter Martial Path block (2026-09-27): re-apply it")
+_hk = load("builds/catalog/hunter.yaml")
+expect(_hk.get("combat_training") == ["Weapons", "Light Armor", "Light Shields"]
+       and (_hk.get("spellcasting") or {}).get("model") == "none"
+       and _hk.get("subclasses") == ["Monster Slayer", "Trapper", "Paragon"],
+       f"hunter.yaml: training {_hk.get('combat_training')}, subclasses {_hk.get('subclasses')}")
+# the 10 Favored Terrains, each a "- <Name>:" bullet in the Favored Terrain block (trap 4: non-empty)
+_ft = {r["name"]: r for r in _hk.get("domains") or []}
+_fblk = _htxt[_htxt.index("\nFavored Terrain\n"):_htxt.index("\nBestiary (Flavor Feature)\n")]
+_fbul = re.findall(r"\n- ([A-Z][a-z]+): ", _fblk)
+expect(len(_ft) == 10 and _hk.get("domain_label") == "favored terrain" and sorted(_fbul) == sorted(_ft),
+       f"hunter.yaml terrains {sorted(_ft)} vs the rules bullets {sorted(_fbul)} (trap 4)")
+_fbt = " ".join(_fblk.split())
+expect("- Grassland: Your Speed and Jump Distance increases by 1." in _fbt
+       and _ft.get("Grassland", {}).get("grants") == {"speed": 1, "jump": 1}, f"Grassland: {_ft.get('Grassland')}")
+_skills_all = {n for lst in load("builds/catalog/skills_trades.yaml")["skills"].values() for n in lst}
+for _n in ("Forest", "Urban"):
+    _r = _ft.get(_n) or {}
+    expect(_r.get("grants") == {"skill_points": 2} and len(_r.get("skill_restrict") or []) == 5
+           and set(_r["skill_restrict"]) <= _skills_all and all(k in _fbt for k in _r["skill_restrict"]),
+           f"{_n}: grants {_r.get('grants')}, restrict {_r.get('skill_restrict')} (5 catalog Skills)")
+expect(not set(_ft["Forest"]["skill_restrict"]) & set(_ft["Urban"]["skill_restrict"]),
+       "Forest and Urban Skill lists overlap (the engine's pool check assumes nothing about it, but the rules are disjoint)")
+for _n, _r in _ft.items():
+    if _n not in ("Forest", "Urban", "Grassland"):
+        expect(not _r.get("grants") and _r.get("no_effect"), f"terrain {_n} should carry no standing grant: {_r}")
+# grant counts against the rules' own sentences: L1 2, Expert +1, Expanded Terrains +2
+_hf = {r["name"]: r for lv in _cfc["Hunter"].values() for r in lv or []}
+_xt = next(r for r in talents_cat["class_talents"]["Hunter"] if r["name"] == "Expanded Terrains")
+for _n, _r, _src, _pat in (("Favored Terrain", _hf["Favored Terrain"], _ht, r"Choose (\d) types of Favored Terrain"),
+                           ("Expert Hunter", _hf["Expert Hunter"], _ht, r"You gain (\d) additional Favored Terrain\."),
+                           ("Expanded Terrains", _xt, _ccm, r"You gain (\d) additional Favored Terrains\. You can.t choose")):
+    _m = re.search(_pat, _src)
+    expect(_m is not None and int(_m.group(1)) == (_r.get("grants") or {}).get("disciplines"),
+           f"{_n}: grants {_r.get('grants')} vs rules {_m.group(0) if _m else 'no terrain line'}")
+# Bestiary: the creature_type node derives the 14 types; every one is named in the rules line
+_ct = _hk.get("creature_types") or []
+_cl = re.search(r"Starting Entries: Choose a Creature Type: ([^.]*)\.", _ht)
+expect(len(_ct) == 14 and _cl and all(t in _cl.group(1) for t in _ct), f"creature_types {_ct} (trap 4)")
+expect((_hf["Bestiary"].get("sub_choice") or {}).get("options_from") == {"class_list": {"class": "hunter", "key": "creature_types"}},
+       f"Bestiary node: {_hf['Bestiary'].get('sub_choice')}")
+# Monster Slayer: 3 Concoctions from the 8 recipes, each a standalone recipe line
+_cc = [r["name"] for r in _hk.get("concoctions") or []]
+_rblk = _htxt[_htxt.index("\nConcoction Recipes\n"):_htxt.index("\nMonster Hunter (Flavor\n")]
+_rlines = {ln.strip().replace("\u2019", "'") for ln in _rblk.splitlines()}
+expect(len(_cc) == 8 and all(n in _rlines for n in _cc), f"concoctions {_cc} vs the recipe lines (trap 4)")
+_ms = re.search(r"You learn how to create (\d) Concoctions of your choice", _ht)
+expect(_ms and (_hk.get("subclass_grants") or {}).get("Monster Slayer", {}).get("grants") == {"concoctions": int(_ms.group(1))},
+       f"Monster Slayer grants {(_hk.get('subclass_grants') or {}).get('Monster Slayer')}")
+print(f"  Hunter Martial Path present; {len(_ft)} Favored Terrains, {len(_ct)} Creature Types, {len(_cc)} Concoctions match the rules")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

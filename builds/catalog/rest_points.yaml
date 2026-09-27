@@ -29,7 +29,7 @@ hooks:
     kind: rune
     label: Hearth
     gain: 2
-    cite: [classes.md, 3086, 3093]
+    cite: [classes.md, 3107, 3114]
     text: "Flame Rune: regain 2 Rest Points when you complete a Short Rest, if you engaged in Combat since applying the Rune."
   - name: Font of Magic
     kind: talent

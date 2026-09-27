@@ -35,7 +35,7 @@ FR7_FILTER_SLOTS = {'spell', 'maneuver', 'talent', 'spell_school'}
 # metamagic and her origin nodes were all invisible on the sheet, and the plural `class_features`
 # row added for BUG-19 was too. builder_verify asserts every slot a real sheet can emit is covered.
 SHEET_GROUPS = [('subclass', 'Subclass'), ('class_feature', 'Class features'),
-                ('discipline', 'Disciplines'), ('pact_boon', 'Pact boons'), ('rune', 'Runes'),
+                ('discipline', 'Disciplines'), ('pact_boon', 'Pact boons'), ('rune', 'Runes'), ('concoction', 'Concoctions'),
                 ('metamagic', 'Meta Magic'), ('path', 'Path'),
                 ('bound_weapon_options', 'Bound weapon'), ('maneuver', 'Maneuvers'),
                 ('talent', 'Talents'), ('ancestry_trait', 'Ancestry'),
@@ -51,11 +51,18 @@ SHEET_SLOT_ALIAS = {'class_features': 'class_feature', 'pact_boons': 'pact_boon'
 
 # FR-12 Phase 3: the ledger slots a class_features.yaml row lands in (L1 folded, L2+ one per row)
 CLASS_FEATURE_SLOTS = ('class_features', 'class_feature')
-GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
-                     'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
+GRANT_CHILD_SLOTS = eng.GRANT_CHILD_SLOTS   # BUG-21 disciplines; FR-12 Hunter concoctions (engine-owned)
 # FR-12 Phase 3: sub_choice kinds whose answer must differ from every other node of the same kind
 # (Spell School Initiate + Expanded Spell School; Monk Iron Palm + Expert Monk's additional style)
 DISTINCT_CHOICE_KINDS = ('school_magic', 'weapon_style')
+# FR-12 Phase 3: sub_choice kinds whose answer the sheet folds INTO its owner ("Monk Training: Sword",
+# "Bestiary: Undead") instead of listing it as a row of its own. ONE list, read by the node builder (which
+# stamps choice_owner) and by sheet() (which skips the node row); it was two hand-kept tuples (trap 2).
+# FR-12 Phase 3 Hunter: leaf grant-child slots whose siblings (and every other holder) never re-offer a
+# held pick, like the Discipline children (BUG-21). Runes are NOT here yet: Rune Knight's "learn 2 Runes"
+# admits the same rule, but adding it moves Xanwyn's picker options, so it is filed rather than slipped in.
+DISTINCT_CHILD_SLOTS = ('concoction',)
+FOLDED_CHOICE_KINDS = ('school_magic', 'divine_damage', 'weapon_style', 'creature_type')
 # CH-14: the engine derived-stat rows the character sheet's core block carries, in the order the
 # sheet JS reads them (c['HP'] etc.). Engine constants, never literals; builder_verify (47) asserts it.
 SHEET_CORE = (eng.LBL_ATTACK, eng.LBL_SAVE_DC, eng.LBL_INITIATIVE, eng.LBL_GRIT, eng.LBL_HP, eng.LBL_SP,
@@ -86,7 +93,7 @@ FR20_CAT = {
     # 3: resources (spells, maneuvers, skill/trade point-buy carriers + their children)
     'spell': 3, 'maneuver': 3, 'spell_tagged': 3, 'spell_sourced': 3, 'spell_any': 3,
     'spells': 3, 'maneuvers': 3,
-    'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'metamagic': 3,
+    'skills': 3, 'trades': 3, 'skill': 3, 'trade': 3, 'rune': 3, 'concoction': 3, 'metamagic': 3,
 }
 FR20_DEFAULT_RANK = 3
 PLACEHOLDER_MARKERS = ('not itemised', 'does NOT exist')
@@ -1026,6 +1033,13 @@ class BuilderAPI:
             allc = (self.cat.get('damage_types') or {}).get('categories') or {}
             d['options'] = [{'name': t} for c in cats for t in allc.get(c) or []]
             return d
+        clist = (decl['options_from'] or {}).get('class_list')
+        if clist:
+            # FR-12 Phase 3 Hunter Bestiary: "Choose a Creature Type" (classes.md l.1814-1816), a list a
+            # class catalog parses out of classes.md (hunter.yaml `creature_types`), never typed here
+            d = dict(decl)
+            d['options'] = [{'name': n} for n in (self.cat.get(clist['class']) or {}).get(clist['key']) or []]
+            return d
         wgroups = (decl['options_from'] or {}).get('weapon_styles')
         if wgroups:
             # FR-12 Phase 3 Monk Iron Palm: "Choose a Melee Weapon Style" (classes.md l.2076), the styles
@@ -1151,7 +1165,7 @@ class BuilderAPI:
             d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
         d['slotlabel'] = decl.get('label') or 'choice'
         d['choice_kind'] = decl.get('kind')
-        if decl.get('kind') in ('school_magic', 'divine_damage', 'weapon_style'):   # FR-12 Phase 3: the sheet folds the answer into its owner
+        if decl.get('kind') in FOLDED_CHOICE_KINDS:   # FR-12 Phase 3: the sheet folds the answer into its owner
             d['choice_owner'] = (parentref, self._choice_owner_name(parent))
         out = [d]
         opt = self._choice_option(decl, pick)
@@ -1577,6 +1591,17 @@ class BuilderAPI:
                 for e in self.ledger['levels'][lvl] or []:
                     for x in e.get('granted_disciplines') or []:
                         add(x)
+        elif slot in DISTINCT_CHILD_SLOTS:
+            # FR-12 Phase 3 Hunter: a pure grant-child list (Monster Slayer's Concoctions) is held only as
+            # granted_<resource> picks on its parent
+            res = next(r for r, sg in GRANT_CHILD_SLOTS.items() if sg == slot)
+            for c in cg.get('class_choices') or []:
+                for x in c.get('granted_%s' % res) or []:
+                    add(x)
+            for lvl in self.ledger.get('levels') or {}:
+                for e in self.ledger['levels'][lvl] or []:
+                    for x in e.get('granted_%s' % res) or []:
+                        add(x)
         for lvl in self.ledger.get('levels') or {}:
             for e in self.ledger['levels'][lvl] or []:
                 if e.get('slot') == slot:
@@ -1757,6 +1782,8 @@ class BuilderAPI:
             return list(self.ccat.get('pact_boons') or [])
         if singular == 'rune':
             return list(self.ccat.get('runes') or [])
+        if singular == 'concoction':   # FR-12 Phase 3 Hunter Monster Slayer (hunter.yaml `concoctions`)
+            return list(self.ccat.get('concoctions') or [])
         if singular == 'metamagic':
             return list((self.cat.get('metamagic') or {}).get('options') or [])
         return []
@@ -1790,10 +1817,10 @@ class BuilderAPI:
         if slot == 'spell_school':
             return [{'name': s, 'group': '', 'label': s}
                     for s in self.cat['spell_schools']['schools']]
-        if slot == 'rune':   # FR-8 slice 3 grant-child pickers (class-scoped: Spellblade runes in ccat)
+        if slot in ('rune', 'concoction'):   # FR-8 slice 3 grant-child pickers (class-scoped, in ccat); FR-12 Hunter concoctions
             return [{'name': r['name'], 'group': '',
                      'label': r['name'] + _fmt_grants(r.get('grants'))}
-                    for r in self._child_pool('rune')]
+                    for r in self._child_pool(slot)]
         if slot == 'metamagic':   # FR-8 slice 4 grant-child pickers (cat-level, cross-class: reached via MC Sorcerer)
             return [{'name': r['name'], 'group': '',
                      'label': r['name'] + _fmt_grants(r.get('grants'))}
@@ -2003,10 +2030,12 @@ class BuilderAPI:
                     out.append('builder: L%d %d source spell pick(s) undecided' % (lvl, m))
         return out
 
-    def _slot_word(self, singular):
-        # FR-12 Phase 3: the class's own word for the Discipline shape ("divine domain")
-        return self.ccat.get('domain_label') if singular == 'discipline' and self.ccat.get('domain_label') \
-            else singular
+    def _slot_word(self, singular, owner=None):
+        # FR-12 Phase 3: the class's own word for the Discipline shape ("divine domain"). BUG-57 (Hunter
+        # thread): the OWNER's class, so an MC Favored Terrain child reads "favored terrain", not the
+        # character's own "monk stance" (and an MC Monk Stance on a Spellblade reads "monk stance").
+        cc = self._owner_ccat(owner)
+        return cc.get('domain_label') if singular == 'discipline' and cc.get('domain_label') else singular
 
     def _domain_undecided(self, e, lvl):
         if not self.ccat.get('domains'):
@@ -2058,7 +2087,7 @@ class BuilderAPI:
                 _lst = c.get('granted_%s' % _res) or []
                 for _k in range(_n):
                     if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
-                        probs.append('builder: L1 %s undecided' % self._slot_word(_sing))
+                        probs.append('builder: L1 %s undecided' % self._slot_word(_sing, c))
             if self._spell_grant_any(c):   # FR-12 Phase 3 Bard: Magical Secrets childed at chargen
                 _lst = c.get('granted_spells') or []
                 for _k in range(self._any_list_spells(c)):
@@ -2086,7 +2115,7 @@ class BuilderAPI:
                     _lst = e.get('granted_%s' % _res) or []
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
-                            probs.append('builder: L%d %s undecided' % (lvl, self._slot_word(_sing)))
+                            probs.append('builder: L%d %s undecided' % (lvl, self._slot_word(_sing, e)))
                 probs.extend(self._child_maneuvers_undecided(e, lvl))   # FR-12 Phase 3 Champion
                 probs.extend(self._domain_undecided(e, lvl))   # FR-12 Phase 3
                 if self._spell_grant_tag(e):   # FR-8 slice 5 constrained spell grant-child
@@ -2602,6 +2631,13 @@ class BuilderAPI:
                     # FR-57 (Monk): an MC feature's children come from its own class's list
                     d['options'] = [{'name': r['name'], 'group': '', 'label': r['name'] + _fmt_grants(r.get('grants'))}
                                     for r in self._child_pool('discipline', parent)]
+                    # FR-12 Phase 3 Hunter: ...and carry ITS class's word. An MC Favored Terrain on a Monk
+                    # was labelled "monk stance" and filed under the sheet's Monk Stances group.
+                    _ow = self._owner_ccat(parent).get('domain_label')
+                    if _ow:
+                        d['slotlabel'] = _ow
+                    else:
+                        d.pop('slotlabel', None)
                     if pick != UNDECIDED and not any(o['name'] == pick for o in d['options']):
                         d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
                 if resource == 'disciplines' and d.get('options'):
@@ -2612,6 +2648,10 @@ class BuilderAPI:
                     # Domain multiple times") stays offered however often it is held.
                     rep = {r['name'] for r in self._child_pool('discipline', parent) if r.get('repeatable')}
                     held = self._chosen_names('discipline') - {str(pick)} - rep
+                    d['options'] = [o for o in d['options'] if o['name'] not in held]
+                if singular in DISTINCT_CHILD_SLOTS and d.get('options'):
+                    # FR-12 Phase 3 Hunter: "learn 3 Concoctions of your choice", never the same one twice
+                    held = self._chosen_names(singular) - {str(pick)}
                     d['options'] = [o for o in d['options'] if o['name'] not in held]
                 out.append(d)
                 if resource == 'disciplines':
@@ -2785,7 +2825,7 @@ class BuilderAPI:
         # shape. `granted_training` is the same idea for the non-numeric half: Warrior's
         # `training: [Heavy Armor, Heavy Shield]`, which never flowed from a picked discipline on
         # ANY path (see _sync_training for the first-class half).
-        eff, trained, raised = {}, [], {}
+        eff, trained, raised, pools = {}, [], {}, []
         for resource, singular in GRANT_CHILD_SLOTS.items():
             if resource in PLAN_POINTBUY:
                 continue   # skill/trade point-buy children are "Name: Tier" strings, not catalog rows
@@ -2802,6 +2842,11 @@ class BuilderAPI:
                 for t in row.get('training') or []:
                     if t not in trained:
                         trained.append(t)
+                if row.get('skill_restrict'):
+                    # FR-12 Phase 3 Hunter Forest / Urban: the restriction on the child's Skill Points,
+                    # written beside the points so the engine can check where they were spent
+                    pools.append({'from': row['name'], 'points': (row.get('grants') or {}).get('skill_points', 0),
+                                  'skills': list(row['skill_restrict'])})
                 lr = row.get('limit_raise')   # FR-12 Phase 3: Cleric Knowledge, resolved to its trades
                 if isinstance(lr, dict):
                     tgt = raised.setdefault(lr['kind'], [])
@@ -2809,7 +2854,7 @@ class BuilderAPI:
                         if t not in tgt:
                             tgt.append(t)
         for key, val in (('granted_effects', eff), ('granted_training', trained),
-                         ('granted_limit_raises', raised)):
+                         ('granted_limit_raises', raised), ('granted_skill_pools', pools)):
             if val:
                 entry[key] = val
             else:
@@ -3111,7 +3156,7 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
-            if d.get('choice_kind') in ('expertise', 'school_magic', 'divine_damage', 'spell_tag', 'weapon_style'):
+            if d.get('choice_kind') in ('expertise', 'spell_tag') + FOLDED_CHOICE_KINDS:
                 continue   # FR-56: "Trade Expertise (Herbalism)" on the Ancestry line already says it
             # a chargen class-features row carries no decision id; its node's parentref is 'cg:<i>'
             fk = d.get('id') if d.get('id') in folded else next(
@@ -3121,6 +3166,9 @@ class BuilderAPI:
                 nm, ans = folded[fk]
                 pick = ', '.join('%s: %s' % (x, ans) if x == nm else x for x in str(pick).split(', '))
             slot = SHEET_SLOT_ALIAS.get(d.get('slot'), d.get('slot'))   # BUG-32
+            if slot == 'discipline' and d.get('slotlabel') and d['slotlabel'] != self.ccat.get('domain_label'):
+                # FR-12 Phase 3 Hunter: an MC child list (Favored Terrain on a Monk) heads its own group
+                slot = 'discipline:' + d['slotlabel']
             lst = groups.setdefault(slot, [])
             if not any(x['pick'] == pick for x in lst):
                 lst.append({'level': lv, 'pick': pick})
@@ -3163,8 +3211,10 @@ class BuilderAPI:
             'abilities': groups,   # kept for the harness / any caller that wants it raw
             # BUG-32: the RENDERED ability groups, in SHEET_GROUPS order, so the page cannot
             # drop a slot by forgetting to list it.
-            'ability_groups': [{'label': self._sheet_group_label(sl, lbl), 'items': groups[sl]}
-                               for sl, lbl in SHEET_GROUPS if groups.get(sl)],
+            'ability_groups': [{'label': self._sheet_group_label(k, lbl), 'items': groups[k]}
+                               for sl, lbl in SHEET_GROUPS
+                               for k in [sl] + sorted(g for g in groups if g.startswith(sl + ':'))
+                               if groups.get(k)],
             'spells': spells, 'equipment': equipment,
             # FR-23: Stamina Regen trigger(s), derived catalog-driven by the shared engine helper.
             'stamina_regen': eng.stamina_regen(self.ledger, self.cat.get('stamina_regen') or {}),
@@ -3177,6 +3227,8 @@ class BuilderAPI:
     def _sheet_group_label(self, slot, label):
         # FR-12 Phase 3: a class that relabels the Discipline shape (Cleric: "divine domain") heads the
         # sheet group with its own word ("Divine Domains")
+        if slot.startswith('discipline:'):   # FR-12 Phase 3 Hunter: an MC child list's own word
+            return slot.split(':', 1)[1].title() + 's'
         if slot == 'discipline' and self.ccat.get('domain_label'):
             return self.ccat['domain_label'].title() + 's'
         return label

@@ -12,6 +12,8 @@ Same conventions as the live file: no em-dashes anywhere.
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
+| FR-12.H | FR-12 Phase 3 class 12: base Hunter + subclasses (Favored Terrains, restricted Skill Points, Bestiary node, Concoctions) | feature | engine+catalog+builder | P2 | DONE (2026-09-27, builder_verify (55), smoke S15; 12 code findings incl. restored Martial Path, note in Chores) |
+| BUG-57 | An MC discipline-shape child was labelled and grouped by the character's own list | bug | builder | P3 | DONE (2026-09-27 with the Hunter: picker label, sheet group and problem text read the owner's class) |
 | FR-12.B | FR-12 Phase 3 class 9: base Bard + subclasses (fixed Enchantment school, any-list class features, Enthrall) | feature | catalog+builder | P2 | DONE (2026-09-26, builder_verify (52), smoke S12; 8 code findings incl. Bonan sheet spells, note in Chores) |
 | FR-12.C | FR-12 Phase 3 class 8: base Cleric + subclasses (Divine Domains, Magic tag node, Divine Damage) | feature | engine+catalog+builder | P2 | DONE (2026-09-25, builder_verify (51), smoke S11; 10 code findings, note in Chores) |
 | FR-12.W | FR-12 Phase 3 class 7: base Wizard + subclasses (Spell School Initiate node) | feature | catalog+builder | P2 | DONE (2026-09-24, builder_verify (50), smoke S10; 10 code findings incl. Expert Wizard follow-up, note in Chores) |
@@ -284,6 +286,25 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 ---
 
 ## Chores
+
+**FR-12 Phase 3, class 12: Hunter (2026-09-27).** Base class L1-L6, Monster Slayer (3 Concoctions childed), Trapper and Paragon, and 3 MC twins.
+- Data: spine (parsed against the Monk spine: identical on all 10 rows), `catalog/hunter.yaml` (generated; model none; Weapons, Light Armor, Light Shields; 10 terrains under `domains`, label favored terrain; 14 `creature_types`; 8 `concoctions`), `class_features.yaml` Hunter L1-L6, `talents.yaml` Hunter class talents (Expanded Terrains {disciplines: 2}, Pack Leader and Big Game Hunter situational) and mc_features Hunter's Mark, Favored Terrain, Hunter's Strike, `stamina_regen.yaml` Hunter row.
+- **Design (agreed with Darryl):** terrains are a child list; Grassland `{speed 1, jump 1}` standing; Forest / Urban `{skill_points: 2}` PLUS an enforced restriction; Subterranean sense, Desert / Swamp / Tundra / Jungle resistance, Coast / Mountain movement_mode; Bestiary a `creature_type` node; Concoctions a child list (new slot kind); MC twins now, Bestiary none (Flavor, l.675).
+- **Code findings (12):**
+  1. **classes.md had no Hunter Martial Path block** (extraction dropped it): restored from Darryl's PDF screenshot, tagged in the file; catalog_verify asserts it survives a re-extraction. The Rogue's is missing too (see BACKLOG);
+  2. that shifts classes.md +21 lines from l.1724, and **`rest_points.yaml` cites a line range**, so its Flame Rune cite broke: re-pointed to l.3107-3114. Other line refs below l.1724 are comments / source_notes only (cosmetic, +21 stale);
+  3. catalog_verify's `_REGEN_KEYS` was hand-kept and could not notice a missing class: it now derives the Martial Path class set from classes.md;
+  4. catalog_verify's mc_feature name check did not fold the curly apostrophe (Hunter's Mark);
+  5. restricted Skill Points did not exist: `skill_restrict` on the row, `granted_skill_pools` written by `_sync_granted_effects`, and the engine's Hall check (`skill_pool_shortfalls`, conversions to TP count as outside), silent without a pool;
+  6. `_resolve_decl` gained `options_from: {class_list: {class, key}}` for the Bestiary node (types parsed from its rules line);
+  7. the sheet-fold kinds were two hand tuples: now `FOLDED_CHOICE_KINDS`, with `creature_type`;
+  8. a new leaf child kind needed 5 builder sites (`GRANT_CHILD_SLOTS`, `SHEET_GROUPS`, `FR20_CAT`, `_child_pool`, `_options_for`);
+  9. **`GRANT_CHILD_SLOTS` was hand-mirrored in catalog_verify** (trap 2): it now lives in `build_engine` and both read it;
+  10. leaf child pickers were not sibling-distinct (only Disciplines were): `DISTINCT_CHILD_SLOTS = ('concoction',)`; runes have the same gap, filed as BUG-59;
+  11. **latent since the Monk, BUG-57: an MC child list took the character's own word and sheet group** (MC Favored Terrain on a Monk read "monk stance", listed under Monk Stances): the picker label, the sheet group (`discipline:<label>`) and the problem text now read the owner's class;
+  12. harness: builder.html cap 700KB -> 800KB (695KB -> 717KB with the Hunter; the cap guards the corpus, not class data), plus the RT_FIXED / RT_FIXED_AT rows and the (13) literal. New section (55), smoke S15 (terrain and creature type nodes, concoction pickers, Favored Terrains / Bestiary / Concoctions / Hunter regen on the sheet). Mutation-tested: the Grassland grant, the Martial Path guard and the Concoctions sheet group each fail when broken.
+- All six ledgers byte-identical; sheet, derived and export byte-identical for all six. `state()` moved only as expected: each ledger's 2 talent pickers gain the 3 Hunter MC options.
+- Filed: BUG-58 (talent level gates, noted in the Monk thread too), BUG-59 (runes).
 
 **FR-12 Phase 3, class 11: Monk (2026-09-27).** Base class L1-L6, Astral Self, Shifting Tide, Paragon (names; Astral Damage filed as FR-58), and 3 MC twins.
 - Data: spine (parsed against the Champion spine: identical on all 10 rows, classes.md and tables.md agree), `catalog/monk.yaml` (generated; model none; Weapons, Light Armor; 9 stances under `domains`, label monk stance), new generated `catalog/weapon_styles.yaml` (8 Melee + 3 Ranged, parsed from general-rules.md), `class_features.yaml` Monk L1-L6, `talents.yaml` Monk class talents (Expanded Stances {disciplines: 2}, Internal Damage and Steel Fist situational) and mc_features Monk Training, Monk Stance, Spiritual Balance.

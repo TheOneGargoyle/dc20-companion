@@ -23,9 +23,11 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
-| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 11 of 13 classes, Monk 2026-09-27; `FR12_PLAN.md` Phase 3-4) |
+| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 12 of 13 classes, Hunter 2026-09-27; Rogue next, needs its Martial Path text, see note) |
 | FR-58 | Subclass sub_choice nodes: Monk Astral Self's Astral Damage (choose a Mystical type) has no home | feature | builder+catalog | P3 | ready (filed 2026-09-27 with the Monk, see note) |
-| BUG-57 | An MC discipline-shape child (MC Monk Stance) is headed by the character's own list on the sheet and in builder problems | bug | builder | P3 | ready (filed 2026-09-27 with the Monk, see note) |
+| BUG-58 | Talent level gates are not enforced: Adept Multiclass features (L4) and Level 3 class talents are offered at L2 with no problem raised | bug | builder | P3 | ready (filed 2026-09-27 with the Hunter, see note) |
+| BUG-59 | Rune child pickers are not sibling-distinct, so a Rune Knight can learn the same Rune twice | bug | builder | P3 | ready (filed 2026-09-27; one-word fix, moves Xanwyn's picker options only, see note) |
+| FR-59 | Basic equipment on scratch characters (Gear Tier B): one armour, one shield, free effect items | feature | engine+catalog+builder | P2 | ready, AFTER Hunter and Rogue (Darryl, 2026-09-27, see note) |
 | FR-57 | MC twins for the walked classes that have none (Commander, Barbarian, Cleric, Druid, Spellblade, Wizard L2), so any class can be multiclassed into | feature | catalog+builder | P2 | ready (Champion and Monk twins done; owner-scoped pool unblocks Cleric Order, see note) |
 | BUG-56 | A spell childed under a feature is not "held", so the flat spell pickers re-offer it (maneuvers fixed with the Champion) | bug | builder | P3 | ready (filed 2026-09-27, see note) |
 | FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | PLANNED (maneuver half done 2026-07-19; spell half = FR-13a; `FR12_PLAN.md` Phase 2) |
@@ -177,7 +179,13 @@ Barbarian): it is a display gap, not a stat error, and fixing it edits five cano
 
 **FR-58. Subclass sub_choice.** Astral Self's Astral Awakening (classes.md l.2257): "choose a Mystical damage type". `SUBCLASS_GRANTS` has no `sub_choice` and the subclass branch of `set_decision` renders none, so the Monk shipped Astral Self as a name. Shape: a `sub_choice` on the subclass grant, `options_from: {damage_categories: [Mystical]}`, answer on the subclass entry, folded on the sheet like Divine Damage.
 
-**BUG-57. MC stance labels.** A Spellblade with MC Monk Stance picks from the Monk Stances (correct), but the sheet lists them under Disciplines and the open child reads `builder: L2 discipline undecided`. `_sheet_group_label` and the problem text read `self.ccat`; both should read the owner's `domain_label` (`_owner_ccat`). Cosmetic, no stat moves.
+**FR-59. Basic equipment on scratch characters (Gear Tier B).** Scoped with Darryl 2026-09-27, queued after the Hunter and Rogue. The line: equipment belongs in the builder only when it moves a number or a legality check the engine already derives at chargen; everything else stays in Foundry. In: (1) one armour slot, built the way the rules build it (general-rules.md "Customized Armor": Light or Heavy plus 2 points of Armor Properties, PD / AD Increase, PDR, EDR, and Heavy's Bulky / Rigid at -1), with the Armor Examples rows as presets, parsed not typed; it records the armour TYPE, which retires the name-match `is_unarmored` heuristic, and lacking Armor Training is flagged (DisADV on Attack and Spell Checks), not blocked; (2) one shield slot, the same shape from the Shield Table; (3) free "other item" rows carrying only the existing `EQUIP_EFFECT_KEYS` plus pdr/edr/mdr. Out, and staying out: weapons and attack lines (the Companion calc owns damage), a magic-item catalogue, attunement, inventory, encumbrance, currency. Acceptance: armour removes Patient Defense and Berserker Defense on the sheet (smoke journey), the six ledgers stay byte-identical (their hand-written equipment untouched), and any new field is asserted on the sheet (trap 3).
+
+**BUG-58. Talent level gates.** Noted twice (Monk, Hunter threads), filed now. A Monk's L2 talent picker offers Hunter's Strike and Spiritual Balance (Adept Multiclass, Requirement: Level 4, character-creation.md l.703-705) and Internal Damage / Pack Leader ("Level 3"), and picking one raises no catalog or builder problem. Related to FR-54 (which is about `requires` warning after the pick), but here nothing warns at all. Decide gate vs warn with FR-54.
+
+**BUG-59. Runes not sibling-distinct.** Rune Knight "You learn 2 Runes": the second picker still offers the first. The Hunter thread added `builder_api.DISTINCT_CHILD_SLOTS` for Concoctions; adding `rune` to it is the whole fix, but it removes Xanwyn's held rune from her other rune picker's options (state() only, sheet unchanged), so it was not slipped into the Hunter push.
+
+**FR-12 Rogue prerequisite (2026-09-27).** classes.md has no `#### Rogue Martial Path` block (Starting Equipment runs straight into Level 1 Class Features, like the Hunter's did). `catalog_build.parse_combat_training` will exit on the Rogue and it has no Stamina Regen row. Darryl to screenshot the Rogue Martial Path from the PDF at the start of the Rogue thread; catalog_verify (4) now derives the Martial Path class set from the rules, so the Rogue will be asserted as soon as its block exists.
 
 **FR-11. Gear catalog / picker (Tier B).** A curated list of the party's real items (weapons, armour, shields, focuses) so items are picked from a dropdown with properties auto-applied, instead of hand-typing effect fields. Pure convenience; would cut hand-entry transcription errors like the language ones. Parked for now; not required for any reconciliation (gear effects already work, see the Parked note on Tier A/C).
 
@@ -632,6 +640,7 @@ between one careful pass and several. Do CH-12 before them.
 
 ## Parked / out of scope
 
+- **Gear Tier B:** scoped and filed as FR-59 (2026-09-27).
 - **Gear Tier A (done):** the engine already reads structured effect fields off free-text equipment entries (item `pd`/`ad`/`saves`, and `pdr`/`edr`/`mdr` for DR). This is how PD/AD/saves/DR reconcile today. No work needed; adding an essential item = add an entry with its effect fields.
 - **Gear Tier C (out of scope):** full gear system, weapon attack-line derivation, attunement / magic-item slots, encumbrance, shopping. The "encode structure, not effects" line from ROADMAP.
 - **Full-auto round-trip (v2):** players self-committing exports. Deliberately parked; one person commits for now.

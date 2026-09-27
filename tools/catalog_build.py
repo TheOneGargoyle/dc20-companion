@@ -168,6 +168,63 @@ MONK_STANCES = {
 }
 
 
+# FR-12 Phase 3 Hunter: the 10 Favored Terrains (classes.md l.1769-1806), the Discipline child shape under
+# the class's own `domains` key like the Monk Stances. Only STANDING numbers are grants: Grassland's +1
+# Speed and Jump has no "while in the terrain" clause (the ADV / can't-be-Surprised rider at l.1804 is the
+# in-terrain part, and it is situational for all ten). Forest and Urban's 2 Skill Points are a grant PLUS a
+# restriction, `skill_restrict`, parsed from the rules line below (HUNTER_SKILL_TERRAINS), never typed.
+HUNTER_TERRAINS = {
+    "Coast": {"no_effect": "movement_mode", "note": "Swim Speed = Speed, no underwater DisADV on Weapon Attacks; hold breath twice as long; ADV on Awareness underwater"},
+    "Desert": {"no_effect": "resistance", "note": "Fire Resistance (Half); Resistance to Exhaustion from heat"},
+    "Forest": {"grants": {"skill_points": 2}, "note": "2 Skill Points on up to 2 of the listed Skills"},
+    "Grassland": {"grants": {"speed": 1, "jump": 1}, "note": "+1 Speed and Jump Distance (standing, not in-terrain)"},
+    "Jungle": {"no_effect": "resistance", "note": "ignore Difficult Terrain; Poisoned and Diseased Resistance"},
+    "Mountain": {"no_effect": "movement_mode", "note": "Climb Speed = Speed; Resistance to Exhaustion from altitude; Falling damage Resistance (Half)"},
+    "Swamp": {"no_effect": "resistance", "note": "Poison Resistance (Half), Poisoned and Diseased Resistance"},
+    "Tundra": {"no_effect": "resistance", "note": "Cold Resistance (Half); Resistance to Exhaustion from cold"},
+    "Subterranean": {"no_effect": "sense", "note": "Darkvision 10 Spaces (+5 if you have it); Tremorsense 3 Spaces (+2 if you have it)"},
+    "Urban": {"grants": {"skill_points": 2}, "note": "2 Skill Points on up to 2 of the listed Skills"},
+}
+HUNTER_SKILL_TERRAINS = ("Forest", "Urban")
+
+
+def parse_terrain_skills(section, terrain):
+    """FR-12 Phase 3 Hunter: the Skills a Forest / Urban grant may be spent on, read off the rules line
+    '- <Terrain>: You gain 2 Skill Points to use on up to 2 of the following Skills: A, B, C, and D.'"""
+    m = re.search(r"- %s: You gain 2 Skill Points to use on up to 2 of the following Skills: ([^.]*)\." % terrain,
+                  " ".join(section.split()))
+    if not m:
+        sys.exit(f"Could not parse the {terrain} Favored Terrain Skill list")
+    return [t for t in re.split(r",\s*(?:and\s+)?|\s+and\s+", " ".join(m.group(1).split())) if t]
+
+
+def parse_creature_types(section):
+    """FR-12 Phase 3 Hunter Bestiary: 'Starting Entries: Choose a Creature Type: A, B, ..., or Z.'"""
+    m = re.search(r"Starting Entries: Choose a Creature Type: ([^.]*)\.", section)
+    if not m:
+        sys.exit("Could not parse the Bestiary Creature Type list")
+    out = [t for t in re.split(r",\s*(?:or\s+)?|\s+or\s+", " ".join(m.group(1).split())) if t]
+    if len(out) < 10:
+        sys.exit(f"Bestiary Creature Types parsed short: {out}")
+    return out
+
+
+# FR-12 Phase 3 Hunter Monster Slayer: "You learn how to create 3 Concoctions of your choice from the list
+# below" (classes.md l.1910-1911), a grant-child list in the Rune Knight `runes: 2` shape. No recipe moves a
+# sheet number: every effect lasts 10 minutes after drinking, and Basilisk Eye's Physical Resistance (1)
+# and Divine Water's Radiant Resistance have no resistance surface on the sheet.
+HUNTER_CONCOCTIONS = {
+    "Elemental Infusion": {"no_effect": "situational", "note": "choose an Elemental type when made: +1 of it vs your Mark; Resistance (1) to it"},
+    "Hydra's Blood": {"no_effect": "situational", "note": "regain 1 HP on a Heavy Hit vs your Mark; Poisoned Resistance, 1 Poison to adjacent attackers"},
+    "Basilisk Eye": {"no_effect": "situational", "note": "Tremorsense 20 Spaces to locate your Mark; Physical Resistance (1)"},
+    "Ooze Gel": {"no_effect": "situational", "note": "Heavy Hit slimes your Mark (Hindered); squeeze through 2 inch gaps, walk on any surface"},
+    "Aberrant Tumor": {"no_effect": "situational", "note": "ADV on Analyze Creature and Mental Saves vs your Mark; Psychic Resistance (1), unreadable thoughts"},
+    "Deathweed": {"no_effect": "situational", "note": "Heavy Hit on your Mark bypasses PR, no HP regain; Umbral Resistance (Half), Doomed Immunity, ADV on Death Saves"},
+    "Plant Fibers": {"no_effect": "situational", "note": "a failed Save you force stops your Mark moving; Bleeding Immunity, 1 Temp HP each turn end"},
+    "Divine Water": {"no_effect": "situational", "note": "Heavy Hit makes your Mark Exposed; Radiant Resistance (Half), Bright Light 5 Spaces"},
+}
+
+
 # Warlock Pact Boon options (classes.md "Pact Boon ... Weapon, Armor, Spell, or Familiar").
 # Pact Weapon: "You learn 2 Attack Maneuvers of your choice"; Pact Armor: "You learn 2
 # Defensive Maneuvers of your choice" (+1 AD & MDR are conditional, worn-only - not a grant).
@@ -232,6 +289,9 @@ SUBCLASS_GRANTS = {
     # offers exactly Charm (the fallback pool is empty, a dev-channel question). `widens: false`: unlike
     # Eldritch / Witch, Enthrall grants no ongoing tag access. Jester has no number or pick.
     "Bard": {"Eloquence": {"grants": {"spells": 1}, "spell_access": {"tag": "Charmed", "widens": False}}},
+    # FR-12 Phase 3 Hunter: Monster Slayer learns 3 Concoctions (classes.md l.1910-1911), the Rune Knight shape.
+    # Trapper has no number or pick (Dynamic Traps count off the Prime Modifier at the table).
+    "Hunter": {"Monster Slayer": {"grants": {"concoctions": 3}}},
     "Spellblade": {"Rune Knight": {"grants": {"runes": 2}},
                    "Paladin": {"grants": {"disciplines": 1}, "prefer": {"disciplines": "Acolyte"}}},
 }
@@ -305,6 +365,15 @@ CLASS_CONFIG = {
         "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.2016-2306 + rules/tables.md l.112-125",
         "extras": {"domains": MONK_STANCES, "domain_label": "monk stance"},
         # Martial class like the Champion: no Spell List of its own, spells only via the Spellcaster Path
+        # first-time rider (character-creation.md l.753-756).
+        "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
+    },
+    "Hunter": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.1685-2036 + rules/tables.md l.97-110",
+        "extras": {"domains": HUNTER_TERRAINS, "domain_label": "favored terrain",
+                   "skill_terrains": HUNTER_SKILL_TERRAINS, "creature_types": True,
+                   "concoctions": HUNTER_CONCOCTIONS},
+        # Martial class like the Monk: no Spell List of its own, spells only via the Spellcaster Path
         # first-time rider (character-creation.md l.753-756).
         "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
     },
@@ -480,6 +549,15 @@ def build(cls):
         verify_names_present(section, extras["domains"], extras["domain_label"] + "(s)", cls)
         catalog["domain_label"] = extras["domain_label"]
         catalog["domains"] = [dict({"name": n}, **v) for n, v in extras["domains"].items()]
+        for row in catalog["domains"]:
+            if row["name"] in extras.get("skill_terrains", ()):
+                row["skill_restrict"] = parse_terrain_skills(section, row["name"])
+    if extras.get("creature_types"):
+        catalog["creature_types"] = parse_creature_types(section)
+    if "concoctions" in extras:
+        # FR-12 Phase 3 Hunter: Monster Slayer's recipes, the runes shape (names are the recipe headings)
+        verify_names_present(section, [n.replace("'", "\u2019") for n in extras["concoctions"]], "concoction(s)", cls)
+        catalog["concoctions"] = [dict({"name": n}, **v) for n, v in extras["concoctions"].items()]
     if "runes" in extras:
         # FR-8 slice 3: Rune Knight learns 2 Runes; same shape as disciplines/pact_boons so the
         # builder can look one up. Short names (ledger convention) appear in classes.md as "<X> Rune".

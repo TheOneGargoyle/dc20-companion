@@ -1346,10 +1346,10 @@ def check_slice2():
     print("## (13) FR-8 slice 2: grants -> typed child picker-slots backbone")
     # BUG-21 (2026-07-27) added `disciplines` (Paladin Lay on Hands grants one). maneuvers/spells stay
     # OFF this map by design: they use the flat pool, with their own constrained-child branches.
-    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills/trades/disciplines), excludes maneuvers/spells",
+    ok("GRANT_CHILD_SLOTS maps pickable grant resources (runes/metamagic/skills/trades/disciplines/concoctions), excludes maneuvers/spells",
        builder_api.GRANT_CHILD_SLOTS == {"runes": "rune", "metamagic": "metamagic",
                                          "skills": "skill", "trades": "trade",
-                                         "disciplines": "discipline"},
+                                         "disciplines": "discipline", "concoctions": "concoction"},
        builder_api.GRANT_CHILD_SLOTS)
 
     # No party ledger grants a pickable resource yet (rune/metamagic catalogs land in slices 3/4),
@@ -2031,8 +2031,11 @@ def check_fr6():
        corpus == src)
     ok("the 2.1MB corpus is NOT baked into the page any more (CH-11)",
        "const RULES_DATA = [" not in html and "const RULES_IDX = " in html)
-    ok("builder.html is under 700KB (it was 2,600,533 bytes at a842471)",
-       len(html.encode("utf-8")) < 700000, len(html.encode("utf-8")))
+    # FR-12 Phase 3 Hunter (2026-09-27): the cap moved 700KB -> 800KB. It guards against the 2.1MB corpus
+    # coming back (CH-11), not against class data: each class adds ~15-20KB (its catalog blob + API), and
+    # the Hunter took the page from 695,039 to ~717KB with one class (Rogue) still to come.
+    ok("builder.html is under 800KB (it was 2,600,533 bytes at a842471)",
+       len(html.encode("utf-8")) < 800000, len(html.encode("utf-8")))
     mi = re.search(r"const RULES_IDX = (\{.*?\});\n", html, re.S)
     ok("linkable index baked into builder.html (const RULES_IDX)", bool(mi))
     idx = json.loads(mi.group(1)) if mi else {"d": [], "m": []}
@@ -3436,7 +3439,9 @@ RT_FIXED = {"Berserker": "barbarian",
             "Remarkable Repertoire": "bard",   # FR-12 Phase 3: the base twin (the MC row is a talent)
             "Master-at-Arms": "champion",   # FR-12 Phase 3: likewise (MC Master-at-Arms is a talent)
             "Monk Training": "monk",        # FR-12 Phase 3: likewise (MC twin is a talent)
-            "Monk Stance": "monk"}
+            "Monk Stance": "monk",
+            "Favored Terrain": "hunter",    # FR-12 Phase 3: likewise (MC twin is a talent)
+            "Bestiary": "hunter"}           # FR-12 Phase 3: its creature_type node at L1
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3450,7 +3455,8 @@ RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Expert Bard": ("bard", 5),
                "Expert Champion": ("champion", 5),
                "Spiritual Balance": ("monk", 2),
-               "Expert Monk": ("monk", 5)}
+               "Expert Monk": ("monk", 5),
+               "Expert Hunter": ("hunter", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -5507,6 +5513,167 @@ def check_fr12_monk():
     ok("no Ki row without Spiritual Balance", "ki" not in json.loads(c.sheet())["derived"], None)
 
 
+
+def check_fr12_hunter():
+    """FR-12 Phase 3, class 12 of 13 (2026-09-27): the base Hunter under the section 6 rule. New shapes:
+    Favored Terrains as a labelled Discipline child list whose Forest / Urban rows carry RESTRICTED Skill
+    Points (`skill_restrict` -> granted_skill_pools -> the engine's Hall check); the Bestiary
+    `creature_type` node whose options a class catalog parses (options_from.class_list); Monster Slayer's
+    Concoctions, a new leaf grant-child slot kind (`concoction`) that is sibling-distinct and has its own
+    sheet group. Also: an MC child list now carries its OWN class's word and sheet group."""
+    print("\n## (55) FR-12 Phase 3: base Hunter (Favored Terrains, restricted Skill Points, Bestiary, Concoctions)")
+    import build_engine as be
+    import copy
+    a = _fresh_at("hunter", "Human")
+    cc = a.ccat
+    ok("hunter.yaml: no Spell List, Weapons / Light Armor / Light Shields, Monster Slayer Trapper Paragon, 10 terrains",
+       (cc.get("spellcasting") or {}).get("model") == "none"
+       and cc.get("combat_training") == ["Weapons", "Light Armor", "Light Shields"]
+       and cc.get("subclasses") == ["Monster Slayer", "Trapper", "Paragon"] and len(cc.get("domains") or []) == 10
+       and cc.get("domain_label") == "favored terrain", (cc.get("combat_training"), cc.get("subclasses")))
+    cf = a.ledger["chargen"]["class_choices"][0]
+    ok("L1 folds Hunter's Mark, Favored Terrain, Bestiary; grants 2 terrains",
+       cf.get("picks") == ["Hunter's Mark", "Favored Terrain", "Bestiary"] and cf.get("grants") == {"disciplines": 2},
+       (cf.get("picks"), cf.get("grants")))
+    s0 = st(a)
+    stt = _rt_stats(s0)
+    kids = [d for d in s0["decisions"] if str(d.get("id")).startswith("GC#cg:0#disciplines#")]
+    names = [r["name"] for r in cc["domains"]]
+    ok("Favored Terrain childs 2 pickers labelled favored terrain, offering the 10 terrains",
+       len(kids) == 2 and all(d["slot"] == "discipline" and d.get("slotlabel") == "favored terrain"
+                              and [o["name"] for o in d["options"]] == names for d in kids),
+       [(d["id"], d.get("slotlabel"), len(d["options"])) for d in kids])
+    node = [d for d in s0["decisions"] if d.get("choice_kind") == "creature_type"]
+    ok("Bestiary renders ONE creature type node offering the 14 parsed types (non-empty, trap 4)",
+       len(node) == 1 and [o["name"] for o in node[0]["options"]] == cc.get("creature_types")
+       and len(cc.get("creature_types") or []) == 14, [(d["id"], len(d["options"])) for d in node])
+    pts0 = s0["points"]["skills"]["avail"]
+    s1 = json.loads(a.set_decision(kids[0]["id"], "Grassland"))
+    ok("Grassland is a STANDING +1 Speed and Jump",
+       _rt_num(_rt_stats(s1)[be.LBL_MOVE]) == _rt_num(stt[be.LBL_MOVE]) + 1
+       and _rt_num(_rt_stats(s1)[be.LBL_JUMP]) == _rt_num(stt[be.LBL_JUMP]) + 1,
+       (stt[be.LBL_MOVE], _rt_stats(s1)[be.LBL_MOVE], stt[be.LBL_JUMP], _rt_stats(s1)[be.LBL_JUMP]))
+    k1 = [d for d in s1["decisions"] if d.get("id") == kids[1]["id"]][0]
+    ok("the second terrain picker no longer offers Grassland (sibling-distinct)",
+       "Grassland" not in {o["name"] for o in k1["options"]} and len(k1["options"]) == 9, len(k1["options"]))
+    a.set_decision(kids[0]["id"], "Forest")
+    s1 = json.loads(a.set_decision(kids[1]["id"], "Urban"))
+    ok("Forest + Urban add 4 Skill Points to the budget", s1["points"]["skills"]["avail"] == pts0 + 4,
+       (pts0, s1["points"]["skills"]))
+    ok("...and write their restrictions onto the parent (granted_skill_pools, 5 Skills each)",
+       [(p["from"], p["points"], len(p["skills"])) for p in cf.get("granted_skill_pools") or []]
+       == [("Forest", 2, 5), ("Urban", 2, 5)], cf.get("granted_skill_pools"))
+
+    def spend(ms, trades=None):
+        L = copy.deepcopy(a.ledger)
+        L.setdefault("skills", {})["masteries"] = {k: {"mastery": v} for k, v in ms.items()}
+        if trades:
+            L.setdefault("trades", {})["masteries"] = {k: {"mastery": v} for k, v in trades.items()}
+        return [p for p in be.replay(L, 1).problems if "may only be spent on" in p]
+    urb = {k: "Novice" for k in ("Influence", "Insight", "Investigation", "Intimidation", "Trickery")}
+    ok("a legal spend (all 9 points, 4 of them on the terrain Skills) reports no restriction problem",
+       spend(dict(urb, Athletics="Novice", Stealth="Novice", Awareness="Novice", Animal="Novice")) == [], None)
+    bad = spend(dict(urb, Athletics="Adept", Acrobatics="Novice"))
+    ok("8 points outside Forest's Skills (7 unrestricted) is flagged, naming Forest alone",
+       len(bad) == 1 and "from Forest may only" in bad[0] and "8 spent elsewhere, only 7" in bad[0], bad)
+    # 10 Novice Trades on 3 earned TP: a 7 TP deficit, 4 Skill Points converted, so 2 + 4 = 6 sit outside
+    # every terrain Skill against 9 - 4 = 5 unrestricted
+    bad = spend({"Athletics": "Novice", "Acrobatics": "Novice"},
+                {t: "Novice" for t in ("Alchemy", "Cooking", "Masonry", "Brewing", "Carpentry", "Vehicles",
+                                       "Cartography", "Weaving", "Tinkering", "Sculpting")})
+    ok("points converted to Trade Points count as spent outside the terrain Skills (Forest + Urban flagged)",
+       any("Forest + Urban" in p for p in bad), bad)
+    _pools = [{"from": "A", "points": 2, "skills": ["x", "y"]}, {"from": "B", "points": 2, "skills": ["y", "z"]}]
+    ok("the engine's Hall check passes overlapping pools that fit (x1 y1 z1 w2 of 6)",
+       be.skill_pool_shortfalls(_pools, {"x": 1, "y": 1, "z": 1, "w": 2}, 0, 6) == [], None)
+    ok("...and names the pool SET that is short when only their union is (w3)",
+       be.skill_pool_shortfalls(_pools, {"x": 1, "y": 1, "z": 1, "w": 3}, 0, 6) == [(["A", "B"], 3, 2)],
+       be.skill_pool_shortfalls(_pools, {"x": 1, "y": 1, "z": 1, "w": 3}, 0, 6))
+
+    a.set_decision(node[0]["id"], "Undead")
+    sh = json.loads(a.sheet())
+    grp = {g["label"]: [x["pick"] for x in g["items"]] for g in sh["ability_groups"]}
+    ok("the sheet heads a Favored Terrains group with both picks, and folds the type into Bestiary",
+       grp.get("Favored Terrains") == ["Forest", "Urban"]
+       and "Bestiary: Undead" in (grp.get("Class features") or [""])[0], grp)
+    ok("...and does not print Undead a second time as a Talent choice", "Undead" not in (grp.get("Talent choices") or []),
+       grp.get("Talent choices"))
+    ok("the sheet's Stamina Regen row is the Hunter's (restored Martial Path)",
+       [r["label"] for r in sh["stamina_regen"]] == ["Hunter"] and "Unseen creature" in sh["stamina_regen"][0]["text"],
+       sh["stamina_regen"])
+
+    for _ in range(5):
+        a.add_level()
+    s = st(a)
+    sub = [d for d in s["decisions"] if d["slot"] == "subclass"][0]
+    ok("L3 offers Monster Slayer, Trapper, Paragon",
+       [o["name"] for o in sub["options"]] == ["Monster Slayer", "Trapper", "Paragon"], [o["name"] for o in sub["options"]])
+    s = json.loads(a.set_decision(sub["id"], "Monster Slayer"))
+    ck = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#concoctions#" % sub["id"])]
+    recipes = [r["name"] for r in cc.get("concoctions") or []]
+    ok("Monster Slayer childs 3 concoction pickers offering the 8 recipes",
+       len(ck) == 3 and len(recipes) == 8 and all(d["slot"] == "concoction" and [o["name"] for o in d["options"]] == recipes
+                                                  for d in ck), [(d["id"], d["slot"], len(d["options"])) for d in ck])
+    s = json.loads(a.set_decision(ck[0]["id"], "Hydra's Blood"))
+    c1 = [d for d in s["decisions"] if d.get("id") == ck[1]["id"]][0]
+    ok("the second concoction picker no longer offers Hydra's Blood (sibling-distinct)",
+       "Hydra's Blood" not in {o["name"] for o in c1["options"]} and len(c1["options"]) == 7, len(c1["options"]))
+    a.set_decision(ck[1]["id"], "Basilisk Eye")
+    s = json.loads(a.set_decision(ck[2]["id"], "Deathweed"))
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 4][0]
+    ok("L4 talent offers the 3 Hunter class talents",
+       {"Expanded Terrains", "Pack Leader", "Big Game Hunter"} <= {o["name"] for o in tal["options"]}, tal["id"])
+    s = json.loads(a.set_decision(tal["id"], "Expanded Terrains"))
+    xt = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#disciplines#" % tal["id"])]
+    ok("Expanded Terrains childs 2 terrain pickers that offer neither held terrain",
+       len(xt) == 2 and all(not {"Forest", "Urban"} & {o["name"] for o in d["options"]} and len(d["options"]) == 8
+                            and d.get("slotlabel") == "favored terrain" for d in xt), [(d["id"], len(d["options"])) for d in xt])
+    a.set_decision(xt[0]["id"], "Grassland")
+    s = json.loads(a.set_decision(xt[1]["id"], "Subterranean"))
+    ex = [d for d in s["decisions"] if d.get("level") == 5 and "#disciplines#" in str(d.get("id"))]
+    ok("Expert Hunter childs 1 terrain picker that offers none of the 4 held",
+       len(ex) == 1 and not {"Forest", "Urban", "Grassland", "Subterranean"} & {o["name"] for o in ex[0]["options"]}
+       and len(ex[0]["options"]) == 6, [(d["id"], len(d["options"])) for d in ex])
+    s = json.loads(a.set_decision(ex[0]["id"], "Coast"))
+    sh = json.loads(a.sheet())
+    grp = {g["label"]: [x["pick"] for x in g["items"]] for g in sh["ability_groups"]}
+    ok("L6 sheet: 5 Favored Terrains, a Concoctions group of 3, Expert Hunter listed, catalog-legal",
+       grp.get("Favored Terrains") == ["Forest", "Urban", "Grassland", "Subterranean", "Coast"]
+       and grp.get("Concoctions") == ["Hydra's Blood", "Basilisk Eye", "Deathweed"]
+       and "Expert Hunter" in (grp.get("Class features") or []) and not s["catalog_problems"], (grp, s["catalog_problems"]))
+    b = builder_api.BuilderAPI(None, CATPATHS, ledger_text=a.export_yaml())
+    ok("terrains, pools, Bestiary and Concoctions round-trip export and reload",
+       json.loads(b.sheet()) == json.loads(a.sheet()), "sheet differs")
+    s = json.loads(a.set_decision(sub["id"], "Trapper"))
+    e3 = [e for e in a.ledger["levels"][3] if e.get("slot") == "subclass"][0]
+    ok("re-picking Trapper clears the Concoction pickers and picks",
+       not [d for d in s["decisions"] if d.get("slot") == "concoction"] and not e3.get("granted_concoctions"),
+       e3.get("granted_concoctions"))
+
+    # MC twins on a Monk (has its OWN child list, labelled monk stance)
+    c = _fresh_at("monk", "Human", levels=1)
+    s = st(c)
+    t2 = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 2][0]
+    ok("a Monk's L2 talent offers the Hunter MC features",
+       {"Hunter's Mark", "Favored Terrain", "Hunter's Strike"} <= {o["name"] for o in t2["options"]}, t2["id"])
+    m0 = _rt_num(_rt_stats(s)[be.LBL_MOVE])
+    s = json.loads(c.set_decision(str(t2["id"]), "Favored Terrain"))
+    mk = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#disciplines#" % t2["id"])]
+    ok("MC Favored Terrain childs 2 TERRAIN pickers labelled favored terrain (not monk stance)",
+       len(mk) == 2 and all([o["name"] for o in d["options"]] == names and d.get("slotlabel") == "favored terrain" for d in mk),
+       [(d["id"], d.get("slotlabel"), [o["name"] for o in d["options"]][:3]) for d in mk])
+    ok("BUG-57: their open pickers read 'favored terrain undecided' in the builder problems",
+       s["builder_problems"].count("builder: L2 favored terrain undecided") == 2
+       and "builder: L2 monk stance undecided" not in s["builder_problems"], s["builder_problems"])
+    c.set_decision(mk[0]["id"], "Grassland")
+    s = json.loads(c.set_decision(mk[1]["id"], "Forest"))
+    ok("MC Grassland moves the Monk's Speed by 1", _rt_num(_rt_stats(s)[be.LBL_MOVE]) == m0 + 1, (m0, _rt_stats(s)[be.LBL_MOVE]))
+    grp = {g["label"]: [x["pick"] for x in g["items"]] for g in json.loads(c.sheet())["ability_groups"]}
+    ok("the MC terrains head their own Favored Terrains sheet group, apart from the Monk Stances",
+       grp.get("Favored Terrains") == ["Grassland", "Forest"]
+       and not {"Grassland", "Forest"} & set(grp.get("Monk Stances") or []), grp)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -5555,7 +5722,7 @@ def main():
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
                     check_fr12_wizard, check_fr12_cleric, check_fr12_bard,
-                    check_fr12_champion, check_fr12_monk):
+                    check_fr12_champion, check_fr12_monk, check_fr12_hunter):
             run(_fn)
     finally:
         os.chdir(old)

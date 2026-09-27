@@ -195,6 +195,37 @@ classes:
         no_effect: situational
     6: []
 
+  Hunter:   # classes.md l.1685-2036 (FR-12 Phase 3)
+    1:
+      - name: Hunter's Mark   # classes.md l.1750-1768
+        no_effect: situational
+        note: "1 AP + 1 SP: mark a creature within 15 Spaces; ADV to find it, first Martial Attack each turn has ADV and ignores PDR, Heavy / Critical Hits grant a d8 Help Die"
+      - name: Favored Terrain   # classes.md l.1769-1806
+        grants: {disciplines: 2}
+        # "Choose 2 types of Favored Terrain": grant-children from hunter.yaml `domains` (the Monk Stance
+        # shape, labelled favored terrain). Grassland is a standing +1 Speed and Jump; Forest / Urban carry
+        # 2 Skill Points restricted to their 5 named Skills (skill_restrict, enforced by the engine).
+        note: "choose 2 Favored Terrains; in one, ADV on Stealth and Survival and you can't be Surprised"
+      - name: Bestiary   # classes.md l.1807-1822
+        flavor: true
+        # Starting Entries: "Choose a Creature Type", a node whose 14 options are DERIVED from hunter.yaml
+        # `creature_types` (parsed from this rules line). The sheet folds the answer ("Bestiary: Undead").
+        sub_choice: {kind: creature_type, label: creature type, options_from: {class_list: {class: hunter, key: creature_types}}}
+        note: "ADV on Checks to learn or recall information about creatures in your Bestiary"
+    2:
+      - name: Hunter's Strike   # classes.md l.1825-1848
+        no_effect: situational
+        note: "1 SP on a Weapon Attack: Acid (Hindered), Fire (Burning), Piercing (Bleeding), Snare (Immobilized) or Toxin (Impaired); +1 damage per extra SP"
+    3: []
+    4: []
+    5:
+      - name: Expert Hunter   # classes.md l.1879-1893
+        grants: {disciplines: 1}
+        # Favored Terrain: "You gain 1 additional Favored Terrain", a grant-child like Favored Terrain's two.
+        # The d10 Help Die, the Physical Resistance bypass and 2 Enhancements per Attack are situational.
+        note: "+1 Favored Terrain; Mark Help Die d10 and the first Martial Attack ignores Physical Resistance; 2 Hunter's Strike Enhancements per Attack"
+    6: []
+
   Monk:   # classes.md l.2016-2306 (FR-12 Phase 3)
     1:
       - name: Monk Training   # classes.md l.2073-2092

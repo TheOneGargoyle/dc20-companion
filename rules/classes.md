@@ -1721,6 +1721,27 @@ or Sculptor’s Tools.
 Adventuring Pack: Choose 1 of the following packs:
 (Adventuring Packs Coming Soon).
 
+#### Hunter Martial Path
+
+*(hand-restored 2026-09-27 from the 0.10.5 PDF, Darryl's screenshot: the extraction dropped this block)*
+
+Combat Training: Weapons, Light Armor, Light Shields
+Maneuvers: The number of Maneuvers you know increases
+as shown in the Maneuvers Known column of the Hunter
+Class Table.
+Stamina Points: Your maximum number of Stamina Points
+increases as shown in the Stamina Points column of the
+Hunter Class Table.
+Stamina Regen: Once per Round, you can regain up to half
+your maximum SP when:
+- When you Hit the target of your Hunter’s Mark with a
+Martial Attack.
+- The target of your Hunter’s Mark is reduced to 0 HP or
+dies.
+- You succeed on a Check to recall information about a
+creature.
+- You succeed on a Check to locate an Unseen creature.
+
 Hunter Class
 Features
 
