@@ -240,6 +240,13 @@ CLASS_CONFIG = {
         "extras": {},
         "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
     },
+    "Champion": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.518-713 + rules/tables.md l.37-50",
+        "extras": {},
+        # Martial class like the Commander and Barbarian: no Spell List of its own, spells only via the
+        # Spellcaster Path first-time rider (character-creation.md l.753-756).
+        "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
+    },
     "Druid": {
         "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.1270-1684 + rules/tables.md l.82-96",
         "extras": {},

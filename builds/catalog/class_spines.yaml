@@ -105,3 +105,14 @@ classes:
     8: {hp: 1, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
     9: {hp: 1, mp: 3, spells: 1, features: [Class Capstone]}
     10: {hp: 1, attr: 1, skill: 2, trade: 1, mp: 3, spells: 1, features: [Subclass Capstone]}
+  Champion:   # tables.md l.37-50 (classes.md l.529-542); numerically identical to the Commander and Barbarian tables
+    1: {hp: 8, sp: 2, man: 2, features: [Class Features]}
+    2: {hp: 2, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, sp: 1, man: 1, features: [Subclass]}
+    4: {hp: 2, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, man: 1, features: [Class Feature]}
+    6: {hp: 2, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, sp: 1, man: 1, features: [Subclass Expert]}
+    8: {hp: 2, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, sp: 1, man: 1, features: [Class Capstone]}
+    10: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, man: 1, features: [Subclass Capstone]}

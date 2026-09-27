@@ -172,6 +172,15 @@ def class_feature_unarmored(rows):
     return agg
 
 
+def child_maneuver_count(rows):
+    # FR-12 Phase 3 (Champion): the {maneuvers: N} a level's class features CHILD under themselves
+    # (`child_maneuvers: true`: Master-at-Arms "learn 1 Maneuver", Expert Champion "2 additional
+    # Maneuvers"), rendered as pickers under the feature instead of chained flat-pool ready slots.
+    # Opt-in per row, so an unflagged maneuver grant (Expert Warlock's per-boon rider) stays flat.
+    return sum(int((f.get('grants') or {}).get('maneuvers', 0) or 0)
+               for f in rows if f.get('child_maneuvers') and not f.get('choice'))
+
+
 UNARMORED_NOTE = ' Includes an unarmoured-only bonus (applies while no armour is worn).'
 
 
@@ -204,6 +213,9 @@ def blank_ledger(cls, ccat, cfcat=None):
         if gu:
             entry['grants_unarmored'] = gu
             entry['note'] += UNARMORED_NOTE
+        nm = child_maneuver_count(rows)   # FR-12 Phase 3: Champion Master-at-Arms
+        if nm:
+            entry['granted_maneuvers'] = [UNDECIDED] * nm
         cg.setdefault('class_choices', []).append(entry)
     sc = ccat.get('spellcasting') or {}
     if sc.get('model') == 'schools':
@@ -1279,6 +1291,21 @@ class BuilderAPI:
         return (list(t['mc_features']) + list(t['general'])
                 + list((t.get('class_talents') or {}).get(self.cls, [])))
 
+    def _child_maneuvers(self, parent):
+        # How many of THIS entry's {maneuvers: N} are grant-children under it (granted_maneuvers).
+        # A pact boon childs all of its own (2026-07-19). FR-12 Phase 3 (Champion): a class-feature
+        # entry childs only its `child_maneuvers` rows (child_maneuver_count), and a talent entry
+        # (the MC Master-at-Arms twin) childs its grant when its catalog def carries the flag. Every
+        # other {maneuvers: N} (Martial Expansion, Expert Warlock's rider) keeps the flat pool.
+        if parent.get('slot') in ('pact_boon', 'pact_boons'):
+            return int((parent.get('grants') or {}).get('maneuvers', 0) or 0)
+        if parent.get('slot') in CLASS_FEATURE_SLOTS:
+            return child_maneuver_count(self._class_feature_rows_of(parent))
+        nm = base_name(str(parent.get('pick') or parent.get('name') or ''))
+        defs = {t['name']: t for t in self._talent_rows() if t.get('child_maneuvers')}
+        hit = defs.get(nm) or (defs.get(nm.split(':', 1)[-1].strip()) if nm.startswith('MC ') else None)
+        return int((parent.get('grants') or {}).get('maneuvers', 0) or 0) if hit else 0
+
     def _any_list_defs(self):
         # catalog defs whose spell grant reaches ANY Spell List (`spell_access: {any: true}`); today
         # just MC Bard's Remarkable Repertoire / Magical Secrets. Data-driven, so a second one is a
@@ -1507,6 +1534,15 @@ class BuilderAPI:
         elif slot == 'maneuver':
             for x in cg.get('maneuvers') or []:
                 add(x)
+            # FR-12 Phase 3 Champion: a maneuver CHILDED under its feature (Maneuver Master, Expert
+            # Champion, a pact boon's, a Cleric domain's) is held too, so no other picker offers it again.
+            for c in cg.get('class_choices') or []:
+                for x in c.get('granted_maneuvers') or []:
+                    add(x)
+            for lvl in self.ledger.get('levels') or {}:
+                for e in self.ledger['levels'][lvl] or []:
+                    for x in e.get('granted_maneuvers') or []:
+                        add(x)
         elif slot == 'spell_school':
             for x in cg.get('spell_schools') or []:
                 add(x)
@@ -1955,6 +1991,20 @@ class BuilderAPI:
                 out.append('builder: L%d %d %s pick(s) undecided' % (lvl, m, word))
         return out
 
+    def _child_maneuvers_undecided(self, entry, lvl):
+        # FR-12 Phase 3 Champion: a maneuver childed under its feature (_child_maneuvers: Master-at-Arms,
+        # Expert Champion, the MC twin, and a pact boon's, which was never reported before) that is
+        # still open. The flat-pool count ('L1 maneuver pick(s) undecided') never saw these.
+        lst = entry.get('granted_maneuvers') or []
+        n = self._child_maneuvers(entry)
+        m = sum(1 for k in range(n) if k >= len(lst) or str(lst[k]) == UNDECIDED)
+        if not m:
+            return []
+        nm = (', '.join(r['name'] for r in self._class_feature_rows_of(entry) if r.get('child_maneuvers'))
+              if entry.get('slot') in CLASS_FEATURE_SLOTS
+              else base_name(str(entry.get('pick') or (entry.get('picks') or [''])[0] or '')))
+        return ['builder: L%d %d %s maneuver pick(s) undecided' % (lvl, m, nm)]
+
     def builder_problems(self):
         probs = []
         cg = self.ledger['chargen']
@@ -1984,6 +2034,7 @@ class BuilderAPI:
                 for _k in range(self._any_list_spells(c)):
                     if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                         probs.append('builder: L1 spell (any list) undecided')
+            probs.extend(self._child_maneuvers_undecided(c, 1))   # FR-12 Phase 3 Champion
             probs.extend(self._domain_undecided(c, 1))   # FR-12 Phase 3
         for t in cg.get('ancestry_traits') or []:
             if str(t.get('name')) == UNDECIDED:
@@ -2006,6 +2057,7 @@ class BuilderAPI:
                     for _k in range(_n):
                         if _k >= len(_lst) or str(_lst[_k]) == UNDECIDED:
                             probs.append('builder: L%d %s undecided' % (lvl, self._slot_word(_sing)))
+                probs.extend(self._child_maneuvers_undecided(e, lvl))   # FR-12 Phase 3 Champion
                 probs.extend(self._domain_undecided(e, lvl))   # FR-12 Phase 3
                 if self._spell_grant_tag(e):   # FR-8 slice 5 constrained spell grant-child
                     _n = int((e.get('grants') or {}).get('spells', 0) or 0)
@@ -2603,8 +2655,8 @@ class BuilderAPI:
         # granted_maneuvers, re-picking the boon rebuilds them via _apply_grants), NOT read-only
         # rows and NOT flat-pool dups. Gated to pact-boon parents so a CHOICE grant that uses the
         # flat pool (Martial Expansion {maneuvers:2}, MC Bard {spells:2}) is untouched.
-        if parent.get('slot') in ('pact_boon', 'pact_boons'):
-            n = int(grants.get('maneuvers', 0) or 0)
+        n = self._child_maneuvers(parent)   # FR-12 Phase 3: + Champion class features / MC twin
+        if n > 0:
             lst = parent.get('granted_maneuvers') or []
             # the boon constrains the maneuver TYPE (Pact Weapon = Attack, Pact Armor = Defense,
             # classes.md l.3244/3269), sourced from the catalog boon's maneuver_type. Each option
@@ -2670,8 +2722,8 @@ class BuilderAPI:
         # grants-only (2026-07-19): a pact boon's "N Maneuvers of your choice" are editable
         # grant-children in granted_maneuvers, so resize that list like a child resource (the
         # other {maneuvers:N} grant, Martial Expansion, uses the flat pool and is not a pact_boon).
-        if entry.get('slot') in ('pact_boon', 'pact_boons'):
-            n = int(grants.get('maneuvers', 0) or 0)
+        if entry.get('slot') in ('pact_boon', 'pact_boons') or self._child_maneuvers(entry):
+            n = self._child_maneuvers(entry)   # FR-12 Phase 3: + Champion class features / MC twin
             if n <= 0:
                 entry.pop('granted_maneuvers', None)
             else:
@@ -3611,6 +3663,9 @@ class BuilderAPI:
                         if gu:
                             d['grants_unarmored'] = gu
                             d['note'] += UNARMORED_NOTE
+                        nm = child_maneuver_count([fr])   # FR-12 Phase 3: Expert Champion
+                        if nm:
+                            d['granted_maneuvers'] = [UNDECIDED] * nm
                         add(d)
                 else:
                     add({'slot': 'class_feature', 'pick': f,

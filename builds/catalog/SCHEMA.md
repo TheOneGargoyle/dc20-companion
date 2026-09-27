@@ -110,10 +110,21 @@ resource deltas without the engine special-casing it (e.g. Magus = +1 MP, +1 spe
 - **source** (Druid): legal pick = on the class's Source list (`spell_sources.yaml`), plus any
   explicit grant slots (Scaletrix: 2 Arcane spells via Innate Power Intuitive Magic + 1 via
   Fiendish Magic).
-- **none** (Commander, Barbarian): no class Spell List; the Spellcaster Path first-time rider
+- **none** (Commander, Barbarian, Champion): no class Spell List; the Spellcaster Path first-time rider
   grants "a Spell List of their choice from any Class" (character-creation.md), and MC Bard
   Magical Secrets is any-list. The choice isn't recorded on the sheets, so the verifier checks
   existence + consistency only.
+
+## Childed maneuvers (`child_maneuvers: true`)
+
+A `class_features.yaml` row or a `talents.yaml` row (the mc_features twin) with `grants: {maneuvers: N}`
+and `child_maneuvers: true` renders its N maneuvers as pickers UNDER the feature
+(`granted_maneuvers`), not as chained flat-pool ready slots. Champion Master-at-Arms (1, folded
+into the L1 class-features entry) and Expert Champion (2) use it. It is opt-in per row, so an
+unflagged maneuver grant (Martial Expansion, Expert Warlock's per-boon rider) stays on the flat
+pool. Pact boons child their maneuvers without the flag. A childed pick counts as held, so no
+other picker offers it again. catalog_verify asserts both twins carry the flag and that the counts
+match the rules text.
 
 ## `ancestries.yaml` (curated)
 

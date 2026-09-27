@@ -54,6 +54,11 @@ class_talents:
        grants: {spells: 2, skill_points: 2}, spell_access: {any: true},
        note: "+2 SP, 2 spells from ANY Spell List, and both Magical Expression manners"}
     - {name: Helping Hands, requires: "Font of Inspiration, Level 3", no_effect: situational}
+  Champion:
+    # character-creation.md l.401-413. Both are situational: Champion's Resolve rides a Tactical Die use,
+    # Disciplined Combatant buys Combat Readiness for 2 SP and lifts Second Wind's Bloodied condition.
+    - {name: Champion's Resolve, requires: "Adaptive Tactics, Level 3", no_effect: situational}
+    - {name: Disciplined Combatant, requires: "Fighting Spirit, Level 3", no_effect: situational}
   Cleric:
     # character-creation.md l.415-441. Expanded Order: "You gain 2 additional Divine Domains. You can't
     # choose the same option more than once" -> 2 domain grant-children (Magic stays repeatable, its own
@@ -118,7 +123,16 @@ mc_features:   # class features the six ledgers reach via Multiclass talents (ru
      sub_choice: {kind: school_magic, label: spell school,
                   options_from: {source_schools: Arcane}, child_spells: {source: Arcane}},
      note: "School Magic: 2 Arcane spells from the chosen school; Signature School rider"}
+  - {name: Master-at-Arms, class: Champion, feature_level: 1, via: Novice Multiclass,
+     grants: {maneuvers: 1}, child_maneuvers: true,
+     # FR-12 Phase 3: base-class twin in class_features.yaml Champion L1. Maneuver Master's "learn 1
+     # Maneuver of your choice" is childed under the feature as one maneuver picker.
+     note: "Maneuver Master: learn 1 Maneuver, once per Round -1 SP on a Maneuver; Weapon Master free swap"}
+  - {name: Fighting Spirit, class: Champion, feature_level: 1, via: Novice Multiclass, no_effect: situational,
+     note: "Combat Readiness (Fortify or Advance); Second Wind 2 HP and 2 SP"}
   - {name: Life Tap, class: Warlock, feature_level: 2, via: Adept Multiclass, no_effect: situational}
+  - {name: Adaptive Tactics, class: Champion, feature_level: 2, via: Adept Multiclass, no_effect: situational,
+     note: "d8 Tactical Die: Assault or Deflect"}
   - {name: Meta Magic, class: Sorcerer, feature_level: 2, via: Adept Multiclass,
      grants: {metamagic: 2},
      note: "gain 2 unique Spell Enhancements from the Meta Magic list (classes.md l.2618-2639); the 2 metamagic child-slots flow via the FR-8 slice-2 backbone, options in metamagic.yaml"}

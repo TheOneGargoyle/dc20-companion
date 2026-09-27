@@ -23,7 +23,9 @@ Single home for **app / tooling** work (the builder, the Companion, the engine).
 
 | ID | Title | Type | Area | Pri | Status |
 |----|-------|------|------|-----|--------|
-| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 9 of 13 classes, Bard 2026-09-26; `FR12_PLAN.md` Phase 3-4) |
+| FR-12 | Add full DC20 class + ancestry data coverage | feature | engine+catalog+builder | P2 | IN PROGRESS (Phase 3: 10 of 13 classes, Champion 2026-09-27; `FR12_PLAN.md` Phase 3-4) |
+| FR-57 | MC twins for the walked classes that have none (Commander, Barbarian, Cleric, Druid, Spellblade, Wizard L2), so any class can be multiclassed into | feature | catalog+builder | P2 | ready (filed 2026-09-27 with the Champion, see note) |
+| BUG-56 | A spell childed under a feature is not "held", so the flat spell pickers re-offer it (maneuvers fixed with the Champion) | bug | builder | P3 | ready (filed 2026-09-27, see note) |
 | FR-13 | Live spell & maneuver legality (school/type filtering) | feature | engine+builder | P3 | PLANNED (maneuver half done 2026-07-19; spell half = FR-13a; `FR12_PLAN.md` Phase 2) |
 | FR-33 | Rules > Ancestries: split the one big page / add dividers | feature | companion | P3 | ready |
 | FR-34 | Rules > Character Creation > Class Talents: merge the many tiny pages | feature | companion | P3 | ready |
@@ -159,6 +161,8 @@ Barbarian): it is a display gap, not a stat error, and fixing it edits five cano
 
 ## Bugs
 
+**BUG-56. Childed spells are not held.** `_chosen_names('spell')` reads the flat spell lists only, so a spell in a `granted_spells` list (Magical Secrets, Innate Power, Eldritch, SSI, Enthrall) is still offered by every flat picker and can be taken twice. The maneuver half was fixed with the Champion (2026-09-27): `granted_maneuvers` now counts as held, which moved only Runt's option lists. The same edit for spells moves Bonan's and Scaletrix's `state()`, so snapshot both and report the delta.
+
 **BUG-20. DONE 2026-09-23** with FR-39, BUG-49 and BUG-55, see the 2026-09-23 Expertise batch note and `BACKLOG_DONE.md`.
 
 ---
@@ -166,6 +170,8 @@ Barbarian): it is a display gap, not a stat error, and fixing it edits five cano
 ## Features
 
 **FR-4. Rename a char / file: the handle/file half.** The display-name slice is DONE and PUSHED 2026-07-18 (origin `7676679`, live-verified; Darryl's call was to pull the trivial display-only part out and leave the rest parked). The canon metacard now renders a slim name-only rename card wired to `set_meta('character', ...)` through `refresh()`, so a rename marks the build dirty and raises the existing "EDITING CANON" warning bar; nothing saves until export. Deliberately NOT the full meta card, ancestry pickers stay scratch-only. Handle and `?char=` deep link are unchanged and the export filename slug follows the new display name. Harness section **(26)**. **Still open, and still needs the scope call first:** display-only vs handle/file vs both. The handle rename is the coordinated one: the id appears in the companion-key -> builder-handle map, the yaml filename, `PARTY_LEDGERS`/`CHARS`, localStorage keys and `?char=` deep links.
+
+**FR-57. MC twins for every walked class.** The talent picker offers a Multiclass feature only if `talents.yaml` `mc_features` has it, and that list only held the features the six ledgers reach. So MC Commander, Barbarian and Cleric (and the Druid, Spellblade and Wizard L2 features) cannot be built. The Champion (2026-09-27) added its three twins (Master-at-Arms, Fighting Spirit, Adaptive Tactics). Per class: one row per L1 feature (Novice) and per L2 feature (Adept), agreeing with `class_features.yaml`. catalog_verify FR12-3's twin check covers each row it adds. Cleric Order is the hard one: the domain child pool is class-scoped.
 
 **FR-11. Gear catalog / picker (Tier B).** A curated list of the party's real items (weapons, armour, shields, focuses) so items are picked from a dropdown with properties auto-applied, instead of hand-typing effect fields. Pure convenience; would cut hand-entry transcription errors like the language ones. Parked for now; not required for any reconciliation (gear effects already work, see the Parked note on Tier A/C).
 

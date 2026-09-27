@@ -318,6 +318,16 @@ def drive_fresh(cls):
         if str(d.get("id")).startswith("GC#cg:") and "#spells#" in str(d["id"]):
             k = int(d["id"].rsplit("#", 1)[1])
             api.set_decision(d["id"], d["options"][-1 - k]["name"])
+    # FR-12 Phase 3 Champion: maneuvers childed under a chargen feature (Maneuver Master, a pact boon's).
+    # The pact boon's were never filled here; the fresh Warlock read clean only because an open childed
+    # maneuver raised no problem until this class. Re-read per pick: the options hide held maneuvers.
+    while True:
+        s = st(api)
+        d = next((d for d in s["decisions"] if str(d.get("id")).startswith("GC#cg:")
+                  and "#maneuvers#" in str(d["id"]) and str(d.get("pick")) == "(undecided)"), None)
+        if d is None:
+            break
+        api.set_decision(d["id"], d["options"][0]["name"])
     # spells and maneuvers: first legal option per slot
     s = st(api)
     for d in s["decisions"]:
@@ -3420,7 +3430,8 @@ RT_FIXED = {"Berserker": "barbarian",
             "Innate Power": "sorcerer",
             "Spell School Initiate": "wizard",
             "Cleric Order": "cleric",
-            "Remarkable Repertoire": "bard"}   # FR-12 Phase 3: the base twin (the MC row is a talent)
+            "Remarkable Repertoire": "bard",   # FR-12 Phase 3: the base twin (the MC row is a talent)
+            "Master-at-Arms": "champion"}   # FR-12 Phase 3: likewise (MC Master-at-Arms is a talent)
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3431,7 +3442,8 @@ RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Expert Sorcerer": ("sorcerer", 5),
                "Expert Wizard": ("wizard", 5),
                "Expert Cleric": ("cleric", 5),
-               "Expert Bard": ("bard", 5)}
+               "Expert Bard": ("bard", 5),
+               "Expert Champion": ("champion", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -5224,6 +5236,111 @@ def check_fr12_bard():
        {"Command", "Charm", "Frost Bolt"} <= set(bsh), bsh)
 
 
+def check_fr12_champion():
+    """FR-12 Phase 3, class 10 of 13 (2026-09-27): the base Champion, the first martial under the
+    section 6 rule. New shape: maneuvers CHILDED under a class feature (`child_maneuvers`: Maneuver
+    Master's 1 at L1, folded into the class-features row; Expert Champion's 2 at L5) and under the MC
+    Master-at-Arms twin, instead of chained flat-pool ready slots. Also: a childed maneuver that is
+    still open is now a builder problem (a pact boon's never was). Everything else is situational."""
+    print("\n## (53) FR-12 Phase 3: base Champion (childed maneuvers, MC twins)")
+    a = _fresh_at("champion", "Human")
+    cc = a.ccat
+    ok("champion.yaml: no Spell List, Weapons / All Armor / All Shields, Hero Sentinel Paragon",
+       (cc.get("spellcasting") or {}).get("model") == "none"
+       and cc.get("combat_training") == ["Weapons", "All Armor", "All Shields"]
+       and cc.get("subclasses") == ["Hero", "Sentinel", "Paragon"],
+       (cc.get("spellcasting"), cc.get("combat_training"), cc.get("subclasses")))
+    allman = {m for lst in a.cat["maneuvers"]["maneuvers"].values() for m in lst}
+    s0 = st(a)
+    cf = a.ledger["chargen"]["class_choices"][0]
+    ok("L1 class features: Master-at-Arms, Fighting Spirit, Know Your Enemy; only Maneuver Master's +1 granted",
+       cf.get("picks") == ["Master-at-Arms", "Fighting Spirit", "Know Your Enemy"]
+       and cf.get("grants") == {"maneuvers": 1}, (cf.get("picks"), cf.get("grants")))
+    kids = [d for d in s0["decisions"] if str(d.get("id")).startswith("GC#cg:0#maneuvers#")]
+    ok("Maneuver Master childs 1 maneuver picker under the L1 row, offering every maneuver (non-empty)",
+       len(kids) == 1 and kids[0]["slot"] == "maneuver" and len(allman) > 20
+       and {o["name"] for o in kids[0]["options"]} == allman,
+       [(d["id"], d["slot"], len(d["options"])) for d in kids])
+    flat = [d for d in s0["decisions"] if str(d.get("id")).startswith("cg:man:")]
+    ok("L1 = 2 flat table pickers + the child, budget 3, and no chained ready slot",
+       len(flat) == 2 and s0["man_budget"] == 3 and not any(str(d["id"]).endswith(":man:+") for d in flat),
+       ([d["id"] for d in flat], s0["man_budget"]))
+    ok("the open child is reported by name", "builder: L1 1 Master-at-Arms maneuver pick(s) undecided"
+       in s0["builder_problems"], s0["builder_problems"])
+    s1 = json.loads(a.set_decision(kids[0]["id"], "Parry"))
+    ok("picking it fills the budget's share and closes its problem",
+       s1["man_have"] == 1 and "Master-at-Arms maneuver" not in " ".join(s1["builder_problems"]),
+       (s1["man_have"], s1["builder_problems"]))
+    fm = [d for d in s1["decisions"] if d.get("id") == "cg:man:0"][0]
+    ok("...and the flat pickers stop offering it (a childed pick is held; it never was)",
+       "Parry" not in {o["name"] for o in fm["options"]} and len(fm["options"]) == len(allman) - 1, len(fm["options"]))
+    sheet_man = lambda api: [x["pick"] for g in json.loads(api.sheet())["ability_groups"]
+                             if g["label"] == "Maneuvers" for x in g["items"]]
+    ok("the sheet's Maneuvers group lists the childed pick", "Parry" in sheet_man(a), sheet_man(a))
+
+    for _ in range(4):
+        a.add_level()
+    s = st(a)
+    l2 = [d["pick"] for d in s["decisions"] if d.get("level") == 2 and d["slot"] == "class_feature"]
+    ok("L2 names Adaptive Tactics", l2 == ["Adaptive Tactics"], l2)
+    sub = [d for d in s["decisions"] if d["slot"] == "subclass"][0]
+    ok("L3 offers Hero, Sentinel, Paragon", [o["name"] for o in sub["options"]] == ["Hero", "Sentinel", "Paragon"],
+       [o["name"] for o in sub["options"]])
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 4][0]
+    ok("L4 talent offers Champion's Resolve and Disciplined Combatant",
+       {"Champion's Resolve", "Disciplined Combatant"} <= {o["name"] for o in tal["options"]}, tal["id"])
+    ex = [d for d in s["decisions"] if d.get("level") == 5 and str(d.get("id")).startswith("GC#L5:")]
+    exp = [d for d in s["decisions"] if d.get("level") == 5 and d.get("pick") == "Expert Champion"]
+    ok("Expert Champion childs 2 maneuver pickers at L5, beside the table's 1 flat picker",
+       len(exp) == 1 and len(ex) == 2 and all(d["slot"] == "maneuver" and str(d["id"]).startswith("GC#%s#maneuvers#" % exp[0]["id"]) for d in ex)
+       and len([d for d in s["decisions"] if d.get("level") == 5 and d["slot"] == "maneuver" and not str(d["id"]).startswith("GC#")]) == 1,
+       [(d["id"], d["slot"]) for d in s["decisions"] if d.get("level") == 5])
+    ok("L5 Maneuvers known = 7 (2 table + 1 Maneuver Master, +1 L3, +1 L5, +2 Expert)",
+       s["man_budget"] == 7 and _rt_num(_rt_stats(s)["Maneuvers known"]) == 7, (s["man_budget"], _rt_stats(s)["Maneuvers known"]))
+    ok("...its 2 open children are reported", "builder: L5 2 Expert Champion maneuver pick(s) undecided"
+       in s["builder_problems"], s["builder_problems"])
+    ok("...and no L5 ready slot chains on top of them", not any(str(d.get("id")) == "L5:man:+" for d in s["decisions"]),
+       [d["id"] for d in s["decisions"] if d.get("level") == 5])
+    ok("the Expert pickers offer real maneuvers (Cleave, Brace) and not the held Parry",
+       all({"Cleave", "Brace"} <= {o["name"] for o in d["options"]} and "Parry" not in {o["name"] for o in d["options"]}
+           for d in ex), [len(d["options"]) for d in ex])
+    a.set_decision(ex[0]["id"], "Cleave")
+    s = json.loads(a.set_decision(ex[1]["id"], "Brace"))
+    ok("both Expert picks land on the sheet, catalog-legal, and close the problem",
+       {"Cleave", "Brace"} <= set(sheet_man(a)) and not s["catalog_problems"]
+       and "Expert Champion maneuver" not in " ".join(s["builder_problems"]),
+       (sheet_man(a), s["catalog_problems"], s["builder_problems"]))
+    txt = a.export_yaml()
+    b = builder_api.BuilderAPI(None, CATPATHS, ledger_text=txt)
+    ok("the childed picks round-trip export and reload", sheet_man(b) == sheet_man(a), (sheet_man(a), sheet_man(b)))
+
+    # the MC twin on another martial: Novice Multiclass reaches Master-at-Arms
+    c = _fresh_at("commander", "Human", levels=1)
+    s = st(c)
+    t2 = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 2][0]
+    names = {o["name"] for o in t2["options"]}
+    ok("a Commander's L2 talent offers the 3 Champion MC features",
+       {"Master-at-Arms", "Fighting Spirit", "Adaptive Tactics"} <= names, sorted(names)[:8])
+    b0 = s["man_budget"]
+    s = json.loads(c.set_decision(str(t2["id"]), "Master-at-Arms"))
+    mk = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#maneuvers#" % t2["id"])]
+    ok("MC Master-at-Arms childs 1 maneuver picker and adds 1 to the budget",
+       len(mk) == 1 and mk[0]["slot"] == "maneuver" and s["man_budget"] == b0 + 1, ([d["id"] for d in mk], b0, s["man_budget"]))
+    s = json.loads(c.set_decision(str(t2["id"]), "Fighting Spirit"))
+    ok("re-picking Fighting Spirit drops the child and the budget", s["man_budget"] == b0
+       and not [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#maneuvers#" % t2["id"])], s["man_budget"])
+
+    # the pact boon now reports an open maneuver too (it never did)
+    w = _fresh_at("warlock", "Human")
+    ws = st(w)
+    pb = [d for d in ws["decisions"] if d["slot"] in ("pact_boon", "pact_boons")]
+    ws = json.loads(w.set_decision(str(pb[0]["id"]), "Pact Weapon")) if pb else ws
+    pk = [d for d in ws["decisions"] if "#maneuvers#" in str(d.get("id"))]
+    ok("a Warlock's open Pact Weapon maneuvers are reported (%d)" % len(pk),
+       pb and pk and ("builder: L1 %d Pact Weapon maneuver pick(s) undecided" % len(pk)) in ws["builder_problems"],
+       (bool(pb), len(pk), ws["builder_problems"]))
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -5271,7 +5388,8 @@ def main():
                     check_bug46_expanded_boon, check_fr50_export_fixed_point,
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
-                    check_fr12_wizard, check_fr12_cleric, check_fr12_bard):
+                    check_fr12_wizard, check_fr12_cleric, check_fr12_bard,
+                    check_fr12_champion):
             run(_fn)
     finally:
         os.chdir(old)

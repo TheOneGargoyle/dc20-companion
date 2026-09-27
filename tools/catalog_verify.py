@@ -1404,6 +1404,9 @@ for _t in talents_cat["mc_features"]:
     # Magical Secrets is any-list on both); the grants check alone let one twin lose `spell_access`
     expect((_t.get("spell_access") or {}) == (_twin.get("spell_access") or {}),
            f"{_t['name']}: MC spell_access {_t.get('spell_access')} != class feature {_twin.get('spell_access')}")
+    # FR-12 Phase 3 Champion: and on whether their maneuvers are childed under the feature
+    expect(bool(_t.get("child_maneuvers")) == bool(_twin.get("child_maneuvers")),
+           f"{_t['name']}: child_maneuvers on one twin only")
     _a, _b = _t.get("sub_choice"), _twin.get("sub_choice")
     expect(bool(_a) == bool(_b), f"{_t['name']}: sub_choice on one twin only")
     if _a and _b:
@@ -1416,6 +1419,19 @@ for _t in talents_cat["mc_features"]:
                and bool(_a.get("options") or _a.get("options_from")),
                f"{_t['name']}: MC and base-class sub_choice options disagree")
 expect(_twins > 0, "no MC-feature twin was compared (trap 4)")
+# FR-12 Phase 3 Champion: the childed maneuver counts come from the rules text, not from memory.
+# Maneuver Master "You learn 1 Maneuver of your choice"; Expert Champion "You learn 2 additional
+# Maneuvers of your choice". Every child_maneuvers row must be one of these, and both must be found.
+_champ = _classes_md[_classes_md.index("\n### Champion\n"):_classes_md.index("\n### Cleric\n")]
+_cm_rules = {"Master-at-Arms": re.search(r"Maneuver Master: You learn (\d+) Maneuver", _champ),
+             "Expert Champion": re.search(r"Master-at-Arms\nYou learn (\d+) additional Maneuvers", _champ)}
+_cm_rows = [(c, lv, r) for c, lvs in _cfc.items() for lv, rs in (lvs or {}).items()
+            for r in rs or [] if r.get("child_maneuvers")]
+expect(len(_cm_rows) == 2, f"expected 2 child_maneuvers class-feature rows, found {len(_cm_rows)} (trap 4)")
+for _c, _lv, _r in _cm_rows:
+    _m = _cm_rules.get(_r["name"])
+    expect(_m is not None and int(_m.group(1)) == int((_r.get("grants") or {}).get("maneuvers", 0)),
+           f"{_c} {_r['name']}: grants {_r.get('grants')} vs rules {_m.group(0) if _m else 'no Maneuvers line'}")
 # FR-12 Phase 3: every school_magic node (Spell School Initiate twins, Expanded Spell School) derives
 # its options from a real spell_sources.yaml block, childs to a real Source, and its row grants the
 # spell count the rules print ("You learn 2 Arcane Spells from this Spell School").

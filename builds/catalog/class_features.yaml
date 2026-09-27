@@ -90,6 +90,37 @@ classes:
         note: "+2 SP and 2 any-list spells (Remarkable Repertoire); Help Die d10; free performance change, +2 MP improved performances"
     6: []
 
+  Champion:   # classes.md l.518-713 (FR-12 Phase 3)
+    1:
+      - name: Master-at-Arms   # classes.md l.574-582
+        grants: {maneuvers: 1}
+        child_maneuvers: true
+        # Maneuver Master: "You learn 1 Maneuver of your choice", any type, childed under the feature as
+        # one maneuver picker (child_maneuvers). The base-class twin of talents.yaml mc_features
+        # Master-at-Arms (catalog_verify asserts the two agree). Weapon Master and the once-per-Round
+        # SP reduction have no stat surface.
+        note: "Maneuver Master: learn 1 Maneuver, once per Round -1 SP on a Maneuver; Weapon Master: free weapon swap at the start of your turn"
+      - name: Fighting Spirit   # classes.md l.583-595
+        note: "Combat Readiness at the start of each combat (Fortify: Dodge + ADV on next Save; Advance: Move + ADV on next Martial Attack or Physical Check); Second Wind: once per Combat, start your turn Bloodied, regain 2 HP and 2 SP"
+        no_effect: situational
+      - name: Know Your Enemy   # classes.md l.596-611
+        flavor: true
+        note: "1 minute (or 1 AP in Combat), DC 10 Knowledge or Insight: compare one of Might, Agility, PD, AD, HP with yours"
+    2:
+      - name: Adaptive Tactics   # classes.md l.614-622
+        note: "d8 Tactical Die on Initiative and at the end of each turn: Assault (add to a Martial Attack) or Deflect (subtract from an Attack against you)"
+        no_effect: situational
+    3: []
+    4: []
+    5:
+      - name: Expert Champion   # classes.md l.654-664
+        grants: {maneuvers: 2}
+        child_maneuvers: true
+        # "Master-at-Arms: You learn 2 additional Maneuvers of your choice", childed under this feature
+        # as two maneuver pickers like Maneuver Master's one.
+        note: "+2 Maneuvers (Master-at-Arms); Second Wind regains 4 HP and 4 SP; Tactical Die d10"
+    6: []
+
   Cleric:   # classes.md l.714-1005 (FR-12 Phase 3)
     1:
       - name: Cleric Order   # classes.md l.777-795

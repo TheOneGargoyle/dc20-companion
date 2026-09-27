@@ -285,6 +285,20 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 
 ## Chores
 
+**FR-12 Phase 3, class 10: Champion (2026-09-27).** Base class L1-L6, Hero, Sentinel, Paragon (no subclass numbers or picks), and 3 MC twins.
+- Data: spine (numerically identical to Commander and Barbarian on all 10 rows; the starter's "differs" was wrong, only Barbarian's L5 label differs), `catalog/champion.yaml` (generated; model none; Weapons, All Armor, All Shields parsed unchanged), `class_features.yaml` Champion L1-L6, `talents.yaml` Champion class talents (both situational) and mc_features Master-at-Arms, Fighting Spirit, Adaptive Tactics.
+- **Design (agreed with Darryl):** Maneuver Master's 1 and Expert Champion's 2 are childed pickers under the feature (`child_maneuvers`), not flat pool. Combat Readiness, Second Wind, Tactical Die, Weapon Master are `situational` with their numbers in the notes. MC twins added now, the rest filed as FR-57.
+- **Code findings (7):**
+  1. maneuver children were gated to pact boons: `_child_maneuvers(parent)` (pact boon, flagged class-feature rows, flagged talent defs) drives the pickers and `_apply_grants`;
+  2. a class feature's childed list was never born: `blank_ledger` and level-up now seed `granted_maneuvers` (without it the flat ready slot also opened);
+  3. an open childed maneuver raised no builder problem, **a pact boon's included** (`_child_maneuvers_undecided`);
+  4. **a childed maneuver was not "held"**, so every other picker re-offered it: `_chosen_names('maneuver')` reads `granted_maneuvers` (spell half filed as BUG-56);
+  5. catalog_verify's twin check ignored `child_maneuvers`, and nothing tied the counts to the rules text (both added, mutation-tested);
+  6. harness: `drive_fresh` never filled a pact boon's maneuvers, so the fresh Warlock read clean only because of finding 3;
+  7. harness: RT_FIXED / RT_FIXED_AT gained the Champion rows (the hand lists again).
+- All six ledgers byte-identical; sheet, derived and export byte-identical for all six. `state()` moved: every ledger's 2 talent pickers gain the 3 MC twins; Runt's maneuver pickers lose his 4 pact-boon picks (Pathcarver, Cleave, Side Step, Brace), each keeping its own current pick (finding 4, intended).
+- Open, not fixed: FR-57 (MC twins for the other classes), BUG-56 (childed spells not held).
+
 **FR-12 Phase 3, class 9: Bard (2026-09-26).** Base class L1-L6 plus Eloquence, Jester, Paragon.
 - Data: spine, `catalog/bard.yaml` (generated; schools model, Enchantment fixed + Embolden/Enfeeble/Healing/Illusion/Sound), `class_features.yaml` Bard L1-L6, `talents.yaml` Bard class talents (Expanded Repertoire, Helping Hands), `SUBCLASS_GRANTS` Eloquence.
 - **Design (agreed with Darryl):** base Remarkable Repertoire is the exact twin of the MC row (`grants {spells: 2, skill_points: 2}`, `spell_access {any: true}`, any-list children). Magical Expression is a note on both (no components are modelled; a node would have put an undecided pick on Bonan). Expert Bard and Expanded Repertoire are the same any-list shape. Eloquence Enthrall is the Eldritch/Witch tag child, tag Charmed, `widens: false`.

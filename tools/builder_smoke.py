@@ -702,6 +702,41 @@ def j_bard_repertoire(P):
     P.pg.wait_for_timeout(300)
 
 
+def j_champion_maneuvers(P):
+    """(S13) FR-12 Phase 3: a base Champion's Maneuver Master renders as 1 maneuver picker under the L1
+    class features in the real page (labelled 'maneuver', not a chained ready slot), Expert Champion
+    renders 2 more under itself at L5, and the childed picks reach the sheet's Maneuvers."""
+    print("## (S13) Champion: childed Maneuver Master / Expert Champion pickers, sheet")
+    P.start("champion")
+    kids = P.decs("^GC#cg:0#maneuvers#")
+    ok("Master-at-Arms renders 1 maneuver picker under the L1 class features", len(kids) == 1, P.decs("^GC#"))
+    if not kids:
+        return
+    lbl = P.pg.evaluate("d => { const s = document.querySelector('[data-dec=\"'+d+'\"]');"
+                        " const r = s && s.closest('div'); const l = r && r.querySelector('.slot');"
+                        " return l ? l.innerText : ''; }", kids[0])
+    ok("...labelled 'maneuver'", lbl.strip().lower() == "maneuver", lbl)
+    ok("...and no chained L1 ready slot beside the 2 table pickers",
+       len(P.decs("^cg:man:[0-9]+$")) == 2 and not P.decs("^cg:man:\\+$"), P.decs("^cg:man"))
+    P.choose(kids[0], "Parry")
+    P.pg.wait_for_timeout(500)
+    for _ in range(4):
+        P.add_level()
+    ex = P.decs("^GC#L5:[0-9]+#maneuvers#")
+    ok("Expert Champion renders 2 maneuver pickers at L5", len(ex) == 2, P.decs("^GC#L5"))
+    if ex:
+        P.choose(ex[0], "Cleave")
+        P.pg.wait_for_timeout(500)
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ok("the sheet lists Parry and Cleave and names Master-at-Arms and Expert Champion",
+       all(x in text for x in ("Parry", "Cleave", "Master-at-Arms", "Expert Champion")), text[:1500])
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -826,7 +861,8 @@ def main():
                                          ("s9", j_sorcerer_origin, (), 120),
                                          ("s10", j_wizard_school, (), 120),
                                          ("s11", j_cleric_domains, (), 120),
-                                         ("s12", j_bard_repertoire, (), 120)):
+                                         ("s12", j_bard_repertoire, (), 120),
+                                         ("s13", j_champion_maneuvers, (), 180)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)
