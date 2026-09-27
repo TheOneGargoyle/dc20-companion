@@ -3411,6 +3411,9 @@ RT_ANC_POINTS = {"ancestry_points"}
 RT_FLAG = {"jump_from": _eng.LBL_JUMP}
 # grant key -> the api.sheet()['derived'] field it must move by the granted amount (BUG-48)
 RT_SHEET = {"death_threshold": "death_threshold"}
+# FR-12 Phase 3 Monk: Ki Points, the engine's OPTIONAL `ki` key. `ki_from_sp` switches it on (the sheet
+# gains a Ki row equal to max SP); `ki` adds to it (Expert Monk +1).
+RT_KI = {"ki_from_sp", "ki"}
 
 # Modelled options the probe fleet legitimately cannot reach, each with the reason. Asserted
 # in BOTH directions: a stale entry (the option became reachable) fails loudly, so these get
@@ -3431,7 +3434,9 @@ RT_FIXED = {"Berserker": "barbarian",
             "Spell School Initiate": "wizard",
             "Cleric Order": "cleric",
             "Remarkable Repertoire": "bard",   # FR-12 Phase 3: the base twin (the MC row is a talent)
-            "Master-at-Arms": "champion"}   # FR-12 Phase 3: likewise (MC Master-at-Arms is a talent)
+            "Master-at-Arms": "champion",   # FR-12 Phase 3: likewise (MC Master-at-Arms is a talent)
+            "Monk Training": "monk",        # FR-12 Phase 3: likewise (MC twin is a talent)
+            "Monk Stance": "monk"}
 
 # Fixed class features that arrive ABOVE L1 (2026-09-23, the L5 Expert features). Value is
 # (class, level). Asserted by _rt_check_fixed_at against the SAME build with the feature's grants
@@ -3443,7 +3448,9 @@ RT_FIXED_AT = {"Expert Spellblade": ("spellblade", 5),
                "Expert Wizard": ("wizard", 5),
                "Expert Cleric": ("cleric", 5),
                "Expert Bard": ("bard", 5),
-               "Expert Champion": ("champion", 5)}
+               "Expert Champion": ("champion", 5),
+               "Spiritual Balance": ("monk", 2),
+               "Expert Monk": ("monk", 5)}
 
 # Declared `modelled` but the effect does NOT arrive: a real open bug, filed, so the check
 # records the failure without turning the suite red. Same discipline as builder_smoke.py's
@@ -3690,7 +3697,7 @@ def check_fr46_round_trip():
     # `attribute` is the placeholder key a `targets: attributes` row declares; it is asserted
     # through _rt_variant_pick, which resolves it to the attr_<target> key the engine reads.
     known = (set(RT_STAT) | set(RT_BUDGET) | set(RT_POINTS) | RT_ATTR_SLOTS
-             | RT_ANC_POINTS | set(RT_FLAG) | set(RT_SHEET) | set(builder_api.GRANT_CHILD_SLOTS)
+             | RT_ANC_POINTS | set(RT_FLAG) | set(RT_SHEET) | RT_KI | set(builder_api.GRANT_CHILD_SLOTS)
              | set(_rt_attr_keys()) | {"attribute"})
     used = set()
     for o in modelled:
@@ -3791,6 +3798,15 @@ def _rt_assert_grants(name, label, before, after, grants, unarmored=False):
             b, a = _rt_num(before["stats"].get(stat)), _rt_num(after["stats"].get(stat))
             _rt("%-64s moves %s by %+d" % (tag, stat, amount),
                b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
+        elif key == "ki_from_sp":
+            _rt("%-64s adds a sheet Ki row equal to max SP" % tag,
+               "ki" not in before["sheet"] and after["sheet"].get("ki") == _rt_num(after["stats"].get(_eng.LBL_SP)),
+               "%s -> %s (SP %s)" % (before["sheet"].get("ki"), after["sheet"].get("ki"),
+                                     after["stats"].get(_eng.LBL_SP)))
+        elif key == "ki":
+            b, a = before["sheet"].get("ki"), after["sheet"].get("ki")
+            _rt("%-64s moves sheet ki by %+d" % (tag, amount),
+               b is not None and a is not None and a - b == amount, "%s -> %s" % (b, a))
         elif key in RT_SHEET:
             fld = RT_SHEET[key]
             b, a = before["sheet"].get(fld), after["sheet"].get(fld)
@@ -3868,6 +3884,16 @@ def _rt_check_fixed_at(options, index):
                         and str(d["id"]).startswith("GC#") and ("#%s#" % key) in str(d["id"])]
                 _rt_ok(name, "fixed@L/%-24s %-12s spawns %d child picker(s)" % (name, key, amount),
                        len(kids) == amount, [d["id"] for d in sr["decisions"] if d["level"] == lvl])
+            elif key == "ki_from_sp":   # FR-12 Phase 3: Spiritual Balance, Ki Points = max SP
+                a = json.loads(real.sheet())["derived"].get("ki")
+                b = json.loads(bare.sheet())["derived"]
+                _rt_ok(name, "fixed@L/%-24s %-12s sheet Ki row = max SP" % (name, key),
+                       "ki" not in b and a == _rt_num(_rt_stats(sr)[_eng.LBL_SP]), (a, sorted(b)))
+            elif key == "ki":   # FR-12 Phase 3: Expert Monk's Ki maximum +1, on the sheet
+                a = json.loads(real.sheet())["derived"].get("ki")
+                b = json.loads(bare.sheet())["derived"].get("ki")
+                _rt_ok(name, "fixed@L/%-24s %-12s sheet Ki %+d" % (name, key, amount),
+                       a is not None and b is not None and a - b == amount, (a, b))
             elif key in RT_POINTS:   # FR-12 Phase 3: Expert Bard's 2 Skill Points
                 fld = "skill_earned" if key == "skill_points" else "trade_earned"
                 a, b = _rt_snap(real)[fld] or 0, _rt_snap(bare)[fld] or 0
@@ -4146,18 +4172,28 @@ def _rt_check_fixed(options):
                    "not found - retire the RT_FIXED entry")
             continue
         row = _rt_catalog_row(o)
-        cur = _rt_stats(json.loads(_fresh_at(cls, "Human").state()))
+        fa = _fresh_at(cls, "Human")
+        cur = _rt_stats(json.loads(fa.state()))
+        # FR-12 Phase 3 Monk: a row carrying BOTH `jump_from` and `jump` (Step of the Wind) moves Jump
+        # by the flat amount PLUS the re-keyed base, so the expectation includes that shift; the re-key
+        # assertion then demands more than the flat amount, or the +1 alone would satisfy it (trap 5).
+        at = {k: v for k, v in (fa.ledger["chargen"].get("attributes") or {}).items()}
+        jf = str((row.get("grants") or {}).get("jump_from") or "").lower()
+        shift = ((max(1, max(at.values()) if jf == "prime" else at.get(jf, 0)) - max(1, at.get("agility", 0)))
+                 if jf else 0)
         for key, amount in sorted((row.get("grants") or {}).items()):
             if key in RT_STAT:
                 stat = RT_STAT[key]
+                want = amount + (shift if key == "jump" else 0)
                 _rt_ok(name, "fixed/%-24s %-32s %s is %+d vs a %s"
-                   % (name, key, stat, amount, ref_cls),
-                   _rt_num(cur[stat]) - _rt_num(ref[stat]) == amount,
+                   % (name, key, stat, want, ref_cls),
+                   _rt_num(cur[stat]) - _rt_num(ref[stat]) == want,
                    "%s %s vs %s %s" % (cls, cur[stat], ref_cls, ref[stat]))
             elif key in RT_FLAG:
                 stat = RT_FLAG[key]
+                flat = int((row.get("grants") or {}).get("jump", 0) or 0) if key == "jump_from" else 0
                 _rt_ok(name, "fixed/%-24s %-32s re-keys %s vs a %s" % (name, key, stat, ref_cls),
-                   _rt_num(cur[stat]) != _rt_num(ref[stat]),
+                   _rt_num(cur[stat]) - _rt_num(ref[stat]) not in (0, flat) and shift != 0,
                    "%s %s vs %s %s" % (cls, cur[stat], ref_cls, ref[stat]))
         s = json.loads(_fresh_at(cls, "Human").state())
         for key, amount in sorted((row.get("grants") or {}).items()):
@@ -4945,7 +4981,7 @@ def check_ch14_engine_labels():
         ok("CH-14 %-10s check-table rows == DERIVED_LABELS, in order" % c, tuple(rows) == labels,
            (rows, labels))
         emitted |= set(rep.derived)
-        extra |= set(rep.derived) - set(labels) - set(keys)
+        extra |= set(rep.derived) - set(labels) - set(keys) - set(getattr(be, "OPTIONAL_DERIVED_KEYS", ()))
     ok("CH-14 replay().derived carries only declared labels and keys", emitted and not extra, extra)
     ok("CH-14 every structured DERIVED_KEY is emitted (no dead key)", set(keys) <= emitted,
        set(keys) - emitted)
@@ -5341,6 +5377,136 @@ def check_fr12_champion():
        (bool(pb), len(pk), ws["builder_problems"]))
 
 
+def check_fr12_monk():
+    """FR-12 Phase 3, class 11 of 13 (2026-09-27): the base Monk under the section 6 rule. New shapes:
+    a `weapon_style` node DERIVED from weapon_styles.yaml (Iron Palm) whose second instance (Expert
+    Monk) never re-offers the first answer; Monk Stances as a labelled Discipline child list; Patient
+    Defense as a conditional grant; Step of the Wind's `jump_from: prime`; Ki Points as the engine's
+    OPTIONAL `ki` derived key, on the sheet only when held. MC twins, incl. two latent talent-branch
+    bugs: grants_unarmored was dropped, and an MC disciplines grant drew on the character's own list."""
+    print("\n## (54) FR-12 Phase 3: base Monk (weapon style nodes, stances, Ki, MC twins)")
+    import build_engine as be
+    a = _fresh_at("monk", "Human")   # might 3, agility 1: Prime 3, so Prime-for-Jump is visible
+    cc = a.ccat
+    ok("monk.yaml: no Spell List, Weapons / Light Armor, Astral Self Shifting Tide Paragon, 9 stances",
+       (cc.get("spellcasting") or {}).get("model") == "none" and cc.get("combat_training") == ["Weapons", "Light Armor"]
+       and cc.get("subclasses") == ["Astral Self", "Shifting Tide", "Paragon"] and len(cc.get("domains") or []) == 9
+       and cc.get("domain_label") == "monk stance", (cc.get("spellcasting"), cc.get("combat_training"), cc.get("subclasses")))
+    cf = a.ledger["chargen"]["class_choices"][0]
+    ok("L1 folds Monk Training, Monk Stance, Meditation; grants speed/jump/prime + 2 stances, PD left conditional",
+       cf.get("picks") == ["Monk Training", "Monk Stance", "Meditation"]
+       and cf.get("grants") == {"speed": 1, "jump": 1, "jump_from": "prime", "disciplines": 2}
+       and cf.get("grants_unarmored") == {"pd": 2}, (cf.get("picks"), cf.get("grants"), cf.get("grants_unarmored")))
+    s0 = st(a)
+    stt = _rt_stats(s0)
+    ok("L1 Jump = Prime 3 + 1 (Step of the Wind), not Agility 1 + 1; Speed 6",
+       _rt_num(stt[be.LBL_JUMP]) == 4 and _rt_num(stt[be.LBL_MOVE]) == 6, (stt[be.LBL_JUMP], stt[be.LBL_MOVE]))
+    ok("L1 PD = 8 + CM 1 + Agility 1 + Int 0 + Patient Defense 2 = 12", _rt_num(stt[be.LBL_PD]) == 12, stt[be.LBL_PD])
+    a.ledger.setdefault("equipment", []).append({"name": "Leather Armor"})
+    ok("...and armour worn removes Patient Defense (PD 10)", _rt_num(_rt_stats(st(a))[be.LBL_PD]) == 10,
+       _rt_stats(st(a))[be.LBL_PD])
+    a.ledger["equipment"].pop()
+    melee = [r["name"] for r in (a.cat.get("weapon_styles") or {}).get("groups", {}).get("Melee") or []]
+    node = [d for d in s0["decisions"] if d.get("choice_kind") == "weapon_style"]
+    ok("Iron Palm renders ONE weapon style node offering the 8 parsed Melee styles (non-empty, trap 4)",
+       len(node) == 1 and len(melee) == 8 and [o["name"] for o in node[0]["options"]] == melee
+       and node[0]["id"] == "GC#cg:0#choice#0", [(d["id"], len(d["options"])) for d in node])
+    kids = [d for d in s0["decisions"] if str(d.get("id")).startswith("GC#cg:0#disciplines#")]
+    names = [r["name"] for r in cc["domains"]]
+    ok("Monk Stance childs 2 stance pickers labelled monk stance, offering the 9 stances",
+       len(kids) == 2 and all(d["slot"] == "discipline" and d.get("slotlabel") == "monk stance"
+                              and [o["name"] for o in d["options"]] == names for d in kids),
+       [(d["id"], d.get("slotlabel"), len(d["options"])) for d in kids])
+    a.set_decision("GC#cg:0#choice#0", "Sword")
+    s1 = json.loads(a.set_decision(kids[0]["id"], "Bear Stance"))
+    k1 = [d for d in s1["decisions"] if d.get("id") == kids[1]["id"]][0]
+    ok("the second stance picker no longer offers Bear Stance (sibling-distinct)",
+       "Bear Stance" not in {o["name"] for o in k1["options"]} and len(k1["options"]) == 8, len(k1["options"]))
+    s1 = json.loads(a.set_decision(kids[1]["id"], "Gazelle Stance"))
+    ok("stances are situational: picking Gazelle moves no Speed or Jump",
+       _rt_stats(s1)[be.LBL_MOVE] == stt[be.LBL_MOVE] and _rt_stats(s1)[be.LBL_JUMP] == stt[be.LBL_JUMP],
+       (_rt_stats(s1)[be.LBL_MOVE], _rt_stats(s1)[be.LBL_JUMP]))
+    sh = json.loads(a.sheet())
+    grp = {g["label"]: [x["pick"] for x in g["items"]] for g in sh["ability_groups"]}
+    ok("the sheet heads a Monk Stances group with both picks, and folds the style into Monk Training",
+       grp.get("Monk Stances") == ["Bear Stance", "Gazelle Stance"]
+       and (grp.get("Class features") or [""])[0].startswith("Monk Training: Sword"), grp)
+    ok("...and does not print the style a second time as a Talent choice (folded answers are skipped)",
+       "Sword" not in (grp.get("Talent choices") or []), grp.get("Talent choices"))
+    ok("L1 sheet carries no Ki row (Spiritual Balance is L2)", "ki" not in sh["derived"], sorted(sh["derived"]))
+
+    a.add_level()
+    sh = json.loads(a.sheet())
+    sp = _rt_num(_rt_stats(st(a))[be.LBL_SP])
+    ok("L2 Spiritual Balance: the sheet's Ki row = max SP (%s)" % sp, sh["derived"].get("ki") == sp and sp > 0,
+       (sh["derived"].get("ki"), sp))
+    for _ in range(3):
+        a.add_level()
+    s = st(a)
+    sub = [d for d in s["decisions"] if d["slot"] == "subclass"][0]
+    ok("L3 offers Astral Self, Shifting Tide, Paragon",
+       [o["name"] for o in sub["options"]] == ["Astral Self", "Shifting Tide", "Paragon"], [o["name"] for o in sub["options"]])
+    tal = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 4][0]
+    ok("L4 talent offers the 3 Monk class talents",
+       {"Expanded Stances", "Internal Damage", "Steel Fist"} <= {o["name"] for o in tal["options"]}, tal["id"])
+    exp = [d for d in s["decisions"] if d.get("level") == 5 and d.get("pick") == "Expert Monk"]
+    ex_node = [d for d in s["decisions"] if d.get("level") == 5 and d.get("choice_kind") == "weapon_style"]
+    ex_st = [d for d in s["decisions"] if d.get("level") == 5 and "#disciplines#" in str(d.get("id"))]
+    ok("Expert Monk: its own style node, which never re-offers Iron Palm's Sword (7 styles)",
+       len(exp) == 1 and len(ex_node) == 1 and "Sword" not in {o["name"] for o in ex_node[0]["options"]}
+       and len(ex_node[0]["options"]) == 7, [(d["id"], len(d["options"])) for d in ex_node])
+    ok("Expert Monk childs 1 stance picker that offers neither held stance",
+       len(ex_st) == 1 and not {"Bear Stance", "Gazelle Stance"} & {o["name"] for o in ex_st[0]["options"]}
+       and len(ex_st[0]["options"]) == 7, [(d["id"], len(d["options"])) for d in ex_st])
+    stt5 = _rt_stats(s)
+    sh = json.loads(a.sheet())
+    sp5 = _rt_num(stt5[be.LBL_SP])
+    ok("L5: Speed 7, Jump 5 (Prime 3 + 2), Ki = max SP + 1",
+       _rt_num(stt5[be.LBL_MOVE]) == 7 and _rt_num(stt5[be.LBL_JUMP]) == 5 and sh["derived"].get("ki") == sp5 + 1,
+       (stt5[be.LBL_MOVE], stt5[be.LBL_JUMP], sh["derived"].get("ki"), sp5))
+    a.set_decision(ex_node[0]["id"], "Staff")
+    s = json.loads(a.set_decision(ex_st[0]["id"], "Wolf Stance"))
+    sh = json.loads(a.sheet())
+    grp = {g["label"]: [x["pick"] for x in g["items"]] for g in sh["ability_groups"]}
+    ok("both Expert picks reach the sheet (Expert Monk: Staff, Wolf Stance), catalog-legal",
+       "Wolf Stance" in (grp.get("Monk Stances") or []) and "Expert Monk: Staff" in (grp.get("Class features") or [])
+       and not s["catalog_problems"], (grp, s["catalog_problems"]))
+    fs = [d for d in s["decisions"] if d.get("id") == "GC#cg:0#choice#0"][0]
+    ok("...and Iron Palm's node now hides Staff in turn", "Staff" not in {o["name"] for o in fs["options"]},
+       [o["name"] for o in fs["options"]])
+    b = builder_api.BuilderAPI(None, CATPATHS, ledger_text=a.export_yaml())
+    ok("styles, stances and Ki round-trip export and reload", json.loads(b.sheet()) == json.loads(a.sheet()), "sheet differs")
+
+    # MC twins on a Spellblade (has its OWN discipline list, the case the pool fix is for)
+    c = _fresh_at("spellblade", "Human", levels=1)
+    s = st(c)
+    t2 = [d for d in s["decisions"] if d["slot"] == "talent" and d.get("level") == 2][0]
+    ok("a Spellblade's L2 talent offers the Novice Monk MC features",
+       {"Monk Training", "Monk Stance"} <= {o["name"] for o in t2["options"]}, t2["id"])
+    s = json.loads(c.set_decision(str(t2["id"]), "Monk Stance"))
+    mk = [d for d in s["decisions"] if str(d.get("id")).startswith("GC#%s#disciplines#" % t2["id"])]
+    ok("MC Monk Stance childs 2 pickers offering MONK STANCES, not Spellblade Disciplines",
+       len(mk) == 2 and all([o["name"] for o in d["options"]] == names for d in mk),
+       [(d["id"], [o["name"] for o in d["options"]][:3]) for d in mk])
+    b0 = _rt_num(_rt_stats(s)[be.LBL_PD])
+    j0 = _rt_num(_rt_stats(s)[be.LBL_JUMP])
+    s = json.loads(c.set_decision(str(t2["id"]), "Monk Training"))
+    # the RT probe for this twin cannot see Prime-for-Jump (its +1 alone satisfies the re-key check),
+    # so assert it here on a probe where Prime (Might 3) and Agility (1) differ
+    ok("MC Monk Training on Might 3 / Agility 1: Jump rises by 1 + 2 (Prime for Jump)",
+       _rt_num(_rt_stats(s)[be.LBL_JUMP]) == j0 + 3, (j0, _rt_stats(s)[be.LBL_JUMP]))
+    e2 = [e for e in c.ledger["levels"][2] if e.get("slot") == "talent"][0]
+    ok("MC Monk Training carries grants_unarmored {pd: 2} onto its entry and PD rises by 2 unarmoured",
+       e2.get("grants_unarmored") == {"pd": 2} and _rt_num(_rt_stats(s)[be.LBL_PD]) == b0 + 2,
+       (e2.get("grants_unarmored"), b0, _rt_stats(s)[be.LBL_PD]))
+    wn = [d for d in s["decisions"] if d.get("choice_kind") == "weapon_style"]
+    ok("...and renders its weapon style node", len(wn) == 1 and len(wn[0]["options"]) == 8, [d["id"] for d in wn])
+    s = json.loads(c.set_decision(str(t2["id"]), "Monk Stance"))
+    ok("re-picking drops the conditional grant again", "grants_unarmored" not in e2
+       and _rt_num(_rt_stats(s)[be.LBL_PD]) == b0, (e2.get("grants_unarmored"), _rt_stats(s)[be.LBL_PD]))
+    ok("no Ki row without Spiritual Balance", "ki" not in json.loads(c.sheet())["derived"], None)
+
+
 def main():
     global CATPATHS, builder_api
     # --only <name>[,<name>...] runs just the named section(s), matched as a substring of the
@@ -5389,7 +5555,7 @@ def main():
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
                     check_fr12_wizard, check_fr12_cleric, check_fr12_bard,
-                    check_fr12_champion):
+                    check_fr12_champion, check_fr12_monk):
             run(_fn)
     finally:
         os.chdir(old)

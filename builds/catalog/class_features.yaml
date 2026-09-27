@@ -195,6 +195,43 @@ classes:
         no_effect: situational
     6: []
 
+  Monk:   # classes.md l.2016-2306 (FR-12 Phase 3)
+    1:
+      - name: Monk Training   # classes.md l.2073-2092
+        grants: {speed: 1, jump: 1, jump_from: prime}
+        grants_unarmored: {pd: 2}
+        # Iron Palm: "Choose a Melee Weapon Style", a node whose options are DERIVED from
+        # weapon_styles.yaml (parsed from general-rules.md); limbs are 2 Bludgeoning Natural Weapons.
+        # Patient Defense: "While you aren't wearing Armor, you gain +2 PD" (the Berserker Defense shape).
+        # Step of the Wind: +1 Speed and Jump Distance; Prime instead of Agility for Jump (and Falling).
+        sub_choice: {kind: weapon_style, label: weapon style, options_from: {weapon_styles: [Melee]}}
+        note: "Iron Palm (limbs are 2 Bludgeoning Natural Weapons with the chosen Melee Weapon Style's Enhancement); Patient Defense +2 PD unarmoured; Step of the Wind +1 Speed and Jump, Prime for Jump, walk walls and liquids"
+      - name: Monk Stance   # classes.md l.2093-2159
+        grants: {disciplines: 2}
+        # "You learn 2 Monk Stances from the list below": grant-children from monk.yaml `domains` (the
+        # Cleric Divine Domain shape, labelled monk stance). Every stance is in-stance only, so situational.
+        note: "learn 2 Monk Stances; enter one free at the start of your turn, or for 1 AP or 1 SP"
+      - name: Meditation   # classes.md l.2160-2166
+        flavor: true
+        note: "Short Rest meditation: +1 Skill Mastery in a Charisma or Intelligence Skill until your next Rest"
+    2:
+      - name: Spiritual Balance   # classes.md l.2170-2200
+        grants: {ki_from_sp: 1}
+        # Ki Points: "a maximum number of Ki Points equal to your Stamina Points" -> the engine's
+        # optional `ki` derived key (= max SP + any `ki` grant), shown on the sheet as Ki Points.
+        note: "Ki Points = max SP, regain 1 per SP spent and all when Combat ends; Ki Actions: Deflect Attack, Slow Fall, Uncanny Dodge"
+    3: []
+    4: []
+    5:
+      - name: Expert Monk   # classes.md l.2230-2241
+        grants: {speed: 1, jump: 1, disciplines: 1, ki: 1}
+        # Iron Palm: "Choose an additional Melee Weapon Style": a second weapon_style node, which never
+        # re-offers the style already chosen on Iron Palm (DISTINCT_CHOICE_KINDS). Step of the Wind +1
+        # Speed and Jump; Monk Stances +1 (a grant-child like Monk Stance's two); Ki maximum +1.
+        sub_choice: {kind: weapon_style, label: weapon style, options_from: {weapon_styles: [Melee]}}
+        note: "+1 Melee Weapon Style (Unarmed Strikes use both Enhancements); +1 Speed and Jump; +1 Monk Stance; Ki max +1 and regain half your Ki"
+    6: []
+
   Sorcerer:   # classes.md l.2539-2692 (FR-12 Phase 3)
     1:
       - name: Innate Power   # classes.md l.2541-2560

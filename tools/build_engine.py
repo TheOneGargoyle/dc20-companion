@@ -114,6 +114,10 @@ DERIVED_LABELS = (LBL_LEVEL, LBL_CM, LBL_PRIME, LBL_ATTRIBUTES, LBL_ATTACK, LBL_
                   LBL_PD, LBL_AD, LBL_SAVES, LBL_MOVE, LBL_JUMP, LBL_SPEND_LIMIT, LBL_DR)
 # the structured (machine-readable) keys replay() adds to Report.derived beside the labels
 DERIVED_KEYS = ("points", "saves", "move", "jump", "spend_limit", "death_threshold", "dr")
+# FR-12 Phase 3 Monk: structured keys replay() emits ONLY when a feature grants them, so a build without
+# the feature carries no such key (the six ledgers' derived dicts stay byte-identical). `ki` = Ki Point
+# maximum (Monk Spiritual Balance: "equal to your Stamina Points", Expert Monk +1, classes.md l.2172-2239).
+OPTIONAL_DERIVED_KEYS = ("ki",)
 # A10: numeric grant key -> the derived-stat label it moves by the granted amount. ONE map, read by
 # builder_verify (RT_STAT, FR49_STAT) and builder_smoke (GRANT_STAT); `sp` was the known drift.
 GRANT_STAT_LABEL = {"hp": LBL_HP, "sp": LBL_SP, "mp": LBL_MP, "pd": LBL_PD, "ad": LBL_AD,
@@ -567,8 +571,11 @@ def replay(ledger, level, class_tables=None):
     # Jump Distance = Agility (minimum 1) (character-creation.md l.159), plus any
     # numeric `jump` grant. A feature may re-key the base attribute via a
     # `jump_from: <attr>` grant (e.g. Barbarian Mighty Leap uses Might).
-    jump_from = grant_flag(ledger, level, "jump_from", "agility")
-    jump = max(1, attrs.get(str(jump_from).lower(), 0)) + sum_grants(ledger, level, "jump")
+    # FR-12 Phase 3 Monk Step of the Wind: `jump_from: prime` ("use your Prime Modifier instead of
+    # Agility", classes.md l.2090). It used to fall through attrs.get() to 0, i.e. a silent Jump 1.
+    jump_from = str(grant_flag(ledger, level, "jump_from", "agility")).lower()
+    jump_base = prime if jump_from == "prime" else attrs.get(jump_from, 0)
+    jump = max(1, jump_base) + sum_grants(ledger, level, "jump")
     # Mana / Stamina Spend Limit = half level, rounded up = Combat Mastery
     # (spells.md l.5907-5920: "spending MP up to half their level, rounded up").
     spend_limit = cm(level)
@@ -735,6 +742,9 @@ def replay(ledger, level, class_tables=None):
     # (Human Resolve: "expanded by 1", ancestries.md l.338). The ONE definition; the sheet reads it.
     rep.derived["death_threshold"] = cm(level) + prime + sum_grants(ledger, level, "death_threshold")
     rep.derived["dr"] = dr
+    # FR-12 Phase 3 Monk: Ki Points, only for a build holding a `ki_from_sp` grant (Spiritual Balance)
+    if sum_grants(ledger, level, "ki_from_sp"):
+        rep.derived["ki"] = sp + sum_grants(ledger, level, "ki")
     rep.add()
 
     # --- choices timeline ----------------------------------------------------

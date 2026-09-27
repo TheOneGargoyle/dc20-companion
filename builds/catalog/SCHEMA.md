@@ -38,6 +38,8 @@ the day someone walks that path.
   Per-level table from `class_spines.yaml`, class L1 choices (Spellblade Disciplines with resource
   `grants`; Warlock Pact Boons), the 3 Subclasses (+ `subclass_grants`, e.g. Eldritch
   Psychic-tag spell access), and the spellcasting model.
+- `builds/catalog/weapon_styles.yaml` - **SCRIPTED** (FR-12 Monk). The Melee / Ranged Weapon Styles, their
+  damage types and Enhancements, parsed from general-rules.md; the Iron Palm node's options.
 - `builds/catalog/spell_schools.yaml` - **CURATED**. School membership for the SCHOOLS-model
   classes (Spellblade: 2 chosen schools + Weapon/Ward tag access; Warlock: 3 chosen schools).
   From the flattened "Spells sorted by Schools" list in `spells.md`. Curated schools:
@@ -110,7 +112,7 @@ resource deltas without the engine special-casing it (e.g. Magus = +1 MP, +1 spe
 - **source** (Druid): legal pick = on the class's Source list (`spell_sources.yaml`), plus any
   explicit grant slots (Scaletrix: 2 Arcane spells via Innate Power Intuitive Magic + 1 via
   Fiendish Magic).
-- **none** (Commander, Barbarian, Champion): no class Spell List; the Spellcaster Path first-time rider
+- **none** (Commander, Barbarian, Champion, Monk): no class Spell List; the Spellcaster Path first-time rider
   grants "a Spell List of their choice from any Class" (character-creation.md), and MC Bard
   Magical Secrets is any-list. The choice isn't recorded on the sheets, so the verifier checks
   existence + consistency only.
@@ -125,6 +127,25 @@ unflagged maneuver grant (Martial Expansion, Expert Warlock's per-boon rider) st
 pool. Pact boons child their maneuvers without the flag. A childed pick counts as held, so no
 other picker offers it again. catalog_verify asserts both twins carry the flag and that the counts
 match the rules text.
+
+## Monk shapes (FR-12 Phase 3, 2026-09-27)
+
+- **`weapon_style` node.** `sub_choice: {kind: weapon_style, options_from: {weapon_styles: [Melee]}}`
+  on Iron Palm (Monk Training, and its MC twin) and on Expert Monk. The options come from
+  `weapon_styles.yaml`, which `catalog_build.py` parses out of general-rules.md (never typed);
+  catalog_verify re-reads the other rules listing. `weapon_style` is a DISTINCT kind
+  (`builder_api.DISTINCT_CHOICE_KINDS`, with `school_magic`): no node re-offers another's answer.
+  The sheet folds the answer into its owner ("Monk Training: Sword").
+- **Monk Stances** are the Discipline child shape under `monk.yaml` `domains` with
+  `domain_label: monk stance` (like the Cleric's Divine Domains). All nine are `situational`:
+  every stance effect, Gazelle's +1 Speed and Jump included, holds only while in the stance.
+- **Ki Points.** `grants: {ki_from_sp: 1}` (Spiritual Balance) makes the engine emit the
+  OPTIONAL derived key `ki` = max SP + every `ki` grant (Expert Monk +1). A build without the grant
+  emits no key (`build_engine.OPTIONAL_DERIVED_KEYS`), and the sheet shows a Ki Points row only
+  when it is present.
+- **`jump_from: prime`** uses the Prime Modifier (the highest Attribute) as the Jump base.
+- **MC discipline grants** draw on the FEATURE's class list, not the character's
+  (`builder_api._owner_ccat`), and a talent row's `grants_unarmored` rides its ledger entry.
 
 ## `ancestries.yaml` (curated)
 

@@ -737,6 +737,44 @@ def j_champion_maneuvers(P):
     P.pg.wait_for_timeout(300)
 
 
+def j_monk_stances(P):
+    """(S14) FR-12 Phase 3: a base Monk in the real page. Iron Palm renders a weapon style node (the new
+    derived `weapon_style` kind) and Monk Stance 2 stance pickers under the L1 class features; Expert
+    Monk's style node at L5 hides the L1 answer; and the new sheet surfaces arrive: the Monk Stances
+    group, the folded style, and the Ki Points row (the engine's optional `ki` key)."""
+    print("## (S14) Monk: weapon style nodes, Monk Stance pickers, Ki row on the sheet")
+    P.start("monk")
+    node = P.decs("^GC#cg:0#choice#0$")
+    kids = P.decs("^GC#cg:0#disciplines#")
+    ok("Iron Palm renders its weapon style node and Monk Stance 2 stance pickers",
+       len(node) == 1 and len(kids) == 2, P.decs("^GC#"))
+    if not node or len(kids) != 2:
+        return
+    opts = lambda d: P.pg.evaluate("d => Array.from((document.querySelector('[data-dec=\"'+d+'\"]') || {options: []})"
+                                   ".options).map(o => o.value).filter(v => v && !v.startsWith('('))", d)
+    ok("...the node offers the 8 Melee Weapon Styles", len(opts(node[0])) == 8 and "Sword" in opts(node[0]), opts(node[0]))
+    P.choose(node[0], "Sword")
+    P.pg.wait_for_timeout(400)
+    P.choose(kids[0], "Bear Stance")
+    P.pg.wait_for_timeout(400)
+    for _ in range(4):
+        P.add_level()
+    ex = P.decs("^GC#L5:[0-9]+#choice#0$")
+    ok("Expert Monk renders its own style node at L5, without Sword",
+       len(ex) == 1 and "Sword" not in opts(ex[0]) and len(opts(ex[0])) == 7, [opts(d) for d in ex])
+    P.pg.click("#sheetbtn")
+    P.pg.wait_for_selector("#sheetOverlay", state="visible", timeout=30000)
+    P.pg.wait_for_timeout(600)
+    text = P.pg.inner_text("#sheetOverlay")
+    ki = P.pg.evaluate("() => { const e = document.querySelector('#shKi .val'); return e ? e.innerText : ''; }")
+    ok("the sheet shows Monk Stances with Bear Stance, Monk Training: Sword (once), and a Ki Points row",
+       all(x.lower() in text.lower() for x in ("Monk Stances", "Bear Stance", "Monk Training: Sword", "Ki Points"))
+       and "talent choices" not in text.lower() and ki.strip().isdigit(),
+       (ki, text[:1500]))
+    P.pg.click("#shClose")
+    P.pg.wait_for_timeout(300)
+
+
 def j_rule_panel(P):
     """(S6) CH-11: the rules corpus is FETCHED now, not baked, so prove it actually arrives.
 
@@ -862,7 +900,8 @@ def main():
                                          ("s10", j_wizard_school, (), 120),
                                          ("s11", j_cleric_domains, (), 120),
                                          ("s12", j_bard_repertoire, (), 120),
-                                         ("s13", j_champion_maneuvers, (), 180)):
+                                         ("s13", j_champion_maneuvers, (), 180),
+                                         ("s14", j_monk_stances, (), 180)):
                 if want and sid not in want:
                     continue
                 t = watchdog(budget)

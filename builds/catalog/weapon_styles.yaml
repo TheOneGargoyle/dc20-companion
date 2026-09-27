@@ -1,0 +1,55 @@
+# SCRIPTED - do not hand-edit. Regenerate: python3 tools/catalog_build.py
+# Weapon Styles parsed from rules/general-rules.md (Melee / Ranged Weapon Styles).
+catalog_version: 1
+ruleset: DC20 0.10.5
+generated_by: tools/catalog_build.py
+source: 'rules/general-rules.md Step 2: Weapon Style & Damage'
+groups:
+  Melee:
+  - name: Axe
+    damage:
+    - Slashing
+    enhancement: Bleed
+  - name: Fist
+    damage:
+    - Bludgeoning
+    - Piercing
+    - Slashing
+    enhancement: Grapple
+  - name: Hammer
+    damage:
+    - Bludgeoning
+    enhancement: Knockback
+  - name: Pick
+    damage:
+    - Piercing
+    enhancement: Hinder
+  - name: Spear
+    damage:
+    - Piercing
+    enhancement: Slow
+  - name: Staff
+    damage:
+    - Bludgeoning
+    enhancement: Trip
+  - name: Sword
+    damage:
+    - Slashing
+    enhancement: Accuracy
+  - name: Whip
+    damage:
+    - Slashing
+    enhancement: Pull
+  Ranged:
+  - name: Bow
+    damage:
+    - Piercing
+    enhancement: Slow
+  - name: Crossbow
+    damage:
+    - Piercing
+    enhancement: Accuracy
+  - name: Sling
+    damage:
+    - Bludgeoning
+    enhancement: Hinder

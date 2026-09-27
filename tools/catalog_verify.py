@@ -1400,6 +1400,9 @@ for _t in talents_cat["mc_features"]:
     _twins += 1
     expect((_t.get("grants") or {}) == (_twin.get("grants") or {}),
            f"{_t['name']}: MC grants {_t.get('grants')} != class feature {_twin.get('grants')}")
+    # FR-12 Phase 3 Monk: and on their conditional half (Monk Training's Patient Defense, +2 PD unarmoured)
+    expect((_t.get("grants_unarmored") or {}) == (_twin.get("grants_unarmored") or {}),
+           f"{_t['name']}: MC grants_unarmored {_t.get('grants_unarmored')} != class feature {_twin.get('grants_unarmored')}")
     # FR-12 Phase 3 Bard: the twins must agree on their spell reach too (Remarkable Repertoire's
     # Magical Secrets is any-list on both); the grants check alone let one twin lose `spell_access`
     expect((_t.get("spell_access") or {}) == (_twin.get("spell_access") or {}),
@@ -1492,6 +1495,68 @@ for _n, _r, _want in (("Cleric Order", _cf["Cleric Order"], 2), ("Expert Cleric"
 _dd = (_cf["Cleric Order"].get("sub_choice") or {}).get("options_from") or {}
 expect(_dd.get("damage_categories") == ["Elemental", "Mystical"], f"Cleric Order Divine Damage options_from {_dd}")
 print(f"  damage_types.yaml matches core-rules.md; {len(_doms)} Divine Domains match the Cleric Order block")
+
+# ---- FR-12 Phase 3 Monk (2026-09-27) -------------------------------------------------------------
+# weapon_styles.yaml is catalog_build's parse of general-rules.md "Step 2"; re-read it INDEPENDENTLY
+# against the OTHER listing, "#### Weapon Styles" (one standalone line per style), so a parser drift
+# or a dropped style cannot pass unseen. Both listings must name the same styles.
+_ws = load("builds/catalog/weapon_styles.yaml")["groups"]
+_gr = read("rules/general-rules.md")
+_wh = _gr.index("\n#### Weapon Styles\n")
+# the list starts after the intro paragraph (whose PDF wrap leaves one-word lines like "Enhancement")
+_wblk = _gr[_gr.index("use its Weapon Enhancement.\n", _wh):_gr.index("\nLacking Weapon Training\n")]
+_wlines = {ln.strip() for ln in _wblk.splitlines()}
+_wnames = [r["name"] for g in ("Melee", "Ranged") for r in _ws.get(g) or []]
+expect(len(_ws.get("Melee") or []) == 8 and len(_ws.get("Ranged") or []) == 3,
+       f"weapon_styles: {len(_ws.get('Melee') or [])} Melee / {len(_ws.get('Ranged') or [])} Ranged, rules list 8 / 3 (trap 4)")
+for _n in _wnames:
+    expect(_n in _wlines, f"weapon style {_n} is not a line in the #### Weapon Styles block")
+expect(len([ln for ln in _wlines if re.fullmatch(r"[A-Z][a-z]+", ln)]) == len(_wnames),
+       f"#### Weapon Styles lists {sorted(ln for ln in _wlines if re.fullmatch(r'[A-Z][a-z]+', ln))}, catalog {_wnames}")
+for _g in _ws.values():
+    for _r in _g:
+        expect(_r.get("enhancement") and (_r["enhancement"] + ":") in _wblk, f"weapon style {_r['name']}: enhancement {_r.get('enhancement')} not in the rules")
+# every weapon_style node derives Melee styles; the base class has exactly Iron Palm + Expert Monk
+_wsn = [r for rows in _cfc.values() for lv in rows.values() for r in lv or []] + list(talents_cat["mc_features"])
+_wsn = [r for r in _wsn if (r.get("sub_choice") or {}).get("kind") == "weapon_style"]
+expect(sorted(r["name"] for r in _wsn) == ["Expert Monk", "Monk Training", "Monk Training"],
+       f"weapon_style nodes: {sorted(r['name'] for r in _wsn)} (trap 4)")
+for _r in _wsn:
+    expect((_r["sub_choice"].get("options_from") or {}).get("weapon_styles") == ["Melee"],
+           f"{_r['name']}: weapon_style options_from {_r['sub_choice'].get('options_from')}")
+# the Monk Stances: 9, each a standalone line in the Monk Stance block; the counts are the rules' own
+_mk = load("builds/catalog/monk.yaml")
+_st = [r["name"] for r in _mk.get("domains") or []]
+_mtxt = _classes_md[_classes_md.index("\n### Monk\n"):_classes_md.index("\n### Rogue\n")]
+_sblk = _mtxt[_mtxt.index("\nMonk Stance\n"):_mtxt.index("\nMeditation (Flavor Feature)\n")]
+_slines = {ln.strip() for ln in _sblk.splitlines()}
+expect(len(_st) == 9 and _mk.get("domain_label") == "monk stance", f"monk.yaml: {len(_st)} stances, label {_mk.get('domain_label')!r} (trap 4)")
+expect(len([ln for ln in _slines if re.fullmatch(r"[A-Z][a-z]+ Stance", ln) and ln != "Monk Stance"]) == len(_st),
+       f"the Monk Stance block lists {sorted(ln for ln in _slines if ln.endswith(' Stance'))}")
+for _n in _st:
+    expect(_n in _slines, f"Monk Stance {_n} is not a line in the Monk Stance block")
+_mf = {r["name"]: r for lv in _cfc["Monk"].values() for r in lv or []}
+_ccm = " ".join(read("rules/character-creation.md").split())
+_mt = " ".join(_mtxt.split())
+_xs = next(r for r in talents_cat["class_talents"]["Monk"] if r["name"] == "Expanded Stances")
+for _n, _r, _pat in (("Monk Stance", _mf["Monk Stance"], r"You learn (\d) Monk Stances from the list"),
+                     ("Expert Monk", _mf["Expert Monk"], r"You learn (\d) additional Monk Stance\b"),
+                     ("Expanded Stances", _xs, r"You learn (\d) additional Monk Stances\. You can.t choose")):
+    _m = re.search(_pat, _ccm if _n == "Expanded Stances" else _mt)
+    expect(_m is not None and int(_m.group(1)) == (_r.get("grants") or {}).get("disciplines"),
+           f"{_n}: grants {_r.get('grants')} vs rules {_m.group(0) if _m else 'no stance line'}")
+# Monk Training's numbers and the Ki rows, each against its own rules sentence
+_tr = _mf["Monk Training"]
+expect(re.search(r"While you aren.t wearing Armor, you gain \+2 PD", _mt) and _tr.get("grants_unarmored") == {"pd": 2},
+       f"Patient Defense: grants_unarmored {_tr.get('grants_unarmored')}")
+expect("You gain +1 Speed and Jump Distance" in _mt and "Prime Modifier instead of Agility to determine your Jump Distance" in _mt
+       and _tr.get("grants") == {"speed": 1, "jump": 1, "jump_from": "prime"}, f"Step of the Wind: grants {_tr.get('grants')}")
+_ex = _mf["Expert Monk"].get("grants") or {}
+expect("additional +1 Speed and Jump Distance" in _mt and _ex.get("speed") == 1 and _ex.get("jump") == 1, f"Expert Monk speed/jump: {_ex}")
+expect("Ki Point maximum increases by 1" in _mt and _ex.get("ki") == 1, f"Expert Monk ki: {_ex}")
+expect("maximum number of Ki Points equal to your Stamina Points" in _mt
+       and (_mf["Spiritual Balance"].get("grants") or {}) == {"ki_from_sp": 1}, f"Spiritual Balance: {_mf['Spiritual Balance'].get('grants')}")
+print(f"  weapon_styles.yaml matches both rules listings ({len(_wnames)} styles); {len(_st)} Monk Stances; Monk counts match the rules")
 
 # ---- verdict --------------------------------------------------------------
 print("\n" + "=" * 62)

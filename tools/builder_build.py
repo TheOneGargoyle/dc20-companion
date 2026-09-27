@@ -60,6 +60,7 @@ NEWCLASSES = [c.lower() for c in class_roster()]   # derived from class_spines.y
 CATALOG = NEWCLASSES + ["ancestries", "spell_schools", "spell_sources", "maneuvers",
            "talents", "skills_trades", "languages", "metamagic", "stamina_regen",
            "damage_types",  # FR-12 Phase 3: Cleric Divine Damage options (parsed from core-rules.md)
+           "weapon_styles",  # FR-12 Phase 3: Monk Iron Palm Weapon Style options (parsed from general-rules.md)
            "class_spines",  # FR-12.0: baked bare so the engine's load_class_tables() finds it in the Pyodide FS
            "class_features"]  # BUG-19/22: named class features per class per level (+ their effects)
 CATPATHS_EXCLUDE = {"class_spines"}   # BUG-31: baked + FS-written, but loaded by the ENGINE, not BuilderAPI
@@ -523,6 +524,7 @@ function shBuild(d){
             <div class="sh-box"><div class="k">Death</div><div class="v">${-der.death_threshold}</div><div class="sub">Prime + CM${(der.death_threshold-d.prime-d.cm)?` + ${der.death_threshold-d.prime-d.cm}`:''}</div></div>
           </div>
           <div class="sh-kv"><span class="lbl">Stamina (SP)</span><span class="val">${c['SP']}</span></div>
+          ${der.ki!=null?`<div class="sh-kv" id="shKi"><span class="lbl">Ki Points</span><span class="val">${der.ki}</span></div>`:''}
           <div class="sh-kv"><span class="lbl">Mana (MP)</span><span class="val">${c['MP']}</span></div>
           <div class="sh-kv"><span class="lbl">Grit</span><span class="val">${c['Grit']}</span></div>
           <div class="sh-kv"><span class="lbl">Rest points</span><span class="val">${der.rest_points}</span></div>

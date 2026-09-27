@@ -53,6 +53,9 @@ SHEET_SLOT_ALIAS = {'class_features': 'class_feature', 'pact_boons': 'pact_boon'
 CLASS_FEATURE_SLOTS = ('class_features', 'class_feature')
 GRANT_CHILD_SLOTS = {'runes': 'rune', 'metamagic': 'metamagic', 'skills': 'skill', 'trades': 'trade',
                      'disciplines': 'discipline'}   # BUG-21: Paladin Lay on Hands grants one
+# FR-12 Phase 3: sub_choice kinds whose answer must differ from every other node of the same kind
+# (Spell School Initiate + Expanded Spell School; Monk Iron Palm + Expert Monk's additional style)
+DISTINCT_CHOICE_KINDS = ('school_magic', 'weapon_style')
 # CH-14: the engine derived-stat rows the character sheet's core block carries, in the order the
 # sheet JS reads them (c['HP'] etc.). Engine constants, never literals; builder_verify (47) asserts it.
 SHEET_CORE = (eng.LBL_ATTACK, eng.LBL_SAVE_DC, eng.LBL_INITIATIVE, eng.LBL_GRIT, eng.LBL_HP, eng.LBL_SP,
@@ -897,6 +900,9 @@ class BuilderAPI:
 
     # ---------- spell / maneuver / talent option lists ----------
     def _school_magic_answers(self, skip=None):
+        return self._node_answers('school_magic', skip)
+
+    def _node_answers(self, kind, skip=None):
         # FR-12 Phase 3: the schools chosen on every school_magic node (Spell School Initiate, class
         # feature or MC twin, and Expanded Spell School), read from the node answers. Replaces the parse
         # of "Spell School Initiate: <School>" out of the pick name. `skip` = the entry asking (so its
@@ -910,7 +916,7 @@ class BuilderAPI:
             if e is skip:
                 continue
             decl = self._choice_decl(e)
-            if decl and decl.get('kind') == 'school_magic':
+            if decl and decl.get('kind') == kind:
                 pk = (e.get('choice') or {}).get('pick')
                 if pk and str(pk) != UNDECIDED:
                     out.append(str(pk))
@@ -1020,6 +1026,14 @@ class BuilderAPI:
             allc = (self.cat.get('damage_types') or {}).get('categories') or {}
             d['options'] = [{'name': t} for c in cats for t in allc.get(c) or []]
             return d
+        wgroups = (decl['options_from'] or {}).get('weapon_styles')
+        if wgroups:
+            # FR-12 Phase 3 Monk Iron Palm: "Choose a Melee Weapon Style" (classes.md l.2076), the styles
+            # weapon_styles.yaml parses out of general-rules.md, never typed here
+            d = dict(decl)
+            allg = (self.cat.get('weapon_styles') or {}).get('groups') or {}
+            d['options'] = [{'name': r['name']} for g in wgroups for r in allg.get(g) or []]
+            return d
         src = (decl['options_from'] or {}).get('source_schools')
         d = dict(decl)
         d['options'] = [{'name': s} for s in
@@ -1127,14 +1141,17 @@ class BuilderAPI:
         pick = self._choice_pick(parent, decl)
         d = self._dec('GC#%s#choice#0' % parentref, level, 'sub_choice', pick, None, False, editable,
                       plan=level > cur, plan_editable=editable and level > cur)
-        taken = set(self._school_magic_answers(skip=parent)) if decl.get('kind') == 'school_magic' else set()
+        # a DISTINCT kind never re-offers another node's answer: Spell School Initiate's school, and
+        # Expert Monk's "additional Melee Weapon Style" (FR-12 Phase 3 Monk) vs Iron Palm's first one
+        taken = (set(self._node_answers(decl['kind'], skip=parent))
+                 if decl.get('kind') in DISTINCT_CHOICE_KINDS else set())
         d['options'] = [{'name': o['name'], 'group': '', 'label': o['name']} for o in decl['options']
                         if o['name'] not in taken]
         if pick != UNDECIDED and not any(o['name'] == pick for o in d['options']):
             d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
         d['slotlabel'] = decl.get('label') or 'choice'
         d['choice_kind'] = decl.get('kind')
-        if decl.get('kind') in ('school_magic', 'divine_damage'):   # FR-12 Phase 3: the sheet folds the answer into its owner
+        if decl.get('kind') in ('school_magic', 'divine_damage', 'weapon_style'):   # FR-12 Phase 3: the sheet folds the answer into its owner
             d['choice_owner'] = (parentref, self._choice_owner_name(parent))
         out = [d]
         opt = self._choice_option(decl, pick)
@@ -1712,7 +1729,19 @@ class BuilderAPI:
     def _skill_plan_options(self, level):
         return self._plan_options('skills', level)
 
-    def _child_pool(self, singular):
+    def _owner_ccat(self, owner):
+        # FR-12 Phase 3 Monk (FR-57): the class catalog a grant-child list belongs to. A MULTICLASS
+        # feature (a talents.yaml mc_features row, e.g. the MC Monk Stance twin) grants children from
+        # ITS class's list, not the character's own: a Spellblade taking Novice Multiclass Monk Stance
+        # picks Monk Stances, never Spellblade Disciplines. Everything else is the character's class.
+        if owner is not None and owner.get('slot') == 'talent':
+            row = next((t for t in self._talent_rows() if t['name'] == base_name(str(owner.get('pick')))), None)
+            cls = (row or {}).get('class')
+            if cls and cls != self.cls:
+                return self.cat.get(cls.lower()) or {}
+        return self.ccat
+
+    def _child_pool(self, singular, owner=None):
         # BUG-34: the ONE place that answers "which catalog rows sit behind this pickable option
         # kind". _options_for renders its labels from this, the chargen class-choice aggregate sums
         # its grants from this, and _sync_granted_effects reads the grants of a CHOSEN child from
@@ -1722,7 +1751,8 @@ class BuilderAPI:
         if singular == 'discipline':
             # FR-12 Phase 3 Cleric: Divine Domains are the Discipline child shape under the class's own
             # catalog key (cleric.yaml `domains`); a class declares one list or the other, never both.
-            return list(self.ccat.get('disciplines') or self.ccat.get('domains') or [])
+            cc = self._owner_ccat(owner)
+            return list(cc.get('disciplines') or cc.get('domains') or [])
         if singular == 'pact_boon':
             return list(self.ccat.get('pact_boons') or [])
         if singular == 'rune':
@@ -2396,7 +2426,7 @@ class BuilderAPI:
     # The child's own grants (Magic mp/spells, War maneuvers) reach the engine via granted_effects.
     def _domain_rows(self, parent):
         # [(k, catalog row)] for each decided discipline child of `parent`
-        pool = {r['name']: r for r in self._child_pool('discipline')}
+        pool = {r['name']: r for r in self._child_pool('discipline', parent)}
         n = int((parent.get('grants') or {}).get('disciplines', 0) or 0)
         out = []
         for k, pk in enumerate((parent.get('granted_disciplines') or [])[:n]):
@@ -2568,13 +2598,19 @@ class BuilderAPI:
                               pick, None, False, editable,
                               plan=level > self.ledger['current_level'],
                               plan_editable=editable and level > self.ledger['current_level'])
+                if resource == 'disciplines' and self._owner_ccat(parent) is not self.ccat:
+                    # FR-57 (Monk): an MC feature's children come from its own class's list
+                    d['options'] = [{'name': r['name'], 'group': '', 'label': r['name'] + _fmt_grants(r.get('grants'))}
+                                    for r in self._child_pool('discipline', parent)]
+                    if pick != UNDECIDED and not any(o['name'] == pick for o in d['options']):
+                        d['options'].insert(0, {'name': pick, 'group': '', 'label': '%s (current, off-list)' % pick})
                 if resource == 'disciplines' and d.get('options'):
                     # BUG-21: "if you already know that Discipline, you gain another one of your
                     # choice" - so an already-held Discipline is not a legal pick here. Filter them
                     # out (keeping this slot's own current value selectable, the _dec off-list rule).
                     # FR-12 Phase 3: a `repeatable` row (Cleric Magic, "You can choose this Divine
                     # Domain multiple times") stays offered however often it is held.
-                    rep = {r['name'] for r in self._child_pool('discipline') if r.get('repeatable')}
+                    rep = {r['name'] for r in self._child_pool('discipline', parent) if r.get('repeatable')}
                     held = self._chosen_names('discipline') - {str(pick)} - rep
                     d['options'] = [o for o in d['options'] if o['name'] not in held]
                 out.append(d)
@@ -2753,7 +2789,7 @@ class BuilderAPI:
         for resource, singular in GRANT_CHILD_SLOTS.items():
             if resource in PLAN_POINTBUY:
                 continue   # skill/trade point-buy children are "Name: Tier" strings, not catalog rows
-            pool = {r['name']: r for r in self._child_pool(singular)}
+            pool = {r['name']: r for r in self._child_pool(singular, entry)}
             for pick in entry.get('granted_%s' % resource) or []:
                 row = pool.get(base_name(str(pick)))
                 if not row:
@@ -3075,7 +3111,7 @@ class BuilderAPI:
             pick = d.get('pick')
             if not pick or str(pick) == 'None':
                 continue
-            if d.get('choice_kind') in ('expertise', 'school_magic', 'divine_damage', 'spell_tag'):
+            if d.get('choice_kind') in ('expertise', 'school_magic', 'divine_damage', 'spell_tag', 'weapon_style'):
                 continue   # FR-56: "Trade Expertise (Herbalism)" on the Ancestry line already says it
             # a chargen class-features row carries no decision id; its node's parentref is 'cg:<i>'
             fk = d.get('id') if d.get('id') in folded else next(
@@ -3120,7 +3156,9 @@ class BuilderAPI:
                         'death_threshold': eder.get('death_threshold', prime + cmv), 'rest_points': hp,
                         'saves': eder.get('saves', {}), 'move': eder.get('move'),
                         'jump': eder.get('jump'), 'spend_limit': eder.get('spend_limit'),
-                        'dr': eder.get('dr', {})},
+                        'dr': eder.get('dr', {}),
+                        # FR-12 Phase 3 Monk: optional engine keys (Ki Points) ride only when emitted
+                        **{k: eder[k] for k in eng.OPTIONAL_DERIVED_KEYS if k in eder}},
             'skills': skills, 'trades': trades, 'languages': s['languages'],
             'abilities': groups,   # kept for the harness / any caller that wants it raw
             # BUG-32: the RENDERED ability groups, in SHEET_GROUPS order, so the page cannot
@@ -3254,6 +3292,15 @@ class BuilderAPI:
                 row = next((t for t in self._talent_rows() if t['name'] == value), None)
                 e['pick'] = value
                 self._apply_grants(e, (row or {}).get('grants'), base_name(_old_pick) != value)   # FR-8 slice 2
+                # FR-57 (Monk): a talent row's conditional half (MC Monk Training's Patient Defense, +2 PD
+                # unarmoured) rides the entry for the engine, like a class feature's (BUG-53). It was
+                # silently dropped here before. Only touched when the pick changes, so a hand-authored
+                # canon entry is never rewritten by re-selecting its own value.
+                if base_name(_old_pick) != value:
+                    if (row or {}).get('grants_unarmored'):
+                        e['grants_unarmored'] = dict(row['grants_unarmored'])
+                    else:
+                        e.pop('grants_unarmored', None)
                 self._sync_training(e, row or {})   # FR-48: Martial / Spellcasting Expansion training
                 self._edited(e)
                 self._sync_talent_rider(int(lvl), e)

@@ -116,3 +116,14 @@ classes:
     8: {hp: 2, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
     9: {hp: 2, sp: 1, man: 1, features: [Class Capstone]}
     10: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, man: 1, features: [Subclass Capstone]}
+  Monk:   # tables.md l.112-125 (classes.md l.2028-2041); parsed identical to the Champion table at all 10 levels (FR-12 Phase 3, 2026-09-27)
+    1: {hp: 8, sp: 2, man: 2, features: [Class Features]}
+    2: {hp: 2, features: [Class Feature, Talent, Path]}
+    3: {hp: 2, attr: 1, skill: 1, trade: 1, sp: 1, man: 1, features: [Subclass]}
+    4: {hp: 2, features: [Talent, 2 Ancestry Points, Path]}
+    5: {hp: 2, attr: 1, skill: 2, trade: 1, man: 1, features: [Class Feature]}
+    6: {hp: 2, skill: 1, features: [Talent, Path]}
+    7: {hp: 2, sp: 1, man: 1, features: [Subclass Expert]}
+    8: {hp: 2, attr: 1, skill: 1, trade: 1, features: [Talent, 2 Ancestry Points, Path]}
+    9: {hp: 2, sp: 1, man: 1, features: [Class Capstone]}
+    10: {hp: 2, attr: 1, skill: 2, trade: 1, sp: 1, man: 1, features: [Subclass Capstone]}

@@ -285,6 +285,25 @@ Regression: pristine `git clone` at `36ec33a` + the three edited source files ->
 
 ## Chores
 
+**FR-12 Phase 3, class 11: Monk (2026-09-27).** Base class L1-L6, Astral Self, Shifting Tide, Paragon (names; Astral Damage filed as FR-58), and 3 MC twins.
+- Data: spine (parsed against the Champion spine: identical on all 10 rows, classes.md and tables.md agree), `catalog/monk.yaml` (generated; model none; Weapons, Light Armor; 9 stances under `domains`, label monk stance), new generated `catalog/weapon_styles.yaml` (8 Melee + 3 Ranged, parsed from general-rules.md), `class_features.yaml` Monk L1-L6, `talents.yaml` Monk class talents (Expanded Stances {disciplines: 2}, Internal Damage and Steel Fist situational) and mc_features Monk Training, Monk Stance, Spiritual Balance.
+- **Design (agreed with Darryl):** stances are a child list, all situational (in-stance only); Iron Palm's Weapon Style is a derived `weapon_style` node, Expert Monk's second one excludes the first; Patient Defense `grants_unarmored {pd: 2}`; Step of the Wind `{speed 1, jump 1, jump_from prime}`, Expert +1/+1; Ki Points a derived sheet row (= max SP, Expert +1); MC twins now.
+- **Code findings (12):**
+  1. no weapon style data: `parse_weapon_styles` writes `weapon_styles.yaml`, baked via `builder_build.CATALOG`, excluded from the coverage ledger as option source data;
+  2. `_resolve_decl` knew only `damage_categories` / `source_schools`, and any other key fell through to `source_schools` silently: `weapon_styles` branch added (the fall-through itself remains);
+  3. node distinctness was school_magic-only: `_node_answers(kind)` + `DISTINCT_CHOICE_KINDS`; `weapon_style` folds onto its owner on the sheet;
+  4. **`jump_from: prime` silently gave Jump 1** (`attrs.get('prime')` = 0): the engine now reads Prime;
+  5. no per-class resource surface: `OPTIONAL_DERIVED_KEYS = ('ki',)`, emitted only with a `ki_from_sp` grant, sheet row `#shKi`, CH-14 (47) accepts optional keys;
+  6. **latent: the talent branch dropped `grants_unarmored`**, so an MC Patient Defense would never have applied;
+  7. **latent: an MC `disciplines` grant drew on the character's own list** (a Spellblade taking MC Monk Stance was offered Magus / Warrior / Acolyte): `_owner_ccat` scopes the pool to the feature's class;
+  8. catalog_build's domain name check hard-coded "divine domain(s)";
+  9. catalog_verify's twin check ignored `grants_unarmored` (added), plus a Monk block tying every count and number to its rules sentence and re-reading the weapon styles from the second rules listing;
+  10. harness: RT's L1 fixed check could not price a row carrying both `jump` and `jump_from` (Monk Training FAILED); it now adds the re-keyed base shift, and its re-key assertion must beat the flat amount (trap 5). The picked-option probe for the MC twin is still blind to Prime-for-Jump, so (54) asserts it on a Might 3 / Agility 1 probe;
+  11. harness: RT gained `ki_from_sp` / `ki` assertion tables and the Monk RT_FIXED / RT_FIXED_AT rows (the hand lists again);
+  12. the sheet printed a folded weapon style twice (on Monk Training AND as a Talent choice): `weapon_style` joins the skip list. Caught by S14, not by the model checks (trap 3); (54) now asserts it too. New section (54) and smoke S14 (weapon style nodes, stance pickers, Expert exclusion, Ki row and Monk Stances group on the sheet). Mutation-tested: reverting 4, 6 or 7 fails (54) and RT.
+- All six ledgers byte-identical; sheet, derived and export byte-identical for all six, Runt's Monk regen included. `state()` moved only as expected: each ledger's 2 talent pickers gain the 3 Monk MC options.
+- Open, not fixed: FR-58 (subclass sub_choice, Astral Damage), BUG-57 (MC stance labels). Noted, pre-existing: Adept MC features (Life Tap, now Spiritual Balance) are offered at the L2 talent slot although Adept Multiclass needs L4.
+
 **FR-12 Phase 3, class 10: Champion (2026-09-27).** Base class L1-L6, Hero, Sentinel, Paragon (no subclass numbers or picks), and 3 MC twins.
 - Data: spine (numerically identical to Commander and Barbarian on all 10 rows; the starter's "differs" was wrong, only Barbarian's L5 label differs), `catalog/champion.yaml` (generated; model none; Weapons, All Armor, All Shields parsed unchanged), `class_features.yaml` Champion L1-L6, `talents.yaml` Champion class talents (both situational) and mc_features Master-at-Arms, Fighting Spirit, Adaptive Tactics.
 - **Design (agreed with Darryl):** Maneuver Master's 1 and Expert Champion's 2 are childed pickers under the feature (`child_maneuvers`), not flat pool. Combat Readiness, Second Wind, Tactical Die, Weapon Master are `situational` with their numbers in the notes. MC twins added now, the rest filed as FR-57.

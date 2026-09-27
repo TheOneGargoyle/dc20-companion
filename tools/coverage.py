@@ -81,6 +81,7 @@ EXCLUDE_FILES = {
     "stamina_regen.yaml":  "trigger descriptions surfaced on the sheet (FR-23), not options",
     "rest_points.yaml":    "Rest Point hook descriptions for the Companion (FR-55), not options",
     "class_spines.yaml":   "the per-level class table itself; the engine reads it directly",
+    "weapon_styles.yaml":  "option SOURCE data parsed from general-rules.md for the Iron Palm node (FR-12 Monk); the node answer has no build-time delta",
 }
 
 # Named lists inside an INCLUDED file that are data rather than pickable options.

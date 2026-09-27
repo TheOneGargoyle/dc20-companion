@@ -114,6 +114,60 @@ def parse_damage_types():
     return out
 
 
+# FR-12 Phase 3 Monk: the Weapon Styles (general-rules.md "Step 2: Weapon Style & Damage", the Melee and
+# Ranged Weapon Styles lists), parsed from the rules text, never typed (trap 2). Written to
+# builds/catalog/weapon_styles.yaml; Iron Palm's node reads its Melee options from it.
+WEAPON_STYLE_GROUPS = ("Melee", "Ranged")
+
+
+def parse_weapon_styles():
+    text = read(os.path.join(ROOT, "rules", "general-rules.md"))
+    start = text.index("\nMelee Weapon Styles\n")
+    end = text.index("\nChanging Damage Type\n", start)
+    block = text[start:end]
+    out = {}
+    for i, grp in enumerate(WEAPON_STYLE_GROUPS):
+        a = block.index("\n%s Weapon Styles\n" % grp) + 1
+        b = block.index("\n%s Weapon Styles\n" % WEAPON_STYLE_GROUPS[i + 1]) if i + 1 < len(WEAPON_STYLE_GROUPS) else len(block)
+        lines = block[a:b].splitlines()[1:]
+        rows, j = [], 0
+        while j < len(lines):
+            m = re.match(r"^([A-Z][a-z]+) \((.*)$", lines[j])
+            if not m:
+                j += 1
+                continue
+            dmg = m.group(2)
+            while ")" not in dmg and j + 1 < len(lines):
+                j += 1
+                dmg += " " + lines[j].strip()
+            enh = next((re.match(r"^([A-Z][a-z]+): ", l).group(1) for l in lines[j + 1:]
+                        if re.match(r"^([A-Z][a-z]+): ", l)), None)
+            types = [t for t in re.split(r",\s*(?:or\s+)?|\s+or\s+", dmg.split(")")[0]) if t]
+            rows.append({"name": m.group(1), "damage": types, "enhancement": enh})
+            j += 1
+        if len(rows) < 3 or any(not r["enhancement"] for r in rows):
+            sys.exit(f"{grp} weapon styles parsed short: {rows}")
+        out[grp] = rows
+    return out
+
+
+# FR-12 Phase 3 Monk: the 9 Monk Stances (classes.md l.2101-2159), the Discipline child shape under the
+# class's own `domains` key + label like the Cleric's Divine Domains. Every stance applies only WHILE you
+# are in it (one at a time, entered per turn), so none is a standing stat: Gazelle's +1 Speed and Jump
+# and Turtle's Speed 1 are in-stance only, hence situational, not grants.
+MONK_STANCES = {
+    "Bear Stance": {"no_effect": "situational", "note": "+1 damage on Heavy / Critical Hits (Unarmed or Melee); ADV on the next Melee Martial Attack after a Miss"},
+    "Bull Stance": {"no_effect": "situational", "note": "push successes deal 1 Bludgeoning; pushes go 1 extra Space and you may follow"},
+    "Cobra Stance": {"no_effect": "situational", "note": "+1 damage vs creatures that damaged you; 1 AP Reaction attack when a Melee Attack misses you"},
+    "Gazelle Stance": {"no_effect": "situational", "note": "in stance: +1 Speed and Jump, ignore Difficult Terrain, ADV on Acrobatics and Agility Saves"},
+    "Mantis Stance": {"no_effect": "situational", "note": "ADV on Grapple Checks and Saves; +1 AP for a Grapple Maneuver"},
+    "Mongoose Stance": {"no_effect": "situational", "note": "+1 damage while Flanked; one Attack Check against 2 targets in Melee Range"},
+    "Scorpion Stance": {"no_effect": "situational", "note": "entering your Melee Range provokes; 1 AP: +1 damage and a Physical Save or Impaired"},
+    "Turtle Stance": {"no_effect": "situational", "note": "in stance: Speed 1, PDR / EDR / MDR, ADV on Might Saves and vs forced movement or Prone"},
+    "Wolf Stance": {"no_effect": "situational", "note": "move 1 Space free after an Unarmed or Melee Attack; ADV on your Opportunity Attacks, DisADV on theirs"},
+}
+
+
 # Warlock Pact Boon options (classes.md "Pact Boon ... Weapon, Armor, Spell, or Familiar").
 # Pact Weapon: "You learn 2 Attack Maneuvers of your choice"; Pact Armor: "You learn 2
 # Defensive Maneuvers of your choice" (+1 AD & MDR are conditional, worn-only - not a grant).
@@ -245,6 +299,13 @@ CLASS_CONFIG = {
         "extras": {},
         # Martial class like the Commander and Barbarian: no Spell List of its own, spells only via the
         # Spellcaster Path first-time rider (character-creation.md l.753-756).
+        "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
+    },
+    "Monk": {
+        "source_note": "builds/catalog/class_spines.yaml + rules/classes.md l.2016-2306 + rules/tables.md l.112-125",
+        "extras": {"domains": MONK_STANCES, "domain_label": "monk stance"},
+        # Martial class like the Champion: no Spell List of its own, spells only via the Spellcaster Path
+        # first-time rider (character-creation.md l.753-756).
         "spellcasting": {"model": "none", "path_rider": "spell list of choice from any class (character-creation.md l.753-756)"},
     },
     "Druid": {
@@ -416,7 +477,7 @@ def build(cls):
         catalog["pact_boons"] = [dict({"name": n}, **v) for n, v in extras["pact_boons"].items()]
     if "domains" in extras:
         # FR-12 Phase 3 Cleric: Divine Domains, the Discipline child shape under their own key + label
-        verify_names_present(section, extras["domains"], "divine domain(s)", cls)
+        verify_names_present(section, extras["domains"], extras["domain_label"] + "(s)", cls)
         catalog["domain_label"] = extras["domain_label"]
         catalog["domains"] = [dict({"name": n}, **v) for n, v in extras["domains"].items()]
     if "runes" in extras:
@@ -471,6 +532,19 @@ def main():
         path = os.path.join(ROOT, "builds", "catalog", "damage_types.yaml")
         with open(path, "w", encoding="utf-8") as f:
             f.write(dt)
+        print(f"[wrote {path}]")
+    # FR-12 Phase 3 Monk: weapon_styles.yaml, the same generated-from-rules shape as damage_types.yaml
+    ws = header.replace("Spine numbers come from builds/catalog/class_spines.yaml; names cross-checked vs classes.md.",
+                        "Weapon Styles parsed from rules/general-rules.md (Melee / Ranged Weapon Styles).")
+    ws += yaml.safe_dump({"catalog_version": 1, "ruleset": "DC20 0.10.5", "generated_by": "tools/catalog_build.py",
+                          "source": "rules/general-rules.md Step 2: Weapon Style & Damage",
+                          "groups": parse_weapon_styles()}, sort_keys=False, allow_unicode=True, width=100)
+    if args.check:
+        print(ws)
+    else:
+        path = os.path.join(ROOT, "builds", "catalog", "weapon_styles.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(ws)
         print(f"[wrote {path}]")
 
 
