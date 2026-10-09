@@ -69,7 +69,11 @@ PARTY_LEDGERS = {  # CHARS key -> ledger file (the curated include set, by id â€
 # "X" in the very same list ("Bleeding X", "Doomed X"), so which pills need a counter is DATA, not
 # a design call. That is the anti-mirror lesson from CH-10: one hand-kept list disagreeing with
 # its source is where the rot always is.
-CONDITION_EXTRAS = ("Prone", "Grappled")   # real, heavily-used states that are not List entries
+# real, heavily-used states that are not List entries, each with the rules file that proves it is still
+# in use. Poisoned (re-added 2026-10-09, Darryl): dropped by BUG-40 as not a List entry, but 0.10.5
+# monsters still apply it ("Target is Poisoned for 1 minute") and ancestries grant ADV against it, so the
+# table needs to track it. bestiary.md's Beta Note says Poisoned is being reworked for the next release.
+CONDITION_EXTRAS = (("Prone", "general-rules.md"), ("Grappled", "general-rules.md"), ("Poisoned", "bestiary.md"))
 
 
 def conditions_list(camp):
@@ -87,8 +91,8 @@ def conditions_list(camp):
     # A silent parse break here would quietly shrink the tracker, so bound it rather than trust it.
     assert 20 <= len(out) <= 40, "conditions parse looks wrong: %d found" % len(out)
     assert sum(1 for c in out if c["s"]) >= 8, "stacking markers not parsed"
-    for extra in CONDITION_EXTRAS:
-        assert extra in txt, "%s is no longer in general-rules.md" % extra
+    for extra, src in CONDITION_EXTRAS:
+        assert extra in (Path(camp) / "rules" / src).read_text(encoding="utf-8"), "%s is no longer in %s" % (extra, src)
         out.append({"n": extra, "s": False, "x": True})
     return out
 
