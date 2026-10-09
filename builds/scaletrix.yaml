@@ -130,9 +130,8 @@ equipment:
 notes:
 - L4 history, sheet header said Spells(8) but 10 were listed; 10 is the budget-correct count (5 table + 2 paths + 2 Intuitive + 1 Arcane trait). Header is wrong.
 - 'L4 history, FR-13a 2026-07-19: all 10 spells now named + sourced from Darryl''s sheet screenshot (5 Primal / 5 Arcane), matching the 10-spell budget exactly. Arcane sourcing: Command via Fiendish Magic ancestry trait; Disintegrating Beam + Gravity Well via Innate Power / Intuitive Magic (Sorcerous Origin source = Arcane); Dispel Magic + Telekinesis via the two Spellcaster-path ranks (Arcane, legal via Spellcasting Expansion). Resolves the old ''ASK DAMO for 4 Arcane spells'' item and clears the auto-heal ready slots.'
-- 'L5 sheet (2026-10-09) vs RAW, ASK DAMO: HP 16 printed, RAW 15 (Druid table 11 + Might 4); MP 18 printed, RAW 19 (table 12 + Spellcaster path x2 6 + Mana Increase 1; Innate Power''s +1 left with the respec). Spells 12 match.'
+- 'L5: HP 15 = Druid table 11 + Might 4; MP 19 = table 12 + Spellcaster path x2 6 + Mana Increase 1 (Innate Power''s +1 left with the respec). Damo''s first L5 sheet printed 16 / 18; corrected to match (Darryl, 2026-10-09).'
 expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  # hp and mp are the RAW derivation, NOT the sheet: Damo's L5 sheet prints HP 16 and MP 18 (see notes).
   # saves include the +1 Amulet of Minor General Resilience (equipment saves: 1).
   hp: 15
   sp: 0

@@ -187,7 +187,11 @@ Might 2 · Agility 4 · Int 3 · Cha −2 · <b>Prime 4</b>.<br>Saves: Mig +5 ·
 
 <details><summary>⚔️ Optimization Workshop</summary><div class="inner">
 <div class="card"><h3>1 · Expose setup <span class="small">(the enabler default)</span></h3>
-Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <b>Exposed</b>, allies swing at ADV. Patron's Favor makes the cast reliable (free ADV). Add Smite (1 SP → +2) for personal damage. ~1 MP/round is her sustainable budget; MSL 3/action = nova only.</div>
+Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <b>Exposed</b>, allies swing at ADV. When two or more enemies are adjacent, the L5 version is better: Spellstrike <b>Luminous Burst + Expose (2 MP)</b> and every adjacent enemy makes the Physical Save. Patron's Favor makes the cast reliable (free ADV). Add Smite (1 SP → +2) for personal damage. ~1 MP/round is her sustainable budget; MSL 3/action = nova only.</div>
+<div class="card"><h3>L5 · The AoE nova <span class="small">(replaces the old Meteor Strike nova)</span></h3>
+<b>Whirlwind</b> (2 AP, 1 Space Aura vs AD) with <b>Luminous Burst</b> riding it as a Spellstrike (2 AP → 1 AP; Expert Spellblade lets the spell hit the whole Aura as long as one target is also the weapon's target). Add <b>Expose (2 MP)</b> + <b>Divine Chains (1 MP)</b> = 3 MP, exactly her MSL. <b>Turn: 3 AP / 3 MP</b>, one AP left for a Side Step or Nimble dodge.<br>
+Result: everything adjacent takes greatsword damage plus 2 Radiant, makes a Physical Save or is Exposed, and an Int Save or is Tethered in place. Both attacks go against <b>AD</b>, so this is the line for big, slow targets. Life Tap can pay the 3 MP in HP once per combat.<br>
+<span class="small">Lost with the respec: Impact Crater's Prone. Exposed already gives every ally ADV, ranged included, so the nova does not miss it much.</span></div>
 <div class="card"><h3>2 · All-out offense <span class="small">(when the target must die NOW · EV worked at L4, +5 to hit; L5's +7 only improves it)</span></h3>
 <b>Attack 1:</b> Swift Strike + Smite — 2 AP / 3 SP → 5 base / 7 Heavy (1 AP buys ADV).<br>
 <b>Attack 2:</b> Spellstrike Radiant Bolt (Pact) — 2 AP / 1 MP → 6 base / 8 Heavy, +1 vs Bloodied (Patron's Favor nets ADV1).<br>
@@ -195,7 +199,7 @@ Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <
 <div class="card"><h3>3 · Healing engine <span class="small">(L5)</span></h3>
 <b>Lay on Hands → Acolyte Heal</b>: 0 MP, Spell Check +7 <b>+5</b> = +12 vs DC 10, distribute within 5 Spaces, 1/Long Rest. Expert Spellblade adds <b>+2 healing per extra MP</b>, and Life Tap can pay those MP as HP (HP + MP ≤ MSL 3), refunded later through Close Wounds and Rest Points. That is the ~8 to 9 to allies for 1 to 2 AP and roughly 0 net MP.</div>
 <div class="card"><h3>4 · Sparring partner reminders</h3>
-Full Dodge habit (Nimble): bank 1 AP → attacks at you at DisADV — but attackers can buy ADV to cancel it.<br>
+Full Dodge habit (Nimble): bank 1 AP → attacks at you at DisADV — but attackers can buy ADV to cancel it. <b>Side Step</b> (L5) is the uncancelled layer on top: keep 1 AP for it against the scariest swing, and it covers AD and crits, which Parry does not.<br><b>Spell Breaker vs casters:</b> standing next to the Caster (or between Caster and target), challenge the Spell Duel with a Martial Check at ADV for 0 MP, +1 per SP. Save it for the spell that would wreck the fight.<br>
 Defence-targeting choice: Radiant Bolt hits <b>PD</b>, Luminous Burst hits <b>AD</b>. Pick the weaker door.</div>
 </div></details>
 

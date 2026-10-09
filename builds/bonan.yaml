@@ -109,9 +109,9 @@ equipment:
 notes:
 - 'PD 9 RESOLVED: no armor + no bonuses = 8+CM+Agi+Int = 9 exactly; AD 18 = 16 + Berserker Defense. Not a sheet error.'
 - '''Recovery'' was a typo for the real Utility maneuver Recover (fixed 2026-07-12).'
-- 'L5 Jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1 (Jumper respecced away). Ed''s L5 sheet says 4: it looks like Titanic Leap was dropped from the box. ASK ED.'
+- L5 Jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1 (Jumper respecced away). Ed's first L5 sheet printed 4; corrected to 5 (Darryl, 2026-10-09).
 expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  # move 6 = 5 + Berserker Fast Movement. jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1; the sheet prints 4 (see notes).
+  # move 6 = 5 + Berserker Fast Movement. jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1.
   hp: 20
   sp: 4
   mp: 3
