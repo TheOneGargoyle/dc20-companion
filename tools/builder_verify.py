@@ -133,6 +133,9 @@ def check_page():
 
 
 # ---------------------------------------------------------------- FS staging
+FIXTURES = os.path.join(REPO, "builds", "fixtures", "L4")
+
+
 def stage():
     tmp = tempfile.mkdtemp(prefix="builder_verify_")
     shutil.copy(os.path.join(REPO, "tools", "build_engine.py"), tmp)
@@ -142,7 +145,9 @@ def stage():
     with open(os.path.join(tmp, "spells_meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False)
     for c in builder_build.CHARS:
-        shutil.copy(os.path.join(REPO, "builds", c + ".yaml"), tmp)
+        # 2026-10-09 (party L5): the behaviour checks pin Level 4 numbers, so they run on the
+        # frozen L4 fixtures; the live ledgers are checked in (1) blobs and (56). builds/fixtures/README.md
+        shutil.copy(os.path.join(FIXTURES, c + ".yaml"), tmp)
     for c in builder_build.CATALOG:
         shutil.copy(os.path.join(REPO, "builds", "catalog", c + ".yaml"), tmp)
     return tmp
@@ -1085,8 +1090,10 @@ def check_companion_dmg_roll():
                int(m.group(1)) == want, (m.group(1), want, derived["min"]["sp"]))
 
         n_help = art.count("'Help Die (d8)'")
-        ok("FR-52: all six are at d8 today; flip Minimus to d10 when he reaches L5",
-           n_help == 6, n_help)
+        ok("FR-52: Minimus flipped to d10 at L5 (Expert Commander), the other five stay d8",
+           n_help == 5 and "min" in derived and derived["min"]["level"] >= 5
+           and re.search(r"min:\{short:'Minimus'.*?\['d10','Help Die \(d10\)'", art, re.S) is not None,
+           n_help)
 
         # --- BUG-50: the ORC attribution card, in the ARTIFACT (trap 3) ---
         # It is the one condition under which publishing DC20 text is permissible, and before this
@@ -3117,12 +3124,36 @@ def check_ch5_burndown():
        eng.unresolved_attribute_grants(stray, 1))
     # Tanrielle is the atomic-change guard: she holds Speed Increase (L4) AND Attribute
     # Increase (Might) (chargen), so a half-landed CH-5 shows up as Move Speed 5 / Might 1.
-    tan = yaml.safe_load(open(os.path.join(REPO, "builds", "tanrielle.yaml"), encoding="utf-8"))
+    tan = yaml.safe_load(open(os.path.join(FIXTURES, "tanrielle.yaml"), encoding="utf-8"))
     trep = builder_api.eng.replay(tan, 4)
     ok("tanrielle canon: Move Speed 6 and Might 2 both still derive (CH-5 atomicity)",
        trep.derived.get("move") == 6 and builder_api.eng.attribute_deltas(tan, 4)["might"] == 1,
        "move=%s attr_might delta=%s" % (trep.derived.get("move"),
                                         builder_api.eng.attribute_deltas(tan, 4)["might"]))
+
+
+def check_live_ledgers():
+    """2026-10-09, party L5: the behaviour checks run on the frozen L4 fixtures (stage()), so this
+    section is what holds the LIVE ledgers to account. Each replays at its own current_level with
+    zero engine problems, a non-empty Derived-vs-sheet table, every compared row OK, and the
+    builder API (scratch-free) reporting no catalog or builder problems either."""
+    print()
+    print("## (56) live ledgers replay clean at their current level (party L5)")
+    for h in builder_build.CHARS:
+        led = yaml.safe_load(open(os.path.join(REPO, "builds", h + ".yaml"), encoding="utf-8"))
+        lvl = led["current_level"]
+        rep = builder_api.eng.replay(led, lvl)
+        rows = [l for l in rep.lines if l.startswith("| ") and l.rstrip().endswith(("| OK |", "MISMATCH |"))]
+        ok("%s L%d: zero engine problems" % (h, lvl), not rep.problems, rep.problems)
+        ok("%s L%d: expected: rows compared (not an empty table)" % (h, lvl), len(rows) >= 10, len(rows))
+        bad = [r for r in rows if not r.rstrip().endswith("| OK |")]
+        ok("%s L%d: every expected: row matches the derivation" % (h, lvl), not bad, bad)
+        api = builder_api.BuilderAPI(h, CATPATHS, ledger_text=open(
+            os.path.join(REPO, "builds", h + ".yaml"), encoding="utf-8").read())
+        s = json.loads(api.state())
+        ok("%s L%d: no catalog / builder problems in the builder" % (h, lvl),
+           not s["catalog_problems"] and not s["builder_problems"],
+           (s["catalog_problems"], s["builder_problems"]))
 
 
 def check_bug33_class_talents():
@@ -4688,7 +4719,8 @@ def check_fr49_equipment_effects():
         ok("FR-49 PARTY_DERIVED carries all six", set(baked) == set(handle), sorted(baked))
         bad = {}
         for h, c in handle.items():
-            lc = yaml.safe_load(open(c + ".yaml", encoding="utf-8"))
+            # the Companion bakes the LIVE ledgers, so compare against those, not the L4 fixtures
+            lc = yaml.safe_load(open(os.path.join(REPO, "builds", c + ".yaml"), encoding="utf-8"))
             dc = be.replay(lc, lc["current_level"]).derived
             for f, n in ((f, _eng.GRANT_STAT_LABEL[f]) for f in ("hp", "sp", "mp", "pd", "ad")):
                 if h in baked and baked[h][f] != dc[n]:
@@ -5722,7 +5754,8 @@ def main():
                     check_fr49_equipment_effects, check_ch14_engine_labels,
                     check_ch10_a14_roster, check_fr12_sorcerer,
                     check_fr12_wizard, check_fr12_cleric, check_fr12_bard,
-                    check_fr12_champion, check_fr12_monk, check_fr12_hunter):
+                    check_fr12_champion, check_fr12_monk, check_fr12_hunter,
+                    check_live_ledgers):
             run(_fn)
     finally:
         os.chdir(old)

@@ -11,7 +11,7 @@ class: Spellblade
 subclass: Paladin
 ancestry: Half-elf (Human + Elf trait lists)
 background: Herbalist
-current_level: 5
+current_level: 4
 
 chargen:
   attribute_method: point_buy
@@ -54,10 +54,7 @@ levels:
     pick: 'MC Warlock (Novice): Pact Spell'
     note: Pact Spell = Radiant Bolt (+1 dmg vs Bloodied, +1/+5 range, ADV 1/round)
   - {slot: path, pick: Martial}
-  - slot: maneuver
-    pick: Side Step
-    source: Martial path rank 1
-    note: Respec at L5 (Jesse approved, 2026-09-23), was Meteor Strike. Never used in play; Side Step moments kept being missed.
+  - {slot: maneuver, pick: Meteor Strike, inferred: true, source: Martial path rank 1}
   3:
   - {slot: subclass, pick: Paladin}
   - slot: discipline
@@ -85,7 +82,7 @@ levels:
     # renders in the builder page, and implementation history is not something a player needs.
   - {slot: maneuver, pick: Whirlwind, inferred: true, source: Martial path rank 2}
 
-  # ---- L5 taken as planned (2026-10-09, L5 sheet). L6 below is still PLAN (08) ----
+  # ---- PLAN (locked 2026-06-21, 08 "L5-L6 build plan - LOCKED") ----
   5:
   - {slot: attribute, pick: agility, note: 'Agility 3->4, Prime->4 (attribute limit rises to 4 at L5)'}
   - slot: class_feature
@@ -106,15 +103,14 @@ levels:
     pick: 'MC Warlock (Expert): +2 any-source spells'
     grants: {spells: 2}
     note: Picks = Radiant Imbued + Bless. 2nd Pact Spell = Luminous Burst.
-  - slot: path
-    pick: Martial
-    note: 'rank 3: SP->5, regen->3; maneuver open (Side Step moved to the L5 respec)'
+  - {slot: path, pick: Martial, note: 'rank 3: SP->5, regen->3; maneuver = Side Step'}
+  - {slot: maneuver, pick: Side Step, source: Martial path rank 3}
   - {slot: skill, pick: Stealth Novice->Adept (1 SP; rode the L5 Agility bump)}
 
 skills:
   allocation_confidence: inferred   # totals verified vs sheet at L4; per-level timing reconstructed
   masteries:
-    Awareness: {mastery: Expert, limit_raise: skill_point_purchase}
+    Awareness: {mastery: Adept, limit_raise: skill_point_purchase}
     Athletics: {mastery: Novice}
     Acrobatics: {mastery: Novice}
     Stealth: {mastery: Novice}
@@ -122,12 +118,12 @@ skills:
     Survival: {mastery: Novice}
 trades:
   masteries:
-    Herbalism: {mastery: Expert}  # cap + free step from the Trade Expertise trait entry (BUG-20)
+    Herbalism: {mastery: Adept}   # cap + free step from the Trade Expertise trait entry (BUG-20)
     Gaming: {mastery: Novice}
     Brewing: {mastery: Novice}
     Cooking: {mastery: Novice}
-    Arcana: {mastery: Adept}
-    Nature: {mastery: Adept}
+    Arcana: {mastery: Novice}
+    Nature: {mastery: Novice}
   knowledge_trades: [Arcana, Nature]
 languages:
 - {name: Common, fluency: Fluent, cost: 0}
@@ -146,25 +142,26 @@ equipment:
 - {name: First Aid Kit}
 - {name: Healing Balms}
 
+expected:   # from the L4 sheet / 08 live block
+  hp: 14
+  sp: 3
+  mp: 6
+  spells: 3
+  maneuvers: 4
+  grit: 0
+  attack: 5
+  save_dc: 15
+  initiative: 5
+  pd: 17     # base incl. the sword's Guard +1 (see equipment). Sheet's 19 = 17 + Primal Hide 2.
+             # NOT a sheet error (Darryl clarified 2026-07-10) — but conditional on Jesse ruling
+             # that Guard carried over to the Keepers' sword; if it didn't, base drops to 16 / 18 buffed.
+  ad: 12
+  saves: {might: 4, agility: 5, charisma: 0, intelligence: 5}
+  move: 6
+  jump: 3
+  spend_limit: 2
+
 notes:
 - Maneuver/spell acquisition ORDER at L2-L4 is inferred (sheet lists totals only); the sets are confirmed.
 - 'L3 attribute point: proven spent by the attribute-sum budget; Darryl confirmed 2026-07-10 it went to Might (as did the ancestry increase).'
 - PD/AD derived from core-rules.md l.2137/2158 + equipment. Base PD 17; the 19 in 08 includes Primal Hide (+2 PD).
-
-expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  # pd 19 base; the sheet's 21 = 19 + Primal Hide 2 (same convention as L4).
-  hp: 16
-  sp: 4
-  mp: 7
-  spells: 4
-  maneuvers: 4
-  grit: 0
-  attack: 7
-  save_dc: 17
-  initiative: 7
-  pd: 19
-  ad: 13
-  saves: {might: 5, agility: 7, charisma: 1, intelligence: 6}
-  move: 6
-  jump: 4
-  spend_limit: 3

@@ -8,7 +8,7 @@ class: Commander
 subclass: Warlord
 ancestry: Halfling Kitsune (Halfling + Beast trait lists)
 background: Urchin
-current_level: 5
+current_level: 4
 
 chargen:
   attribute_method: point_buy
@@ -51,20 +51,14 @@ levels:
   - {slot: path, pick: Spellcaster}
   - {slot: ancestry_trait, pick: Sprint, source: Beast, cost: 2}
   - {slot: spell, pick: Cleanse, source: Spellcaster path +1 spell, note: Edited in builder (minimus).}
-  5:
-  - {slot: attribute, pick: charisma, note: 'Charisma 3->4, Prime 4 (Kristian''s L5 sheet)'}
-  - slot: class_feature
-    pick: Expert Commander
-    note: Commander's Call 10 Spaces, +2 SP for a 2nd command; Inspiring Presence +1 HP; Help Die starts at d10 in your Aura; Rally / Reinforce. Added in builder
-  - {slot: maneuver, pick: Brace, source: class table L5, note: Added in builder}
 
 skills:
   allocation_confidence: sheet
   masteries:
     Awareness: {mastery: Novice}
     Acrobatics: {mastery: Novice}
-    Influence: {mastery: Adept}
-    Insight: {mastery: Adept}
+    Influence: {mastery: Novice}
+    Insight: {mastery: Novice}
     Survival: {mastery: Novice}
   # CH-1 sheet re-audit 2026-07-18: filled from the L4 paper sheet's mastery checkboxes
   # (Minimus L4 (v0.10.5).pdf). 6 SP earned = 5 Novice skills + 1 SP converted to 2 TP
@@ -74,7 +68,7 @@ trades:
   masteries:
     Disguise: {mastery: Novice}
     Gaming: {mastery: Novice}
-    Theatre: {mastery: Adept}
+    Theatre: {mastery: Novice}
     History: {mastery: Novice}
     Nature: {mastery: Novice}
   knowledge_trades: [History, Nature]
@@ -97,23 +91,24 @@ equipment:
 - {name: Arcane Crossbow, mods: 'Light Crossbow, Arcane Ammo, no Reload'}
 - name: Necklace of Luck
   mods: 'Luck property, Magic Power 2 (DC20 Magic Item System v2 magazine; not yet in rules/, CH-18): when you make a Check or Save you can choose to gain ADV on it, 3 times per day. TABLE RULING on top: when he uses Commander''s Call he can give that ADV to the ally he calls. No derived-stat effect.'
+expected:
+  hp: 14
+  sp: 3
+  mp: 6
+  spells: 2
+  maneuvers: 3
+  grit: 5
+  attack: 5
+  save_dc: 15
+  initiative: 4
+  pd: 13
+  ad: 14
+  saves: {might: 2, agility: 4, charisma: 5, intelligence: 2}
+  move: 5
+  jump: 2
+
+  spend_limit: 2
 
 notes:
 - Class = Commander per tables.md; Phil's summary calls it Warlord (Commander). Subclass = Warlord.
 - Skill breakdown missing from sheet; part of the 09 party-wide sheet refresh.
-expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  hp: 16
-  sp: 3
-  mp: 6
-  spells: 2
-  maneuvers: 4
-  grit: 6
-  attack: 7
-  save_dc: 17
-  initiative: 5
-  pd: 14
-  ad: 16
-  saves: {might: 3, agility: 5, charisma: 7, intelligence: 3}
-  move: 5
-  jump: 2
-  spend_limit: 3

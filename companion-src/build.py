@@ -137,17 +137,22 @@ print("party derived: " + ", ".join(
 
 # ---------- Tan accordions (hand-crafted from 08/07, cited facts only) ----------
 TAN_ACCORDIONS = """
-<details><summary>Spells (3) &amp; Pact riders</summary><div class="inner">
+<details><summary>Spells (4) &amp; Pact riders</summary><div class="inner">
 <div class="card"><h3>Radiant Bolt <span class="small">(Invocation · standing Pact Spell · vs PD)</span></h3>
 Her spine spell — usually folded into a greatsword swing via <b>Spellstrike</b> (1 AP less, one combined attack; crit/Heavy applies once to the package).<br>
 <b>Pact riders:</b> Death's Toll (+1 dmg vs Bloodied) · Range Increase · <b>Patron's Favor</b> (free ADV to cast it, 1/round).<br>
 <b>Expose (+1 MP):</b> target fails a Physical Save → <b>Exposed</b> (allies attack it with ADV). The headline enabler move.
 </div>
+<div class="card"><h3>Luminous Burst <span class="small">(Invocation · 2 AP · 1 Space Aura · vs AD · L5)</span></h3>
+Area Spell Attack against the AD of everything adjacent: 1 Radiant, +1 from the Powerful focus = <b>2</b>. Light rises by 1 until end of turn.<br>
+<b>Expose (2 MP):</b> each target makes a Physical Save or is <b>Exposed</b> for 1 Round. <b>Divine Chains (1 MP):</b> Repeated Int Save or <b>Tethered</b> to the area for 1 minute; Punishing Chains (X MP) adds X Radiant each turn they start Tethered.<br>
+With Expert Spellblade it can ride a Spellstrike (at least one spell target must be the weapon's target), so Whirlwind or a single swing carries it.
+</div>
 <div class="card"><h3>Close Wounds <span class="small">(Invocation · 1 AP)</span></h3>
 The RP-funded heal — refunds Life-Tapped HP out of combat via Rest Points, keeping the pools for allies.
 </div>
 <div class="card"><h3>Primal Hide <span class="small">(buff)</span></h3>
-Her armour spell — PD 17 → <b>19</b> while up (the sheet default). Toggle it on the tracker above.
+Her armour spell: PD 19 → <b>21</b> while up (the sheet default). Toggle it on the tracker above.
 </div>
 </div></details>
 
@@ -157,41 +162,41 @@ Her armour spell — PD 17 → <b>19</b> while up (the sheet default). Toggle it
 <div class="card"><h3>Swift Strike <span class="small">(1 AP + 1 SP)</span></h3>Move up to Speed (6) + melee attack — her cheap gap-closer (swapped in for Side Step, 2026-06-20).<br>
 <b>Subsequent Strike (+1 AP +1 SP):</b> +½ Speed move, attack a 2nd creature with the <b>same</b> Attack Check (no MCP). Ruling settled: bonus damage (Smite/Spellstrike rider) applies to <b>one</b> target only; Heavy/Crit computes per target. The two-target line: 6.00 EV vs 5.69 for two normal attacks.
 </div>
-<div class="card"><h3>Meteor Strike <span class="small">(1 AP + 1 SP)</span></h3>Jump-and-strike; her only other 1-AP gap-close. <b>Table ruling (settled):</b> it's a Standing Jump → halved → Agility 3 +2 = 5, halved, round up = <b>3 Spaces</b>. Blink Blade's 1-Space teleport makes effective reach ≈ 4. <b>Impact Crater (+1 AP +1 SP):</b> aura save-or-<b>Prone</b>. Remember: Prone helps <i>melee</i> allies (ADV), hurts ranged (DisADV).
+<div class="card"><h3>Side Step <span class="small">(reaction · 1 AP · L5)</span></h3>When she's targeted by an Attack: impose <b>DisADV</b> on it, then move 1 Space as long as she stays in its range. Covers AD as well as PD, and smothers crits. Swapped in for Meteor Strike at L5 (Jesse approved): Meteor Strike never got used.
 </div>
-<div class="card"><h3>Whirlwind</h3>1-Space aura attack vs AD — taken at L4 to be ready for the L5 <b>Whirlwind + Luminous Burst</b> AoE Spellstrike combo.
+<div class="card"><h3>Whirlwind</h3>1-Space aura attack vs AD. Live at L5: <b>Whirlwind + Luminous Burst</b> as one AoE Spellstrike, so everything adjacent takes weapon damage and radiant, and Expose rides on top.
 </div>
 </div></details>
 
 <details><summary>Class features &amp; kit</summary><div class="inner">
 <div class="card"><h3>The engine</h3>
-<b>Spellstrike</b> — once/turn, fold a spell into a Martial Attack for 1 AP less; one combined attack.<br>
-<b>Bound Weapon</b> — Greatsword of the Keepers; bonded options <b>Illuminate, Smite, Recall</b>. Smite = +1 Bound dmg/SP + a free Martial Enhancement (her pick: +1 dmg) ⇒ <b>1 SP Smite = +2 dmg</b>, radiant (Divine Strike).<br>
+<b>Spellstrike</b> — once/turn, fold a spell into a Martial Attack for 1 AP less; one combined attack. <b>Expert (L5):</b> the spell can target several creatures or an Area, as long as one of them is the weapon's target.<br>
+<b>Bound Weapon</b> — Greatsword of the Keepers; bonded options <b>Illuminate, Smite, Recall</b>. Smite = +1 Bound dmg/SP + a free Martial Enhancement (her pick: +1 dmg) ⇒ <b>1 SP Smite = +2 dmg</b>, radiant (Divine Strike). <b>Expert (L5):</b> Bound Damage ignores Resistance.<br>
 <b>Stamina Regen (errata)</b> — once/round after a Bound-Weapon hit, Spell Check, or Weapon-tag spell: regain up to <b>2 SP</b> (half max). Smite every round is sustainable.<br>
-<b>Life Tap</b> — pay MP costs with HP (total ≤ MSL 2), 1/Long Rest, <b>regained on Initiative</b>.<br>
-<b>Acolyte + Lay on Hands</b> — 1 AP/1 MP heal pool (DC 10 Spell Check: pool 2/3, +1 per 5 over) or cure; LoH 1/LR = Acolyte at 0 MP and +5.<br>
+<b>Life Tap</b> — pay MP costs with HP (total ≤ MSL 3), 1/Long Rest, <b>regained on Initiative</b>.<br>
+<b>Acolyte + Lay on Hands</b> — 1 AP/1 MP heal pool (DC 10 Spell Check: pool 2/3, +1 per 5 over) or cure; LoH 1/LR = Acolyte at 0 MP and +5. <b>Expert (L5):</b> +2 healing for each extra MP spent.<br>
 <b>Aura of Protection</b> — allies within 2 Spaces: ADV on Mental Saves. Always on — remind the table!<br>
-<b>Disciplines:</b> Acolyte, Blink Blade (1-Space teleport tied to attack, 1/turn), Magus (+1 MP, +1 spell).<br>
+<b>Disciplines:</b> Acolyte, Blink Blade (1-Space teleport tied to attack, 1/turn), Magus (+1 MP, +1 spell), <b>Spell Breaker</b> (L5: start a Spell Duel as Challenger with her weapon, no MP, Martial Check instead of Spell Check; +1 per SP spent, MP still +2 each; ADV within 1 Space of the Caster).<br>
 <b>Sense Magic (as played)</b> — broader than RAW at this table: senses magic generally (creatures, items, effects); adjudication loose/GM-driven, sometimes via Awareness.<br>
 <b>Beseech Patron</b> — 1/LR, enter the Inner Sanctum to seek the Spirit of Nature. Run <b>off-session</b>, insight-only, lossy memory.</div>
 <div class="card"><h3>Kit</h3>
 <b>Greatsword of the Keepers</b> (2H/Heavy/Impact — base 2 slashing; Impact: +1 on Heavy Hits) + <b>Amulet of Steadfastness</b> = <b>Guardians' Regalia</b> set (Spell Focus properties stack; the 2-pt <b>Powerful</b> focus = +1 spell dmg, Jesse-approved through Spellstrike). Longbow · Light Armour (Fortified +2 AD) · First Aid Kit (5) · Healing Balm ×1.</div>
 <div class="card"><h3>Saves &amp; attributes</h3>
-Might 2 · Agility 3 · Int 3 · Cha −2 · <b>Prime 3</b>.<br>Saves: Mig +4 · Agi +5 · Int +5 · Cha +0.<br>Ancestry: Human (Attr→Might, Trade Expertise→Herbalism) · Elf (Discerning Sight, Nimble, Speed Increase).</div>
+Might 2 · Agility 4 · Int 3 · Cha −2 · <b>Prime 4</b>.<br>Saves: Mig +5 · Agi +7 · Int +6 · Cha +1.<br>Ancestry: Human (Attr→Might, Trade Expertise→Herbalism) · Elf (Discerning Sight, Nimble, Speed Increase).</div>
 </div></details>
 
 <details><summary>⚔️ Optimization Workshop</summary><div class="inner">
 <div class="card"><h3>1 · Expose setup <span class="small">(the enabler default)</span></h3>
-Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <b>Exposed</b>, allies swing at ADV. Patron's Favor makes the cast reliable (free ADV). Add Smite (1 SP → +2) for personal damage. ~1 MP/round is her sustainable budget; MSL 2/action = nova only.</div>
-<div class="card"><h3>2 · All-out offense <span class="small">(when the target must die NOW)</span></h3>
+Greatsword attack + <b>Spellstrike Radiant Bolt + Expose (1 MP)</b> → target <b>Exposed</b>, allies swing at ADV. Patron's Favor makes the cast reliable (free ADV). Add Smite (1 SP → +2) for personal damage. ~1 MP/round is her sustainable budget; MSL 3/action = nova only.</div>
+<div class="card"><h3>2 · All-out offense <span class="small">(when the target must die NOW · EV worked at L4, +5 to hit; L5's +7 only improves it)</span></h3>
 <b>Attack 1:</b> Swift Strike + Smite — 2 AP / 3 SP → 5 base / 7 Heavy (1 AP buys ADV).<br>
 <b>Attack 2:</b> Spellstrike Radiant Bolt (Pact) — 2 AP / 1 MP → 6 base / 8 Heavy, +1 vs Bloodied (Patron's Favor nets ADV1).<br>
 <b>Turn: 4 AP / 3 SP / 1 MP · EV ≈ 13</b> (ceiling 15 all-Heavy). Nova top-up: +2 MP on Attack 2 → EV ≈ 17. Use deliberately, not as the default gear (Tightrope 1).</div>
-<div class="card"><h3>3 · Healing engine <span class="small">(L4 version)</span></h3>
-<b>Lay on Hands → Acolyte Heal</b>: 0 MP, Spell Check +5 <b>+5</b> = +10, DC 10 → pool ≈ 4.7–5.4, distribute within 5 Spaces. 1/Long Rest. (The big ~8–9 engine unlocks at L5 with Expert Spellblade's MP-scaling + Life Tap.)</div>
+<div class="card"><h3>3 · Healing engine <span class="small">(L5)</span></h3>
+<b>Lay on Hands → Acolyte Heal</b>: 0 MP, Spell Check +7 <b>+5</b> = +12 vs DC 10, distribute within 5 Spaces, 1/Long Rest. Expert Spellblade adds <b>+2 healing per extra MP</b>, and Life Tap can pay those MP as HP (HP + MP ≤ MSL 3), refunded later through Close Wounds and Rest Points. That is the ~8 to 9 to allies for 1 to 2 AP and roughly 0 net MP.</div>
 <div class="card"><h3>4 · Sparring partner reminders</h3>
 Full Dodge habit (Nimble): bank 1 AP → attacks at you at DisADV — but attackers can buy ADV to cancel it.<br>
-Defence-targeting choice: Radiant Bolt hits <b>PD</b>, (L5) Luminous Burst hits <b>AD</b> — pick the weaker door.</div>
+Defence-targeting choice: Radiant Bolt hits <b>PD</b>, Luminous Burst hits <b>AD</b>. Pick the weaker door.</div>
 </div></details>
 
 <details><summary>🎭 Player craft crib (Tightropes)</summary><div class="inner">
@@ -203,10 +208,10 @@ Calibrate, don't suppress. Risk is <b>cumulative</b>, not per-moment. Levers: bu
 Cede the social lane to Bonan (and Runt/Minimus). In skill challenges: <b>Repeated Checks</b> pushes everyone onto their best skills — let it. Core move: <b>assist-Checks that arm the talker</b> (Herbalism/Nature/Medicine/Awareness feeds their leverage). Feed reads, don't deliver verdicts ("psst — he keeps eyeing the door"). Take the Help Action (1 AP) on a face PC's roll. Play the Cha whiff for comedy. Stay emotionally present — hand off the Check, not the character.</div>
 </div></details>
 
-<details><summary>📈 L5–L6 locked plan (snapshot)</summary><div class="inner">
+<details><summary>📈 L5 taken, L6 plan (snapshot)</summary><div class="inner">
 <div class="card">
-<b>L5:</b> CM→3, Agility→4 (Prime→4) ⇒ <b>Attack/Spell +7, Save DC 17, +2 PD</b>; MP 7, SP 4, MSL/SSL 3. Expert Spellblade (AoE Spellstrike; Acolyte MP-scaling; Bound dmg ignores Resistance). Spell: <b>Luminous Burst</b>. 4th Discipline: <b>Spell Breaker</b>. Skills: Awareness→Expert +10, Herbalism→Expert +9, Arcana/Nature→Adept +7.<br><br>
-<b>L6:</b> Martial path (SP 5, regen 3, maneuver → <b>Side Step</b> restored). Talent: Expert MC Warlock → <b>Radiant Imbued + Bless</b>, 2nd Pact Spell (Luminous Burst), Life Tap grants ADV. Stealth→Adept +8.<br><br>
+<b>L5 (taken, 2026-10-09 sheet):</b> CM→3, Agility→4 (Prime→4) ⇒ <b>Attack/Spell +7, Save DC 17, +2 PD</b>; MP 7, SP 4, MSL/SSL 3. Expert Spellblade (AoE Spellstrike; Acolyte MP-scaling; Bound dmg ignores Resistance). Spell: <b>Luminous Burst</b>. 4th Discipline: <b>Spell Breaker</b>. Skills: Awareness→Expert +10, Herbalism→Expert +9, Arcana/Nature→Adept +7. Respec: Meteor Strike → <b>Side Step</b> (Jesse approved).<br><br>
+<b>L6:</b> Martial path (SP 5, regen 3, maneuver <b>open</b>: Side Step came early at L5). Talent: Expert MC Warlock → <b>Radiant Imbued + Bless</b>, 2nd Pact Spell (Luminous Burst), Life Tap grants ADV. Stealth→Adept +8.<br><br>
 <b>Open:</b> the L8 Talent (deliberately uncommitted). Rulings parked for Jesse: the "additional-MP" healing reading (assumed generous) and Beseech Patron sign-off.</div>
 </div></details>
 """

@@ -8,7 +8,7 @@ class: Barbarian
 subclass: Elemental Fury (Fire)
 ancestry: Halfling Beastborn
 background: Musician
-current_level: 5
+current_level: 4
 
 chargen:
   attribute_method: point_buy
@@ -22,7 +22,7 @@ chargen:
   - {name: Deft Footwork, source: Halfling, cost: 1}
   - {name: Halfling Bravery, source: Halfling, cost: 2}
   - {name: Halfling Endurance, source: Halfling, cost: 1}
-    # Total 5 = L1 budget; the L4 spend was Jumper + Strong Jumper, respecced to Sprint at L5.
+    # Total 5 = L1 budget; Jumper + Strong Jumper = the L4 spend (budget-inferred, ties to the Jump audit).
   class_choices:
   - slot: class_features
     picks: [Rage, Berserker, Shattering Force]
@@ -68,33 +68,29 @@ levels:
     note: 'Titan Grip: wield 2H weapons one-handed while raging; Titanic Leap: +1 Jump Distance'
   - {slot: path, pick: Martial, inferred: true}
   - slot: ancestry_trait
-    pick: Sprint
+    pick: Jumper
     source: Beastborn
-    cost: 2
-    note: 'Respec at L5 (Ed''s L5 sheet, 2026-10-09): the L4 Beastborn points were Jumper (1) + Strong Jumper (1), now Sprint (2). Jump drops by Jumper''s 2.'
+    cost: 1
+    inferred: true
+    grants: {jump: 2}                                                                                      # Jumper: +2 Jump Distance (ancestries.md)
+  - {slot: ancestry_trait, pick: Strong Jumper, source: Beastborn, cost: 1, inferred: true}
   - slot: maneuver
     pick: Recover
     note: Ed's sheet said 'Recovery' - a typo for the real Utility maneuver Recover (combat.md l.1476); corrected 2026-07-12
-  5:
-  - {slot: attribute, pick: might, note: 'Might 3->4, Prime 4 (Ed''s L5 sheet)'}
-  - slot: class_feature
-    pick: Expert Barbarian
-    note: Rage free as a Reaction on Initiative; Charge 3 Spaces ignoring Difficult Terrain; Battlecry 10 Spaces plus SP-enhanced shouts. Added in builder
-  - {slot: maneuver, pick: Cleave, source: class table L5, note: Added in builder}
 
 skills:
   allocation_confidence: inferred
   masteries:
     Awareness: {mastery: Novice}
-    Athletics: {mastery: Adept}
-    Intimidation: {mastery: Expert, limit_raise: skill_point_purchase}
+    Athletics: {mastery: Novice}
+    Intimidation: {mastery: Adept, limit_raise: skill_point_purchase}
     Influence: {mastery: Novice}
     Insight: {mastery: Novice}
   # Animal 3 = Cha 3 + no mastery (0 points spent), so not listed.
 trades:
   masteries:
     Brewing: {mastery: Novice}
-    Musician: {mastery: Adept}
+    Musician: {mastery: Novice}
     Tinkering: {mastery: Novice}
     Cooking: {mastery: Novice}
 languages:
@@ -105,25 +101,25 @@ equipment:
 - {name: Black Iron Mace}
 - {name: Heavy Glaive}
 - {name: Hand Axe}
-
-notes:
-- 'PD 9 RESOLVED: no armor + no bonuses = 8+CM+Agi+Int = 9 exactly; AD 18 = 16 + Berserker Defense. Not a sheet error.'
-- '''Recovery'' was a typo for the real Utility maneuver Recover (fixed 2026-07-12).'
-- 'L5 Jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1 (Jumper respecced away). Ed''s L5 sheet says 4: it looks like Titanic Leap was dropped from the box. ASK ED.'
-expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  # move 6 = 5 + Berserker Fast Movement. jump 5 = Might 4 (Mighty Leap) + Titanic Leap 1; the sheet prints 4 (see notes).
-  hp: 20
+expected:
+  hp: 17
   sp: 4
   mp: 3
   spells: 3
-  maneuvers: 5
+  maneuvers: 4
   grit: 5
-  attack: 7
-  save_dc: 17
-  initiative: 3
-  pd: 10
-  ad: 20
-  saves: {might: 7, agility: 3, charisma: 6, intelligence: 2}
+  attack: 5
+  save_dc: 15
+  initiative: 2
+  pd: 9
+  ad: 18
+  saves: {might: 5, agility: 2, charisma: 5, intelligence: 1}
   move: 6
-  jump: 5
-  spend_limit: 3
+  jump: 6
+
+  spend_limit: 2
+  # move 6 = 5 + Berserker Fast Movement; jump 6 = Might 3 (Mighty Leap) + Jumper 2 + Titanic Leap 1 - both now engine-derived (confirmed vs rules w/ Ed's features 2026-07-12)
+
+notes:
+- 'PD 9 RESOLVED: no armor + no bonuses = 8+CM+Agi+Int = 9 exactly; AD 18 = 16 + Berserker Defense. Not a sheet error.'
+- '''Recovery'' was a typo for the real Utility maneuver Recover (fixed 2026-07-12). Jump 6 RESOLVED = Might 3 (Mighty Leap) + Jumper 2 + Titanic Leap 1; engine models it.'

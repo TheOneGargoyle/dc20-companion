@@ -541,9 +541,25 @@ def check_ledger(fname, led):
                      for e in ents or []):
             if e.get("slot") == "path" and base_name(e.get("pick", "")) == "Spellcaster":
                 grant_slots += 1   # MC'd source is Arcane for the one walked case (Sorcerer)
+        # FR-42 (oracle side, 2026-10-09): a Spellcasting Expansion "add 1 Spell Source" answer puts
+        # that Source on the Spell List itself, so its spells are on-list, not grant-slot spells.
+        # Read independently of builder_api: the talent row's spell_list node + the entry's choice.
+        widened = set()
+        for _, e in talent_picks(led):
+            row = next((t for t in talents_cat["general"] if t["name"] == base_name(e["pick"])), None)
+            node = (row or {}).get("sub_choice") or {}
+            if node.get("kind") != "spell_list":
+                continue
+            opt = next((o for o in node.get("options") or []
+                        if o["name"] == (e.get("choice") or {}).get("pick")), None)
+            if opt and (opt.get("adds") or {}).get("source"):
+                widened.add(opt["adds"]["source"])
         off_source = []
         for s in picks:
             meta = spell_meta[s]
+            if src not in meta["sources"] and widened & set(meta["sources"]):
+                print(f"    spell {s:18} legal via the widened {'/'.join(sorted(widened & set(meta['sources'])))} source (Spellcasting Expansion)")
+                continue
             if src in meta["sources"]:
                 expect(s in primal_flat,
                        f"{who}: {s} (Source {src}) missing from spell_sources.yaml {src} block")

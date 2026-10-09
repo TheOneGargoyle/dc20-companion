@@ -10,7 +10,7 @@ class: Druid
 subclass: Phoenix
 ancestry: Dragonborn-Fiend (Redemption Fiendborn + Dragonborn, both Fire)
 background: Outcast
-current_level: 5
+current_level: 4
 
 chargen:
   attribute_method: point_buy
@@ -44,8 +44,8 @@ chargen:
   #   + Regenerate (the L3 table +1 spell, moved to L3 below where the Druid spine grants it).
   # ARCANE (5): Command (Fiendish Magic ancestry trait; FR-13a slice 2 childed it under the trait
   #   as granted_spells + spell_access, so it is NO LONGER a flat chargen spell), Disintegrating Beam
-  #   + Gravity Well (L2 Spellcasting Expansion after the L5 respec, was Innate Power), Dispel Magic
-  #   (Spellcaster path rank 1, L2, source-filtered flat spell), Telekinesis
+  #   + Gravity Well (Innate Power / Intuitive Magic, L2, childed under the talent + Arcane-source-
+  #   filtered), Dispel Magic (Spellcaster path rank 1, L2, source-filtered flat spell), Telekinesis
   #   (Spellcaster path rank 2, L4, source-filtered flat spell). Sheet writes "Telekenesis" = a typo
   #   for Telekinesis. The exact Intuitive-vs-path split within the Arcane 5 is an assumption (all are
   #   Arcane-legal); only refine if Damo cares. No auto-heal ready slots any more.
@@ -55,21 +55,20 @@ chargen:
 levels:
   2:
   - slot: talent
-    pick: Spellcasting Expansion
-    grants: {spells: 3}
-    note: 'Respec at L5 (Damo''s L5 sheet, 2026-10-09): was MC Sorcerer Innate Power (Intuitive Magic, Arcane). Spellcasting Expansion adds the Arcane Source to his Spell List, so the Arcane spells stay legal; +3 spells, no +1 MP.'
-    training: [Spell Focuses]
-    choice: {pick: Arcane Source}       # FR-42: the spell list widening node's answer
+    pick: 'MC Sorcerer: Innate Power (Intuitive)'
+    grants: {mp: 1, spells: 2}
+    granted_spells: [Disintegrating Beam, Gravity Well]
+    spell_access: {source: Arcane}
+    sorcerous_origin: {chosen_source: Arcane}
+    choice: {pick: Intuitive Magic}     # BUG-26: the Sorcerous Origin sub_choice node's answer
+    note: '+1 MP, 1-pt Focus Property, Intuitive Magic = 2 spells (classes.md l.2541-51). FR-13a: Innate Power requires a Sorcerous Origin; Intuitive Magic draws its 2 spells from the chosen Sorcerer Source = Arcane (per the sheet''s Arcane list). Slice 2 (2026-07-19) models the source choice as an EXPLICIT node: the sorcerous_origin.chosen_source below renders as its own ''Sorcerer Source'' picker childed under this talent, and it DRIVES the source filter of the 2 spell children (Disintegrating Beam = Nullification, Gravity Well = Astromancy; both Arcane). The 2 spells consume the {spells:2} grant. The flavour Sorcerous Origin sub-type is not on the sheet (low-stakes; ASK DAMO only if it matters).'
   - slot: path
     pick: Spellcaster
-    note: Spellcaster rank 1 (Arcane spell, legal via the Spellcasting Expansion widening since the L5 respec). Grants 1 spell via the caster rank (not a spells grant); the named spell is the flat Arcane {slot:spell} below.
+    note: Spellcaster MC rank 1 (into Sorcerer = Arcane source). Grants 1 spell via the caster rank (not a spells grant); the named spell is the flat Arcane {slot:spell} below.
   - slot: spell
     pick: Dispel Magic
     source: Arcane
-    note: 'Arcane (Nullification), from the sheet. The Spellcaster-path rank-1 spell (Arcane, legal via Spellcasting Expansion). FR-13a slice 2 (2026-07-19): the canonical ''source: Arcane'' now source-filters this flat spell picker to the Arcane list, so it renders as a legal Arcane picker instead of showing ''(current, off-list)'' against the Primal class list. The path spell stays a flat entry (the caster-rank count derives its budget; it is NOT a grants:{spells} entry, so it is not childed under the path to avoid an engine double-count).'
-  - {slot: spell, pick: Disintegrating Beam, source: Spellcasting Expansion}
-  - {slot: spell, pick: Gravity Well, source: Spellcasting Expansion}
-  - {slot: spell, pick: Elemental Shield, source: Spellcasting Expansion}
+    note: 'Arcane (Nullification), from the sheet. The Spellcaster-path rank-1 spell (Sorcerer = Arcane). FR-13a slice 2 (2026-07-19): the canonical ''source: Arcane'' now source-filters this flat spell picker to the Arcane list, so it renders as a legal Arcane picker instead of showing ''(current, off-list)'' against the Primal class list. The path spell stays a flat entry (the caster-rank count derives its budget; it is NOT a grants:{spells} entry, so it is not childed under the path to avoid an engine double-count).'
   3:
   - slot: subclass
     pick: Phoenix
@@ -88,30 +87,24 @@ levels:
   - slot: path
     pick: Spellcaster
     inferred: true
-    note: Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven (L4 count, before the L5 respec removed Innate Power). This is rank 2 (Arcane spell); grants 1 Arcane spell via the caster rank (the flat {slot:spell} below).
+    note: Phil's summary shows only rank 1, but MP 17 only reconciles with TWO Spellcaster ranks (9 table + 6 paths + 1 Mana Increase + 1 Innate Power). Budget-proven. This is rank 2 (into Sorcerer = Arcane); grants 1 Arcane spell via the caster rank (the flat {slot:spell} below).
   - {slot: ancestry_trait, pick: Second Breath, source: Dragonborn, cost: 2, inferred: true}
   - slot: spell
     pick: Telekinesis
     source: Arcane
-    note: 'Arcane (Astromancy), from the sheet (which spells it ''Telekenesis'' = typo). The Spellcaster-path rank-2 spell (Arcane, legal via Spellcasting Expansion). FR-13a slice 2 (2026-07-19): the canonical ''source: Arcane'' source-filters this flat spell picker to the Arcane list (clears the old ''(current, off-list)'' tag). Flat entry like Dispel Magic (path spells derive from the caster-rank count, not a grant, so not childed under the path).'
-  5:
-  - {slot: attribute, pick: might, note: 'Might 3->4, Prime 4 (Damo''s L5 sheet)'}
-  - slot: class_feature
-    pick: Expert Druid
-    note: 10 Domain Spaces (+8 per extra MP); Wild Growth +1 healing per 2 MP; Wild Forms +1 HP and +1 Trait Point; Nature's Torrent 15 Spaces plus MP enhancements. Added in builder
-  - {slot: spell, pick: Enhance Ability, source: class table L5, note: Added in builder}
+    note: 'Arcane (Astromancy), from the sheet (which spells it ''Telekenesis'' = typo). The Spellcaster-path rank-2 spell (Sorcerer = Arcane). FR-13a slice 2 (2026-07-19): the canonical ''source: Arcane'' source-filters this flat spell picker to the Arcane list (clears the old ''(current, off-list)'' tag). Flat entry like Dispel Magic (path spells derive from the caster-rank count, not a grant, so not childed under the path).'
 
 skills:
   allocation_confidence: inferred
   masteries:
-    Awareness: {mastery: Adept}
+    Awareness: {mastery: Novice}
     Athletics: {mastery: Novice}
-    Animal: {mastery: Expert, limit_raise: skill_point_purchase}
+    Animal: {mastery: Adept, limit_raise: skill_point_purchase}
 trades:
   masteries:
     Nature: {mastery: Novice}
     Herbalism: {mastery: Novice}
-    Cartography: {mastery: Adept}
+    Cartography: {mastery: Novice}
     Disguise: {mastery: Novice}
   knowledge_trades: [Nature]
 languages:
@@ -125,27 +118,26 @@ equipment:
   mods: +3 PD = Deflecting Light (+2 PD) + the +1 magic bonus; consistent with the restored Armor Examples table
 - {name: Magestaff of Impact, mods: 'Powerful, Impact'}
 - {name: Amulet of Minor General Resilience, saves: 1, mods: +1 all Saves}
+expected:
+  hp: 13
+  sp: 0
+  mp: 17
+  spells: 10
+  maneuvers: 0
+  grit: 4
+  attack: 5
+  save_dc: 15
+  initiative: 3
+  pd: 13
+  ad: 15
+  saves: {might: 6, agility: 4, charisma: 5, intelligence: 2}
+  move: 5
+  jump: 1
+
+  spend_limit: 2
   # saves include the +1 Amulet of Minor General Resilience the engine does not model -> Saves reads MISMATCH by design (documented overlay, cf runt PD)
 
 notes:
-- L4 history, sheet header said Spells(8) but 10 were listed; 10 is the budget-correct count (5 table + 2 paths + 2 Intuitive + 1 Arcane trait). Header is wrong.
-- 'L4 history, FR-13a 2026-07-19: all 10 spells now named + sourced from Darryl''s sheet screenshot (5 Primal / 5 Arcane), matching the 10-spell budget exactly. Arcane sourcing: Command via Fiendish Magic ancestry trait; Disintegrating Beam + Gravity Well via Innate Power / Intuitive Magic (Sorcerous Origin source = Arcane); Dispel Magic + Telekinesis via the two Spellcaster-path ranks (Arcane, legal via Spellcasting Expansion). Resolves the old ''ASK DAMO for 4 Arcane spells'' item and clears the auto-heal ready slots.'
-- 'L5 sheet (2026-10-09) vs RAW, ASK DAMO: HP 16 printed, RAW 15 (Druid table 11 + Might 4); MP 18 printed, RAW 19 (table 12 + Spellcaster path x2 6 + Mana Increase 1; Innate Power''s +1 left with the respec). Spells 12 match.'
-expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
-  # hp and mp are the RAW derivation, NOT the sheet: Damo's L5 sheet prints HP 16 and MP 18 (see notes).
-  # saves include the +1 Amulet of Minor General Resilience (equipment saves: 1).
-  hp: 15
-  sp: 0
-  mp: 19
-  spells: 12
-  maneuvers: 0
-  grit: 4
-  attack: 7
-  save_dc: 17
-  initiative: 4
-  pd: 14
-  ad: 17
-  saves: {might: 8, agility: 5, charisma: 6, intelligence: 3}
-  move: 5
-  jump: 1
-  spend_limit: 3
+- Sheet header says Spells(8) but 10 are listed; 10 is the budget-correct count (5 table + 2 paths + 2 Intuitive + 1 Arcane trait). Header is wrong.
+- 'FR-13a 2026-07-19: all 10 spells now named + sourced from Darryl''s sheet screenshot (5 Primal / 5 Arcane), matching the 10-spell budget exactly. Arcane sourcing: Command via Fiendish Magic ancestry trait; Disintegrating Beam + Gravity Well via Innate Power / Intuitive Magic (Sorcerous Origin source = Arcane); Dispel Magic + Telekinesis via the two Spellcaster-path ranks (Sorcerer = Arcane). Resolves the old ''ASK DAMO for 4 Arcane spells'' item and clears the auto-heal ready slots.'
+- Sheet Level field stale at 3; all content reconciles ONLY at L4. Damo to update (09 Table admin).
