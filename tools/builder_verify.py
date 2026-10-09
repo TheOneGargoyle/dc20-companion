@@ -855,6 +855,10 @@ def check_companion_rest_points():
             ok("Temp HP: " + why, frag in art, frag)
         ok("Poisoned is a tracked condition pill (monsters apply it; not a 0.10.5 List entry)",
            '{"n": "Poisoned", "s": false, "x": true}' in art, None)
+        _cd = re.search(r"const CONDS_DATA=(\[.*?\]);", art)
+        _names = [c["n"] for c in json.loads(_cd.group(1))] if _cd else []
+        ok("condition pills are in one alphabetical order (extras included)",
+           len(_names) > 20 and _names == sorted(_names, key=str.lower), _names)
         hp_row = art[art.index('id="hpRow"'):art.index('id="mpspRow"')]
         ok("Temp HP: the stepper is inside the HP row, not the MP/SP row", 'id="thpBox"' in hp_row)
     finally:

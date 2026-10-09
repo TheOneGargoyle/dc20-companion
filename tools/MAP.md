@@ -192,7 +192,7 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L3842-3858 `    .undo_add_level`
 - L3859-3870 `    .export_yaml`
 
-## `tools/builder_verify.py`  (364KB, 5824 lines)
+## `tools/builder_verify.py`  (364KB, 5828 lines)
 
 - L77-87 `def ok`
 - L88-91 `def sha`
@@ -225,147 +225,147 @@ Note: the browser-side API used to live inside `builder_build.py` as an `API_PY 
 - L730-747 `### (10) new derived stats`
 - L748-808 `def check_newstats`
 - L809-809 `### (39) Rest Points + L5 class features`
-- L810-863 `def check_companion_rest_points`
-- L864-908 `def check_l5_class_features`
-- L909-954 `def check_expertise`
-- L955-1016 `    .xnode`
-- L1017-1017 `### (38) Companion damage/roll surface`
-- L1018-1127 `def check_companion_dmg_roll`
-- L1128-1128 `### (11) composite re-pick escape hatch`
-- L1129-1132 `def check_replace_hatch`
-- L1133-1134 `    .find`
-- L1135-1221 `    .precon`
-- L1222-1222 `### (12) Wave 2 UX`
-- L1223-1362 `def check_wave2`
-- L1363-1363 `### (13) FR-8 slice 2 backbone`
-- L1364-1457 `def check_slice2`
-- L1458-1458 `### (14) FR-8 slice 3 Rune Knight`
-- L1459-1518 `def check_slice3`
-- L1519-1519 `### (15) FR-8 slice 4 Meta Magic talent`
-- L1520-1581 `def check_slice4`
-- L1582-1582 `### (16) FR-8 slice 5 Eldritch Psychic spell`
-- L1583-1679 `def check_slice5`
-- L1680-1741 `    ._offlist`
-- L1742-1769 `def check_fr3`
-- L1770-1837 `    .only_pointbuy`
-- L1838-1841 `def check_fr3_slice2`
-- L1842-1844 `    .skl`
-- L1845-1959 `    .onames`
-- L1960-1962 `def check_fr17`
-- L1963-2034 `    .dsl`
-- L2035-2078 `def check_fr6`
-- L2079-2154 `    ._link`
-- L2155-2155 `### (21) FR-20 picker order`
-- L2156-2162 `def FR20_RANK_OF`
-- L2163-2167 `def check_fr20`
-- L2168-2222 `    .rank`
-- L2223-2240 `    .slot_seq`
-- L2241-2241 `### (22) FR-9 ancestry slots/budget`
-- L2242-2306 `def check_fr9`
-- L2307-2307 `### (23) BUG-16 maneuver/spell edit-only`
-- L2308-2331 `def check_bug16`
-- L2332-2332 `### (24) FR-36 category left accent`
-- L2333-2377 `def check_fr36`
-- L2378-2378 `### (25) FR-21 category sub-headers`
-- L2379-2406 `def check_fr21`
-- L2407-2407 `### (26) FR-4 display-name rename`
-- L2408-2430 `def check_fr4`
-- L2431-2431 `### (27) FR-23 Stamina Regen`
-- L2432-2453 `def check_fr23`
-- L2454-2556 `def check_grants_only`
-- L2557-2557 `### option-effects (scratch-mode grants)`
-- L2558-2566 `def check_option_effects`
-- L2567-2570 `    .stat`
-- L2571-2573 `    .last_trait_slot`
-- L2574-2605 `    .fresh`
-- L2606-2635 `    .origins`
-- L2636-2842 `    .gchild`
-- L2843-2843 `### class features (BUG-19 / BUG-21 / BUG-22)`
-- L2844-2851 `def check_class_features`
-- L2852-2855 `    .stat`
-- L2856-2859 `    .cf_rows`
-- L2860-2956 `    .val`
-- L2957-2957 `### sheet ability groups + build stamp (BUG-32 / FR-43)`
-- L2958-2998 `def check_sheet_groups`
-- L2999-3010 `def _fresh_at`
-- L3011-3017 `def _pick_trait`
-- L3018-3022 `def _stat`
-- L3023-3148 `def check_ch5_burndown`
-- L3149-3172 `def check_live_ledgers`
-- L3173-3212 `def check_bug33_class_talents`
-- L3213-3220 `def _earned_tp`
-- L3221-3226 `def _sub_pick`
-- L3227-3310 `def check_bug35_paragon`
-- L3311-3323 `def check_bug34_grant_child_effects`
-- L3324-3418 `    .snap`
-- L3419-3531 `### (RT) FR-46 exhaustive option round-trip`
-- L3532-3540 `def _rt_attr_keys`
-- L3541-3553 `def _rt_attrs`
-- L3554-3557 `def _rt_attr_val`
-- L3558-3577 `def _rt_variant_pick`
-- L3578-3583 `def _rt_ok`
-- L3584-3587 `def _rt_stats`
-- L3588-3596 `def _rt_num`
-- L3597-3606 `def _rt_earned`
-- L3607-3621 `def _rt_snap`
-- L3622-3630 `def _rt_new_decs`
-- L3631-3635 `def _rt_probe_ancestry`
-- L3636-3642 `def _rt_open_trait`
-- L3643-3650 `def _rt_probe_talent`
-- L3651-3662 `def _rt_fleet`
-- L3663-3721 `    .note`
-- L3722-3801 `def check_fr46_round_trip`
-- L3802-3830 `def _rt_catalog_row`
-- L3831-3898 `def _rt_assert_grants`
-- L3899-3963 `def _rt_check_fixed_at`
-- L3964-3967 `def _rt_mc_names`
-- L3968-3972 `def _rt_is_fixed`
-- L3973-4085 `def _rt_check_option`
-- L4086-4095 `def _rt_expertise_node`
-- L4096-4119 `def _rt_assert_expertise`
-- L4120-4140 `def _rt_any_movement`
-- L4141-4147 `def _rt_class_offering`
-- L4148-4160 `def _rt_subclass_child`
-- L4161-4169 `def _rt_chargen_slot`
-- L4170-4188 `def _rt_assert_spell_access`
-- L4189-4196 `def _rt_assert_choice`
-- L4197-4205 `def _rt_assert_opens`
-- L4206-4275 `def _rt_check_fixed`
-- L4276-4306 `def _rt_check_todos`
-- L4307-4315 `def _all_grant_bearers`
-- L4316-4316 `### (41) FR-42 + FR-48`
-- L4317-4324 `def check_fr42_fr48`
-- L4325-4327 `    .dec`
-- L4328-4332 `    .spell_opts`
-- L4333-4417 `    .take_talent`
-- L4418-4424 `def check_bug26_sorcerous_origin`
-- L4425-4427 `    .dec`
-- L4428-4479 `    .stat`
-- L4480-4493 `def check_bug53_conditional_live`
-- L4494-4557 `    .probe`
-- L4558-4564 `def check_bug46_expanded_boon`
-- L4565-4609 `    .boons`
-- L4610-4619 `def check_fr50_export_fixed_point`
-- L4620-4660 `    .changed`
-- L4661-4667 `### (46) FR-49`
-- L4668-4680 `def check_fr49_equipment_effects`
-- L4681-4747 `    .row`
-- L4748-4777 `### (47) CH-14`
-- L4778-4796 `def ch14_scan`
-- L4797-4832 `def check_ch10_a14_roster`
-- L4833-4895 `def check_fr12_sorcerer`
-- L4896-5010 `def check_fr12_wizard`
-- L5011-5091 `def check_ch14_engine_labels`
-- L5092-5235 `def check_fr12_cleric`
-- L5236-5326 `def check_fr12_bard`
-- L5327-5431 `def check_fr12_champion`
-- L5432-5562 `def check_fr12_monk`
-- L5563-5612 `def check_fr12_hunter`
-- L5613-5722 `    .spend`
-- L5723-5734 `def main`
-- L5735-5737 `    .want`
-- L5738-5794 `    .run`
-- L5795-5824 `def _print_pass_summary`
+- L810-867 `def check_companion_rest_points`
+- L868-912 `def check_l5_class_features`
+- L913-958 `def check_expertise`
+- L959-1020 `    .xnode`
+- L1021-1021 `### (38) Companion damage/roll surface`
+- L1022-1131 `def check_companion_dmg_roll`
+- L1132-1132 `### (11) composite re-pick escape hatch`
+- L1133-1136 `def check_replace_hatch`
+- L1137-1138 `    .find`
+- L1139-1225 `    .precon`
+- L1226-1226 `### (12) Wave 2 UX`
+- L1227-1366 `def check_wave2`
+- L1367-1367 `### (13) FR-8 slice 2 backbone`
+- L1368-1461 `def check_slice2`
+- L1462-1462 `### (14) FR-8 slice 3 Rune Knight`
+- L1463-1522 `def check_slice3`
+- L1523-1523 `### (15) FR-8 slice 4 Meta Magic talent`
+- L1524-1585 `def check_slice4`
+- L1586-1586 `### (16) FR-8 slice 5 Eldritch Psychic spell`
+- L1587-1683 `def check_slice5`
+- L1684-1745 `    ._offlist`
+- L1746-1773 `def check_fr3`
+- L1774-1841 `    .only_pointbuy`
+- L1842-1845 `def check_fr3_slice2`
+- L1846-1848 `    .skl`
+- L1849-1963 `    .onames`
+- L1964-1966 `def check_fr17`
+- L1967-2038 `    .dsl`
+- L2039-2082 `def check_fr6`
+- L2083-2158 `    ._link`
+- L2159-2159 `### (21) FR-20 picker order`
+- L2160-2166 `def FR20_RANK_OF`
+- L2167-2171 `def check_fr20`
+- L2172-2226 `    .rank`
+- L2227-2244 `    .slot_seq`
+- L2245-2245 `### (22) FR-9 ancestry slots/budget`
+- L2246-2310 `def check_fr9`
+- L2311-2311 `### (23) BUG-16 maneuver/spell edit-only`
+- L2312-2335 `def check_bug16`
+- L2336-2336 `### (24) FR-36 category left accent`
+- L2337-2381 `def check_fr36`
+- L2382-2382 `### (25) FR-21 category sub-headers`
+- L2383-2410 `def check_fr21`
+- L2411-2411 `### (26) FR-4 display-name rename`
+- L2412-2434 `def check_fr4`
+- L2435-2435 `### (27) FR-23 Stamina Regen`
+- L2436-2457 `def check_fr23`
+- L2458-2560 `def check_grants_only`
+- L2561-2561 `### option-effects (scratch-mode grants)`
+- L2562-2570 `def check_option_effects`
+- L2571-2574 `    .stat`
+- L2575-2577 `    .last_trait_slot`
+- L2578-2609 `    .fresh`
+- L2610-2639 `    .origins`
+- L2640-2846 `    .gchild`
+- L2847-2847 `### class features (BUG-19 / BUG-21 / BUG-22)`
+- L2848-2855 `def check_class_features`
+- L2856-2859 `    .stat`
+- L2860-2863 `    .cf_rows`
+- L2864-2960 `    .val`
+- L2961-2961 `### sheet ability groups + build stamp (BUG-32 / FR-43)`
+- L2962-3002 `def check_sheet_groups`
+- L3003-3014 `def _fresh_at`
+- L3015-3021 `def _pick_trait`
+- L3022-3026 `def _stat`
+- L3027-3152 `def check_ch5_burndown`
+- L3153-3176 `def check_live_ledgers`
+- L3177-3216 `def check_bug33_class_talents`
+- L3217-3224 `def _earned_tp`
+- L3225-3230 `def _sub_pick`
+- L3231-3314 `def check_bug35_paragon`
+- L3315-3327 `def check_bug34_grant_child_effects`
+- L3328-3422 `    .snap`
+- L3423-3535 `### (RT) FR-46 exhaustive option round-trip`
+- L3536-3544 `def _rt_attr_keys`
+- L3545-3557 `def _rt_attrs`
+- L3558-3561 `def _rt_attr_val`
+- L3562-3581 `def _rt_variant_pick`
+- L3582-3587 `def _rt_ok`
+- L3588-3591 `def _rt_stats`
+- L3592-3600 `def _rt_num`
+- L3601-3610 `def _rt_earned`
+- L3611-3625 `def _rt_snap`
+- L3626-3634 `def _rt_new_decs`
+- L3635-3639 `def _rt_probe_ancestry`
+- L3640-3646 `def _rt_open_trait`
+- L3647-3654 `def _rt_probe_talent`
+- L3655-3666 `def _rt_fleet`
+- L3667-3725 `    .note`
+- L3726-3805 `def check_fr46_round_trip`
+- L3806-3834 `def _rt_catalog_row`
+- L3835-3902 `def _rt_assert_grants`
+- L3903-3967 `def _rt_check_fixed_at`
+- L3968-3971 `def _rt_mc_names`
+- L3972-3976 `def _rt_is_fixed`
+- L3977-4089 `def _rt_check_option`
+- L4090-4099 `def _rt_expertise_node`
+- L4100-4123 `def _rt_assert_expertise`
+- L4124-4144 `def _rt_any_movement`
+- L4145-4151 `def _rt_class_offering`
+- L4152-4164 `def _rt_subclass_child`
+- L4165-4173 `def _rt_chargen_slot`
+- L4174-4192 `def _rt_assert_spell_access`
+- L4193-4200 `def _rt_assert_choice`
+- L4201-4209 `def _rt_assert_opens`
+- L4210-4279 `def _rt_check_fixed`
+- L4280-4310 `def _rt_check_todos`
+- L4311-4319 `def _all_grant_bearers`
+- L4320-4320 `### (41) FR-42 + FR-48`
+- L4321-4328 `def check_fr42_fr48`
+- L4329-4331 `    .dec`
+- L4332-4336 `    .spell_opts`
+- L4337-4421 `    .take_talent`
+- L4422-4428 `def check_bug26_sorcerous_origin`
+- L4429-4431 `    .dec`
+- L4432-4483 `    .stat`
+- L4484-4497 `def check_bug53_conditional_live`
+- L4498-4561 `    .probe`
+- L4562-4568 `def check_bug46_expanded_boon`
+- L4569-4613 `    .boons`
+- L4614-4623 `def check_fr50_export_fixed_point`
+- L4624-4664 `    .changed`
+- L4665-4671 `### (46) FR-49`
+- L4672-4684 `def check_fr49_equipment_effects`
+- L4685-4751 `    .row`
+- L4752-4781 `### (47) CH-14`
+- L4782-4800 `def ch14_scan`
+- L4801-4836 `def check_ch10_a14_roster`
+- L4837-4899 `def check_fr12_sorcerer`
+- L4900-5014 `def check_fr12_wizard`
+- L5015-5095 `def check_ch14_engine_labels`
+- L5096-5239 `def check_fr12_cleric`
+- L5240-5330 `def check_fr12_bard`
+- L5331-5435 `def check_fr12_champion`
+- L5436-5566 `def check_fr12_monk`
+- L5567-5616 `def check_fr12_hunter`
+- L5617-5726 `    .spend`
+- L5727-5738 `def main`
+- L5739-5741 `    .want`
+- L5742-5798 `    .run`
+- L5799-5828 `def _print_pass_summary`
 
 ## `tools/catalog_verify.py`  (102KB, 1658 lines)
 

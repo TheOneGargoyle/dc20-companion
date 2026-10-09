@@ -94,7 +94,8 @@ def conditions_list(camp):
     for extra, src in CONDITION_EXTRAS:
         assert extra in (Path(camp) / "rules" / src).read_text(encoding="utf-8"), "%s is no longer in %s" % (extra, src)
         out.append({"n": extra, "s": False, "x": True})
-    return out
+    # One alphabetical row (Darryl, 2026-10-09): the extras used to trail the List entries out of order.
+    return sorted(out, key=lambda c: c["n"].lower())
 
 # FR-23: Stamina Regen trigger(s), catalog-driven, derived by the shared engine helper.
 _REGEN_CAT = yaml.safe_load((CAMP / "builds" / "catalog" / "stamina_regen.yaml").read_text(encoding="utf-8"))
