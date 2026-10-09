@@ -26,6 +26,14 @@ Checked against `challenges.md`: the grammar the table uses is all **RAW**, so t
 
 ---
 
+## Temp HP pays HP costs: ruled 2026-10-09
+
+**RAW pieces** (`core-rules.md` Temporary Health Points; `classes.md` Warlock): Temp HP "are additional Health Points", reduced first when you take damage. Hasty Bargain, Eldritch Bargain and Life Tap each say "spend HP". The book never says whether spending HP may use Temp HP; the reduced-first order is only stated for damage.
+
+**Ruling:** Temp HP are Health Points, so an HP cost spends Temp HP first, exactly like damage. The Companion's HP − button does this. *Interpretation, flagged:* RAW is silent, this is the literal reading of "additional Health Points". It lets Temp HP (Rally, Resolve, Elemental Shield) fund Runt's Bargains and Life Tap.
+
+---
+
 ## Sense Magic (Spellblade): as played
 
 **RAW** (`classes.md`): *Sense Magic* is a flavour feature: 1 minute focusing to detect specific **creature types** (Aberration, Celestial, Elemental, Fey, Fiend, Undead) within 20 Spaces, via a Spell Check vs each creature's Mental Save.
