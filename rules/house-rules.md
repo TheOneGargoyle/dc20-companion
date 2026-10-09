@@ -18,6 +18,14 @@ Checked against `challenges.md`: the grammar the table uses is all **RAW**, so t
 
 ---
 
+## Mighty Hurl + Toss (Giantborn): ruled 2026-10-09
+
+**RAW pieces** (`ancestries.md` Giantborn; `general-rules.md` Weapon Properties): **Toss** is a Ranged Martial Attack at 5/10 (normal to 5, DisADV to 10). **Titanic Toss**: no DisADV for attacking at Long Range with a Toss or Thrown weapon. **Mighty Hurl**: you throw "objects (including Weapons) 5 Spaces farther than normal".
+
+**Ruling:** Mighty Hurl extends the weapon's Toss range by 5, so Toss becomes 10/15, and with Titanic Toss the long band carries no DisADV: **15 Spaces, no DisADV (15/15)**. Thrown (10/20) would become 15/25 the same way. *Interpretation, flagged:* RAW is clear on Titanic Toss alone (10, no DisADV); reading Mighty Hurl as extending the Toss range rather than only the Throwing Table distance is the table's call, based on its "(including Weapons)" wording. Applies to Runt's Staff of Lightning.
+
+---
+
 ## Sense Magic (Spellblade): as played
 
 **RAW** (`classes.md`): *Sense Magic* is a flavour feature: 1 minute focusing to detect specific **creature types** (Aberration, Celestial, Elemental, Fey, Fiend, Undead) within 20 Spaces, via a Spell Check vs each creature's Mental Save.

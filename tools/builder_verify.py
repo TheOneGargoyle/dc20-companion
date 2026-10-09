@@ -843,6 +843,17 @@ def check_companion_rest_points():
                           ('id="gritRpRow"', "Grit and Rest Points share one row (compaction)"),
                           ('class="tracker slim" id="rpSpendRow"', "the Spend row is the slim variant")):
             ok("FR-55: " + why, frag in art, frag)
+        # Temp HP (2026-10-09, core-rules.md Temporary Health Points): its own stepper on the HP row,
+        # starts at 0, old saves migrate, a Long Rest clears it (restReset rebuilds from defState),
+        # and it never caps at HP max because it isn't part of max HP.
+        for frag, why in (('id="thpBox"', "the Temp HP stepper sits on the HP row"),
+                          ("halfLR:false,thp:0,", "defState starts Temp HP at 0"),
+                          ("if(typeof S.thp!=='number')S.thp=0", "old saves migrate to 0 Temp HP"),
+                          ("if(k==='thp'){S.thp=Math.max(0,(S.thp||0)+d)", "Temp HP floors at 0 and has no max"),
+                          ("id=\"thpBar\"", "the HP bar carries a Temp HP segment")):
+            ok("Temp HP: " + why, frag in art, frag)
+        hp_row = art[art.index('id="hpRow"'):art.index('id="mpspRow"')]
+        ok("Temp HP: the stepper is inside the HP row, not the MP/SP row", 'id="thpBox"' in hp_row)
     finally:
         shutil.rmtree(outdir, ignore_errors=True)
 

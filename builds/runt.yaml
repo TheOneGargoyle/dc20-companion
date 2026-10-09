@@ -140,7 +140,7 @@ equipment:
 - {name: Steadfast Boots}
 - name: Staff of Lightning
   pd: 1
-  mods: 'bonded Pact Weapon. Quarterstaff (1B, 2H, Impact, Reach, Guard) + Powerful focus (+1 spell damage) + Toss (the L5 Expert Warlock weapon property). 2 charges: Lightning Bolt, Lightning Blast; Lightning spells cast while holding it gain Impact. Guard = +1 PD while wielded.'
+  mods: 'bonded Pact Weapon. Quarterstaff (1B, 2H, Impact, Reach, Guard) + Powerful focus (+1 spell damage) + Toss (the L5 Expert Warlock weapon property; 15/15 for Runt by table ruling: Toss 5/10, Mighty Hurl +5, Titanic Toss no long-range DisADV, see rules/house-rules.md). 2 charges: Lightning Bolt, Lightning Blast; Lightning spells cast while holding it gain Impact. Guard = +1 PD while wielded.'
 - {name: Brass Knuckles, mods: the +1-vs-grappled rider is retired (previous-version)}
 - name: Light Shield (Buckler)
   pd: 0

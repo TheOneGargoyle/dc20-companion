@@ -80,6 +80,16 @@ details .inner{padding:0 12px 12px}
 .tracker .tag{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
 .hpbar{height:7px;border-radius:4px;background:#3a2a20;overflow:hidden;margin:4px 0 2px}
 .hpbar div{height:100%;background:var(--green);transition:width .2s}
+/* Temp HP (core-rules.md, Temporary Health Points): its own small stepper at the end of the HP row,
+   and a blue segment after the HP fill on the bar. Damage comes off Temp HP first; HP costs do not. */
+.hpbar{display:flex}
+.hpbar #thpBar{background:var(--blue)}
+.thp{display:flex;flex-direction:column;align-items:center;border-left:1px solid var(--line);padding-left:6px;margin-left:2px}
+.thp .thplab{font-size:11px;color:var(--blue);letter-spacing:.3px}
+.thp .thpctl{display:flex;align-items:center;gap:2px}
+.tracker .thp button{width:28px;height:30px;font-size:16px}
+.thp #thpVal{min-width:20px;text-align:center;font-weight:700;font-size:17px;color:var(--blue)}
+.thp.zero #thpVal{color:var(--dim)}
 .appips{display:flex;gap:8px}
 .appip{width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);background:none;padding:0;font-size:0}
 .appip.spent{background:var(--gold);opacity:.35}
@@ -191,15 +201,19 @@ details .inner{padding:0 12px 12px}
   <div class="small" style="text-align:center" id="defDetail"></div>
 
   <!-- trackers -->
-  <div class="tracker">
+  <div class="tracker" id="hpRow">
     <span class="name">HP</span>
     <button onclick="chg('hp',-1)">−</button>
-    <div style="flex:1">
+    <div style="flex:1;min-width:0">
       <div class="val" id="hpVal"></div>
-      <div class="hpbar"><div id="hpBar" style="width:100%"></div></div>
+      <div class="hpbar"><div id="hpBar" style="width:100%"></div><div id="thpBar" style="width:0%"></div></div>
       <div class="small" style="text-align:center" id="hpState">Healthy</div>
     </div>
     <button onclick="chg('hp',1)">+</button>
+    <div class="thp" id="thpBox" title="Temp HP: damage comes off this first. Doesn't stack: keep the bigger grant. Gone at a Long Rest.">
+      <div class="thplab">TEMP</div>
+      <div class="thpctl"><button onclick="chg('thp',-1)">−</button><span id="thpVal">0</span><button onclick="chg('thp',1)">+</button></div>
+    </div>
   </div>
   <div class="tracker" id="mpspRow" style="justify-content:center;gap:16px">
     <span class="name" id="mpLab">MP</span>
@@ -222,7 +236,7 @@ details .inner{padding:0 12px 12px}
     <button id="rpSpendBtn" class="wide" onclick="rpSpend(rpSel)">Heal</button>
     <button id="rpAllBtn" class="wide" onclick="rpSpend(Infinity)">All</button>
   </div>
-  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px"><span id="gritHint">Grit: reduce damage taken, or ADV on a Save. </span>Rest Points: 1 HP each on a Quick, Short or Long Rest; all return at the Half Long Rest.</div>
+  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px"><span id="gritHint">Grit: reduce damage taken, or ADV on a Save. </span>Temp HP takes damage first (not HP costs), doesn’t stack, and ends at a Long Rest. Rest Points: 1 HP each on a Quick, Short or Long Rest; all return at the Half Long Rest.</div>
   <div class="small" id="rpHooks" style="margin:-2px 4px 6px"></div>
   <div class="tracker">
     <span class="name" style="width:auto;white-space:nowrap">AP avail: <b id="apNum" style="color:var(--gold)"></b></span>
@@ -574,7 +588,7 @@ let cur=sget('curchar','tan');
 if(!(cur in CHARS))cur='tan';
 let S=null;
 function defState(c){const t={};c.toggles.forEach(x=>{t[x.k]=x.def!==undefined?x.def:true;});
-  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp,halfLR:false,ap:4,t:t,conds:{}};}
+  return {hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp,halfLR:false,thp:0,ap:4,t:t,conds:{}};}
 /* FR-26: conditions became a {name: stacks} map. Saved state from before that is an ARRAY of
    names, and players have live saves, so migrate rather than discard. */
 function condMigrate(v){if(!v)return {};if(!Array.isArray(v))return v;const o={};v.forEach(function(n){o[n]=1;});return o;}
@@ -585,11 +599,14 @@ function loadS(){const c=CHARS[cur];S=sget('cstate_'+cur,null);
   if(!S)S=defState(c);
   S.conds=condMigrate(S.conds);
   if(typeof S.rp!=='number')S.rp=c.hp;   // FR-55: saves from before Rest Points start full
+  if(typeof S.thp!=='number')S.thp=0;    // Temp HP: saves from before it start with none
   c.toggles.forEach(x=>{if(!(x.k in S.t))S.t[x.k]=x.def!==undefined?x.def:true;});
   saveS();}
 function saveS(){sset('cstate_'+cur,S);}
 function pickChar(k){cur=k;sset('curchar',k);loadS();renderParty();}
-function chg(k,d){const c=CHARS[cur];const lo=k==='hp'?-5:0;
+function chg(k,d){const c=CHARS[cur];
+  if(k==='thp'){S.thp=Math.max(0,(S.thp||0)+d);saveS();renderParty();return;}   // Temp HP: no cap, it doesn't stack
+  const lo=k==='hp'?-5:0;
   const hi={hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp}[k];
   S[k]=Math.max(lo,Math.min(hi,S[k]+d));saveS();renderParty();}
 function tog(k){S.t[k]=!S.t[k];saveS();renderParty();}
@@ -675,8 +692,12 @@ function renderParty(){
   const drStr=fmtDR(curDR());
   document.getElementById('defDetail').innerHTML='PD: Heavy '+(pd+5)+' · Brutal '+(pd+10)+' &nbsp;|&nbsp; AD: Heavy '+(c.ad+5)+' · Brutal '+(c.ad+10)+(drStr?'<br>DR: '+drStr:'');
   const hp=S.hp,bl=Math.ceil(c.hp/2),wb=Math.ceil(c.hp/4);
+  const thp=S.thp||0,span=Math.max(c.hp,Math.max(0,hp)+thp);
   document.getElementById('hpVal').textContent=hp+' / '+c.hp;
-  document.getElementById('hpBar').style.width=Math.max(0,hp/c.hp*100)+'%';
+  document.getElementById('hpBar').style.width=Math.max(0,hp/span*100)+'%';
+  document.getElementById('thpBar').style.width=(thp/span*100)+'%';
+  document.getElementById('thpVal').textContent=thp;
+  document.getElementById('thpBox').className='thp'+(thp?'':' zero');
   document.getElementById('hpBar').style.background=hp<=0?'#7a2d2d':hp<=wb?'var(--red)':hp<=bl?'#c98a3c':'var(--green)';
   let st='Healthy';
   if(hp<=-5)st='☠ DEAD (−5)';
@@ -1129,13 +1150,13 @@ CHARS.runt.acc=`
 <div class="card"><h3>Giantborn traits</h3>Powerful Build (Large: ADV to grapple, escapees at DisADV) · Brute (1/combat shove/grapple as Minor) · Strong Body (1/combat reduce attack damage by Prime) · Titanic Toss · Mighty Hurl · Tough · Unyielding Movement · Heavy Riser (4 move to stand).</div>
 </div></details>
 <details><summary>Gear &amp; magic items</summary><div class="inner">
-<div class="card"><b>Ancestral Dwarven Heavy Armor</b> (retuned at L5): PDR (Half), EDR (Half); with Pact Armor summoned also MDR (Half), +1 AD, +1 PD.<br><b>Steadfast Boots</b> — Reaction: reduce forced movement by 3.<br><b>Brass Knuckles</b> — 1B, Impact, Concealable (ADV on first attack/creature), free hand while grappling. <span class="small">(The old “+1 vs grappled” rider is retired — previous-version rules.)</span><br><b>Staff of Lightning</b> (his Pact Weapon): quarterstaff 1B, 2H, Guard, Reach, Impact, Powerful focus, Toss (5/10). 2 charges: Lightning Bolt, Lightning Blast. Lightning spells cast while holding it gain Impact.<br><span class="small">Also carried: potions (7 healing, 5 assorted), self-mending travel clothes, the magic food tupperware.</span></div>
+<div class="card"><b>Ancestral Dwarven Heavy Armor</b> (retuned at L5): PDR (Half), EDR (Half); with Pact Armor summoned also MDR (Half), +1 AD, +1 PD.<br><b>Steadfast Boots</b> — Reaction: reduce forced movement by 3.<br><b>Brass Knuckles</b> — 1B, Impact, Concealable (ADV on first attack/creature), free hand while grappling. <span class="small">(The old “+1 vs grappled” rider is retired — previous-version rules.)</span><br><b>Staff of Lightning</b> (his Pact Weapon): quarterstaff 1B, 2H, Guard, Reach, Impact, Powerful focus, Toss (15/15 for him: Mighty Hurl + Titanic Toss). 2 charges: Lightning Bolt, Lightning Blast. Lightning spells cast while holding it gain Impact.<br><span class="small">Also carried: potions (7 healing, 5 assorted), self-mending travel clothes, the magic food tupperware.</span></div>
 </div></details>
 <details><summary>⚔️ Optimization Workshop</summary><div class="inner">
 <div class="card"><h3>The answer</h3>The casting engine is the damage; the wrestling is a <i>free second layer</i> on top of it, because Athletics rides a separate MCP track from Spell Checks. Pure melee is the trap: a full turn of staff swings is about half a bolt.</div>
 <div class="card"><h3>Signature plays</h3><b>Chain-bolt whenever a second enemy is within 3 Spaces</b> of the first: trade 1 damage-MP for Chain and get two full-damage bolts off one check. Solo target, mega-bolt as usual.<br><b>Brute-grapple anything that walks adjacent</b>, once per combat it is a free Minor Action, so it costs nothing off the casting turn.<br><b>Throw them at a wall.</b> Large + Might 4 + Mighty Hurl on a Small enemy is a long throw and automatic damage with no attack roll, plus Prone and displacement.<br><b>Free rider every rest:</b> Forbidden Knowledge → Lightning Imbued + Effortless costs 0 MP and puts +1 Lightning on every martial attack all combat.<br><b>He is the party’s only redirect-tank:</b> hold a grapple through the enemy turn, then Body Block + Partial Block to zero his share of a hit and deliver the rest to the creature he is holding.<br><b>Tendrils is for crowds only:</b> in the single-target rotation there is no spare AP for it. Cast the bolt first, Tendrils’ attack eats the MCP.</div>
 <div class="card"><h3>The engine refuels itself</h3>Two Stamina Regen triggers, Spellcaster <i>and</i> Monk (via Martial Expansion), one benefit per round. Casting turns refuel and <b>wrestling turns refuel too</b>, since grapples and throws are Athletics successes. Treat SP as per-round throughput, not a daily budget.</div>
-<div class="card"><h3>What L5 changes</h3><b>MP 12</b>: one more mega-bolt or Chain-bolt per day, and Lightning Bolt now hits at +7.<br><b>Expert Pact Weapon: MP buys SP.</b> On staff attacks and Pact Weapon maneuvers (Cleave, Pathcarver, Swift Strike) each MP pays for 2 SP of enhancements. The staff lines stop starving his 2-point SP pool.<br><b>Expert Pact Armor</b> does the same for Defense Maneuvers (Brace, Side Step, Resolve).<br><b>Correction:</b> Body Block is a Grapple Maneuver, not a Defense Maneuver, so the MP conversion does <b>not</b> fund Full Block. Full Block still costs 1 AP + 3 SP, one more than his pool. Partial Block (1 AP + 2 SP) stays the redirect-tank line.<br><b>Toss on the staff:</b> throw it 5/10, and it returns as a Pact Weapon. A ranged poke on turns he can’t reach anyone.<br><b>Might 4 throws further</b> (Mighty Hurl): Medium enemies 5 Spaces, Small ones 9. More wall-slams land.<br><b>Healing Wave</b> (2 AP + 1 MP, 3 Space Aura): a party heal for between-wave turns. DC 20 is a hard check, so roll it with Hasty Bargain or Life Tap’s ADV.<br><b>Resolve</b> (1 AP + 1 SP) is a Temp HP top-up for turns with a spare AP and SP.</div>
+<div class="card"><h3>What L5 changes</h3><b>MP 12</b>: one more mega-bolt or Chain-bolt per day, and Lightning Bolt now hits at +7.<br><b>Expert Pact Weapon: MP buys SP.</b> On staff attacks and Pact Weapon maneuvers (Cleave, Pathcarver, Swift Strike) each MP pays for 2 SP of enhancements. The staff lines stop starving his 2-point SP pool.<br><b>Expert Pact Armor</b> does the same for Defense Maneuvers (Brace, Side Step, Resolve).<br><b>Correction:</b> Body Block is a Grapple Maneuver, not a Defense Maneuver, so the MP conversion does <b>not</b> fund Full Block. Full Block still costs 1 AP + 3 SP, one more than his pool. Partial Block (1 AP + 2 SP) stays the redirect-tank line.<br><b>Toss on the staff: 15 Spaces, no DisADV</b> (table ruling: Toss 5/10, Mighty Hurl +5 → 10/15, Titanic Toss drops the long-range DisADV → 15/15), and he can summon it back as his Pact Weapon. A real ranged attack on turns he can’t reach anyone.<br><b>Might 4 throws further</b> (Mighty Hurl): Medium enemies 5 Spaces, Small ones 9. More wall-slams land.<br><b>Healing Wave</b> (2 AP + 1 MP, 3 Space Aura): a party heal for between-wave turns. DC 20 is a hard check, so roll it with Hasty Bargain or Life Tap’s ADV.<br><b>Resolve</b> (1 AP + 1 SP) is a Temp HP top-up for turns with a spare AP and SP.</div>
 </div></details>`;
 CHARS.scale.acc=`
 <details><summary>Spells (12)</summary><div class="inner">
