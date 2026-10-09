@@ -850,7 +850,8 @@ def check_companion_rest_points():
                           ("halfLR:false,thp:0,", "defState starts Temp HP at 0"),
                           ("if(typeof S.thp!=='number')S.thp=0", "old saves migrate to 0 Temp HP"),
                           ("if(k==='thp'){S.thp=Math.max(0,(S.thp||0)+d)", "Temp HP floors at 0 and has no max"),
-                          ("id=\"thpBar\"", "the HP bar carries a Temp HP segment")):
+                          ("id=\"thpBar\"", "the HP bar carries a Temp HP segment"),
+                          ("if(k==='hp'&&d<0&&(S.thp||0)>0){S.thp-=1;", "HP minus takes Temp HP first")):
             ok("Temp HP: " + why, frag in art, frag)
         hp_row = art[art.index('id="hpRow"'):art.index('id="mpspRow"')]
         ok("Temp HP: the stepper is inside the HP row, not the MP/SP row", 'id="thpBox"' in hp_row)

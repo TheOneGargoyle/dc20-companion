@@ -210,7 +210,7 @@ details .inner{padding:0 12px 12px}
       <div class="small" style="text-align:center" id="hpState">Healthy</div>
     </div>
     <button onclick="chg('hp',1)">+</button>
-    <div class="thp" id="thpBox" title="Temp HP: damage comes off this first. Doesn't stack: keep the bigger grant. Gone at a Long Rest.">
+    <div class="thp" id="thpBox" title="Temp HP: HP − takes this first. Doesn't stack: keep the bigger grant. Gone at a Long Rest.">
       <div class="thplab">TEMP</div>
       <div class="thpctl"><button onclick="chg('thp',-1)">−</button><span id="thpVal">0</span><button onclick="chg('thp',1)">+</button></div>
     </div>
@@ -236,7 +236,7 @@ details .inner{padding:0 12px 12px}
     <button id="rpSpendBtn" class="wide" onclick="rpSpend(rpSel)">Heal</button>
     <button id="rpAllBtn" class="wide" onclick="rpSpend(Infinity)">All</button>
   </div>
-  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px"><span id="gritHint">Grit: reduce damage taken, or ADV on a Save. </span>Temp HP takes damage first (not HP costs), doesn’t stack, and ends at a Long Rest. Rest Points: 1 HP each on a Quick, Short or Long Rest; all return at the Half Long Rest.</div>
+  <div class="small" id="rpHint" style="text-align:center;margin:-2px 4px 6px"><span id="gritHint">Grit: reduce damage taken, or ADV on a Save. </span>HP − takes Temp HP first. Temp HP doesn’t stack and ends at a Long Rest; HP costs (Bargains, Life Tap) skip it, so tap Temp + back after paying one. Rest Points: 1 HP each on a Quick, Short or Long Rest; all return at the Half Long Rest.</div>
   <div class="small" id="rpHooks" style="margin:-2px 4px 6px"></div>
   <div class="tracker">
     <span class="name" style="width:auto;white-space:nowrap">AP avail: <b id="apNum" style="color:var(--gold)"></b></span>
@@ -606,6 +606,7 @@ function saveS(){sset('cstate_'+cur,S);}
 function pickChar(k){cur=k;sset('curchar',k);loadS();renderParty();}
 function chg(k,d){const c=CHARS[cur];
   if(k==='thp'){S.thp=Math.max(0,(S.thp||0)+d);saveS();renderParty();return;}   // Temp HP: no cap, it doesn't stack
+  if(k==='hp'&&d<0&&(S.thp||0)>0){S.thp-=1;saveS();renderParty();return;}   // damage comes off Temp HP first (Darryl's call, 2026-10-09)
   const lo=k==='hp'?-5:0;
   const hi={hp:c.hp,mp:c.mp,sp:c.sp,grit:c.grit,rp:c.hp}[k];
   S[k]=Math.max(lo,Math.min(hi,S[k]+d));saveS();renderParty();}
