@@ -185,7 +185,7 @@ Her armour spell: PD 19 → <b>21</b> while up (the sheet default). Toggle it on
 <b>Sense Magic (as played)</b> — broader than RAW at this table: senses magic generally (creatures, items, effects); adjudication loose/GM-driven, sometimes via Awareness.<br>
 <b>Beseech Patron</b> — 1/LR, enter the Inner Sanctum to seek the Spirit of Nature. Run <b>off-session</b>, insight-only, lossy memory.</div>
 <div class="card"><h3>Kit</h3>
-<b>Greatsword of the Keepers</b> (2H/Heavy/Impact — base 2 slashing; Impact: +1 on Heavy Hits) + <b>Amulet of Steadfastness</b> = <b>Guardians' Regalia</b> set (Spell Focus properties stack; the 2-pt <b>Powerful</b> focus = +1 spell dmg, Jesse-approved through Spellstrike). Longbow · Light Armour (Fortified +2 AD) · First Aid Kit (5) · Healing Balm ×1.</div>
+<b>Greatsword of the Keepers</b> (2H/Heavy/Impact — base 2 slashing; Impact: +1 on Heavy Hits) + <b>Amulet of Steadfastness</b> = <b>Guardians' Regalia</b> set (Spell Focus properties stack; the 2-pt <b>Powerful</b> focus = +1 spell dmg, Jesse-approved through Spellstrike).<br><b>Ring of Mana</b>: Highly Effective, <b>+3 max MP</b> (DC20 Magazine 02; looted from the spider nest, Arc 4 S9). It is why her MP reads 10.<br>Longbow · Light Armour (Fortified +2 AD) · First Aid Kit (5) · Healing Balm ×1.</div>
 <div class="card"><h3>Saves &amp; attributes</h3>
 Might 2 · Agility 4 · Int 3 · Cha −2 · <b>Prime 4</b>.<br>Saves: Mig +5 · Agi +7 · Int +6 · Cha +1.<br>Ancestry: Human (Attr→Might, Trade Expertise→Herbalism) · Elf (Discerning Sight, Nimble, Speed Increase).</div>
 </div></details>
@@ -219,7 +219,7 @@ Cede the social lane to Bonan (and Runt/Minimus). In skill challenges: <b>Repeat
 
 <details><summary>📈 L5 taken, L6 plan (snapshot)</summary><div class="inner">
 <div class="card">
-<b>L5 (taken, 2026-10-09 sheet):</b> CM→3, Agility→4 (Prime→4) ⇒ <b>Attack/Spell +7, Save DC 17, +2 PD</b>; MP 7, SP 4, MSL/SSL 3. Expert Spellblade (AoE Spellstrike; Acolyte MP-scaling; Bound dmg ignores Resistance). Spell: <b>Luminous Burst</b>. 4th Discipline: <b>Spell Breaker</b>. Skills: Awareness→Expert +10, Herbalism→Expert +9, Arcana/Nature→Adept +7. Respec: Meteor Strike → <b>Side Step</b> (Jesse approved).<br><br>
+<b>L5 (taken, 2026-10-09 sheet):</b> CM→3, Agility→4 (Prime→4) ⇒ <b>Attack/Spell +7, Save DC 17, +2 PD</b>; MP 7 (10 with the Ring of Mana, Arc 4 S9), SP 4, MSL/SSL 3. Expert Spellblade (AoE Spellstrike; Acolyte MP-scaling; Bound dmg ignores Resistance). Spell: <b>Luminous Burst</b>. 4th Discipline: <b>Spell Breaker</b>. Skills: Awareness→Expert +10, Herbalism→Expert +9, Arcana/Nature→Adept +7. Respec: Meteor Strike → <b>Side Step</b> (Jesse approved).<br><br>
 <b>L6:</b> Martial path (SP 5, regen 3, maneuver <b>open</b>: Side Step came early at L5). Talent: Expert MC Warlock → <b>Radiant Imbued + Bless</b>, 2nd Pact Spell (Luminous Burst), Life Tap grants ADV. Stealth→Adept +8.<br><br>
 <b>Open:</b> the L8 Talent (deliberately uncommitted). Rulings parked for Jesse: the "additional-MP" healing reading (assumed generous) and Beseech Patron sign-off.</div>
 </div></details>
