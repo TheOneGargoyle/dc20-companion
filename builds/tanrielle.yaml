@@ -138,6 +138,9 @@ equipment:
   pd: 1
   mods: 'Spell Focus; Guardians'' Regalia set (Powerful 2pt focus: +1 spell attacks, Jesse-approved through Spellstrike). +1 PD: a magic item added the Guard property to her previous ''Defensive Greatsword''; whether Guard carried over to the Keepers'' sword is an OPEN JESSE RULING (queued in 09) — the sheet''s PD assumes it did'
 - {name: Amulet of Steadfastness, mods: Spell Focus; Guardians' Regalia set}
+- name: Ring of Mana
+  mp: 3
+  mods: Highly Effective, +3 max MP (DC20 Magazine 02 magic item system). Looted Arc 4 S9, 2026-11-06
 - {name: Longbow}
 - name: Fortified Light Armour
   pd: 0
@@ -155,7 +158,7 @@ expected:   # from the L5 sheet (Level 5.zip, 2026-10-09)
   # pd 19 base; the sheet's 21 = 19 + Primal Hide 2 (same convention as L4).
   hp: 16
   sp: 4
-  mp: 7
+  mp: 10  # sheet 7 + Ring of Mana 3 (FR-49 equipment mp, Arc 4 S9)
   spells: 4
   maneuvers: 4
   grit: 0
